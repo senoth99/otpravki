@@ -1,20 +1,27 @@
 import { execFile } from "child_process";
-import { mkdir, writeFile } from "fs/promises";
+import { appendFile, mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { promisify } from "util";
 import { buildLabelHtml } from "@/lib/label-html";
+import { buildLabelText, buildLabelTspl, buildLabelZpl } from "@/lib/label-formats";
 
 const execFileAsync = promisify(execFile);
 
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
 const PRINT_DIR = path.join(DATA_DIR, "print");
+const LOG_FILE = path.join(DATA_DIR, "print", "log.txt");
 
-const VIRTUAL_PRINTER_RE = /pdf|fax|xps|onenote|save|virtual|document/i;
+const VIRTUAL_PRINTER_RE = /pdf|fax|xps|onenote|save|virtual|document|cups-pdf/i;
+const LABEL_PRINTER_RE = /zebra|zdesigner|tsc|te-|xprinter|xp-|godex|g500|barcode|label|dp-?d|ql-|hprt|4barcode/i;
 
 let cachedPrinter: string | null | undefined;
 
 function isVirtualPrinter(name: string) {
   return VIRTUAL_PRINTER_RE.test(name);
+}
+
+function isLabelPrinter(name: string) {
+  return LABEL_PRINTER_RE.test(name);
 }
 
 function parsePrinterList(output: string): string[] {
@@ -41,7 +48,32 @@ async function runLpstat(args: string[]): Promise<string | null> {
   }
 }
 
-/** Находит единственный / дефолтный принтер в CUPS */
+async function logPrint(message: string) {
+  try {
+    await mkdir(PRINT_DIR, { recursive: true });
+    await appendFile(LOG_FILE, `${new Date().toISOString()} ${message}\n`);
+  } catch {
+    // ignore log errors
+  }
+}
+
+function pickBestPrinter(printers: string[], defaultName: string | null): string | null {
+  const physical = printers.filter((p) => !isVirtualPrinter(p));
+  if (physical.length === 0) return null;
+
+  const labelPrinters = physical.filter(isLabelPrinter);
+  if (labelPrinters.length === 1) return labelPrinters[0];
+  if (labelPrinters.length > 1 && defaultName && labelPrinters.includes(defaultName)) {
+    return defaultName;
+  }
+  if (labelPrinters.length > 1) return labelPrinters[0];
+
+  if (physical.length === 1) return physical[0];
+  if (defaultName && physical.includes(defaultName)) return defaultName;
+  return physical[0];
+}
+
+/** Находит принтер в CUPS */
 export async function detectBarcodePrinter(): Promise<string | null> {
   const fromEnv = process.env.BARCODE_PRINTER?.trim();
   if (fromEnv) return fromEnv;
@@ -49,70 +81,72 @@ export async function detectBarcodePrinter(): Promise<string | null> {
   if (cachedPrinter !== undefined) return cachedPrinter;
 
   const defaultOut = await runLpstat(["-d"]);
-  if (defaultOut) {
-    const defaultPrinter = parseDefaultPrinter(defaultOut);
-    if (defaultPrinter && !isVirtualPrinter(defaultPrinter)) {
-      cachedPrinter = defaultPrinter;
-      return cachedPrinter;
-    }
-  }
-
+  const defaultName = defaultOut ? parseDefaultPrinter(defaultOut) : null;
   const listOut = await runLpstat(["-p"]);
+
   if (listOut) {
-    const printers = parsePrinterList(listOut).filter((p) => !isVirtualPrinter(p));
-    if (printers.length === 1) {
-      cachedPrinter = printers[0];
-      return cachedPrinter;
-    }
-    if (printers.length > 1) {
-      // несколько — берём дефолтный из списка или первый физический
-      const defaultName = defaultOut ? parseDefaultPrinter(defaultOut) : null;
-      if (defaultName && printers.includes(defaultName)) {
-        cachedPrinter = defaultName;
-        return cachedPrinter;
-      }
-      cachedPrinter = printers[0];
-      return cachedPrinter;
-    }
+    cachedPrinter = pickBestPrinter(parsePrinterList(listOut), defaultName);
+    return cachedPrinter;
   }
 
-  cachedPrinter = null;
-  return null;
+  cachedPrinter = defaultName && !isVirtualPrinter(defaultName) ? defaultName : null;
+  return cachedPrinter;
 }
 
-export async function isBarcodePrinterAvailable(): Promise<boolean> {
-  const printer = await detectBarcodePrinter();
-  if (printer) return true;
-
-  // lp без -d сработает, если в системе один принтер
-  try {
-    await execFileAsync("lpstat", ["-r"], { timeout: 3000 });
-    return true;
-  } catch {
-    return false;
-  }
+export interface PrintJobResult {
+  ok: boolean;
+  printer?: string | null;
+  format?: string;
+  error?: string;
 }
 
-/** Прямая печать на принтер через CUPS — без диалога и вкладок */
+async function sendToPrinter(
+  printer: string | null,
+  file: string,
+  raw: boolean,
+): Promise<void> {
+  const args = printer
+    ? raw
+      ? ["-d", printer, "-o", "raw", file]
+      : ["-d", printer, file]
+    : raw
+      ? ["-o", "raw", file]
+      : [file];
+
+  await execFileAsync("lp", args, { timeout: 15_000, env: process.env });
+}
+
+/** Прямая печать на термопринтер */
 export async function printToBarcodePrinter(
   orderNumber: string,
   barcodeData: string,
-): Promise<boolean> {
+): Promise<PrintJobResult> {
   const printer = await detectBarcodePrinter();
-
   await mkdir(PRINT_DIR, { recursive: true });
-  const file = path.join(PRINT_DIR, `label-${Date.now()}.html`);
-  await writeFile(file, buildLabelHtml(orderNumber, barcodeData), "utf-8");
 
-  try {
-    if (printer) {
-      await execFileAsync("lp", ["-d", printer, file], { timeout: 15_000 });
-    } else {
-      await execFileAsync("lp", [file], { timeout: 15_000 });
+  const attempts: { format: string; ext: string; content: string; raw: boolean }[] = [
+    { format: "zpl", ext: "zpl", content: buildLabelZpl(orderNumber, barcodeData), raw: true },
+    { format: "tspl", ext: "tspl", content: buildLabelTspl(orderNumber, barcodeData), raw: true },
+    { format: "text", ext: "txt", content: buildLabelText(orderNumber, barcodeData), raw: true },
+    { format: "html", ext: "html", content: buildLabelHtml(orderNumber, barcodeData), raw: false },
+  ];
+
+  let lastError = "Принтер не найден или CUPS не запущен";
+
+  for (const attempt of attempts) {
+    const file = path.join(PRINT_DIR, `label-${Date.now()}.${attempt.ext}`);
+    try {
+      await writeFile(file, attempt.content, "utf-8");
+      await sendToPrinter(printer, file, attempt.raw);
+      await logPrint(`OK ${attempt.format} printer=${printer ?? "default"} order=${orderNumber}`);
+      return { ok: true, printer, format: attempt.format };
+    } catch (error) {
+      lastError =
+        error instanceof Error ? error.message : `Ошибка печати (${attempt.format})`;
+      await logPrint(`FAIL ${attempt.format} printer=${printer ?? "default"} ${lastError}`);
     }
-    return true;
-  } catch {
-    cachedPrinter = undefined;
-    return false;
   }
+
+  cachedPrinter = undefined;
+  return { ok: false, printer, error: lastError };
 }

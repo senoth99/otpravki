@@ -21,19 +21,38 @@ export async function POST(request: Request) {
     };
 
     if (!body.orderNumber || !body.barcodeData) {
-      return NextResponse.json({ ok: false, reason: "invalid_payload" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, reason: "invalid_payload", message: "Некорректные данные заказа" },
+        { status: 400 },
+      );
     }
 
-    const printer = await detectBarcodePrinter();
-    const printed = await printToBarcodePrinter(body.orderNumber, body.barcodeData);
-    if (!printed) {
-      return NextResponse.json({ ok: false, reason: "print_failed" }, { status: 500 });
+    const result = await printToBarcodePrinter(body.orderNumber, body.barcodeData);
+    if (!result.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          reason: "print_failed",
+          message: result.error ?? "Не удалось напечатать",
+          printer: result.printer ?? null,
+        },
+        { status: 500 },
+      );
     }
 
-    return NextResponse.json({ ok: true, method: "server", printer });
+    return NextResponse.json({
+      ok: true,
+      method: "server",
+      printer: result.printer,
+      format: result.format,
+    });
   } catch (error) {
     return NextResponse.json(
-      { ok: false, reason: error instanceof Error ? error.message : "print_error" },
+      {
+        ok: false,
+        reason: "print_error",
+        message: error instanceof Error ? error.message : "Ошибка печати",
+      },
       { status: 500 },
     );
   }

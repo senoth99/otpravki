@@ -54,6 +54,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
   const [scannerOpen, setScannerOpen] = useState(false);
   const [printModalOpen, setPrintModalOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [printError, setPrintError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<CountdownState | null>(null);
   const autoHandledRef = useRef<string | null>(null);
 
@@ -203,19 +204,26 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     const shippedNumber = currentOrder.orderNumber;
     const shippedIndex = currentIndex;
 
-    void printOrderBarcode(shippedNumber, shippedNumber);
+    void (async () => {
+      const result = await printOrderBarcode(shippedNumber, shippedNumber);
+      if (!result.ok) {
+        autoHandledRef.current = null;
+        setPrintError(result.message ?? "Не удалось напечатать баркод");
+        return;
+      }
 
-    onOrdersChange((prev) => {
-      const updated = prev.map((order, idx) =>
-        idx === shippedIndex
-          ? { ...order, barcodePrinted: true, barcodePrintedAt: Date.now() }
-          : order,
-      );
-      const nextStatuses = updated.map((o) => getOrderDisplayStatus(o, assemblyItems));
-      const hasNext = findFirstAutoOrderIndex(updated, nextStatuses) !== null;
-      setCountdown({ orderNumber: shippedNumber, secondsLeft: 5, hasNext });
-      return updated;
-    });
+      onOrdersChange((prev) => {
+        const updated = prev.map((order, idx) =>
+          idx === shippedIndex
+            ? { ...order, barcodePrinted: true, barcodePrintedAt: Date.now() }
+            : order,
+        );
+        const nextStatuses = updated.map((o) => getOrderDisplayStatus(o, assemblyItems));
+        const hasNext = findFirstAutoOrderIndex(updated, nextStatuses) !== null;
+        setCountdown({ orderNumber: shippedNumber, secondsLeft: 5, hasNext });
+        return updated;
+      });
+    })();
   }, [
     allScanned,
     assemblyItems,
@@ -413,6 +421,14 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
       )}
 
       {scanError && <ScanErrorPopup message={scanError} onClose={() => setScanError(null)} />}
+
+      {printError && (
+        <ScanErrorPopup
+          title="Ошибка печати"
+          message={printError}
+          onClose={() => setPrintError(null)}
+        />
+      )}
 
       {printModalOpen && (
         <BarcodePrintModal

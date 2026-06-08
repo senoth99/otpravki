@@ -2,10 +2,11 @@
 
 interface ScanErrorPopupProps {
   message: string;
+  title?: string;
   onClose: () => void;
 }
 
-export function ScanErrorPopup({ message, onClose }: ScanErrorPopupProps) {
+export function ScanErrorPopup({ message, title = "Ошибка сканирования", onClose }: ScanErrorPopupProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 sm:items-center sm:p-4">
       <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl safe-bottom sm:p-6">
@@ -14,7 +15,7 @@ export function ScanErrorPopup({ message, onClose }: ScanErrorPopupProps) {
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </div>
-        <h3 className="text-center text-lg font-semibold text-gray-900">Ошибка сканирования</h3>
+        <h3 className="text-center text-lg font-semibold text-gray-900">{title}</h3>
         <p className="mt-2 text-center text-sm text-gray-600">{message}</p>
         <button
           type="button"

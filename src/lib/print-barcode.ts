@@ -1,18 +1,40 @@
-/** Только серверная печать — принтер ищется автоматически через CUPS */
+export interface PrintResult {
+  ok: boolean;
+  message?: string;
+  printer?: string | null;
+}
+
+/** Серверная печать на баркод-принтер через CUPS */
 export async function printOrderBarcode(
   orderNumber: string,
   barcodeData: string,
-): Promise<boolean> {
+): Promise<PrintResult> {
   try {
     const res = await fetch("/api/print", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ orderNumber, barcodeData }),
     });
-    if (!res.ok) return false;
-    const data = (await res.json()) as { ok?: boolean };
-    return Boolean(data.ok);
+
+    const data = (await res.json()) as {
+      ok?: boolean;
+      message?: string;
+      printer?: string | null;
+    };
+
+    if (!res.ok || !data.ok) {
+      return {
+        ok: false,
+        message: data.message ?? "Принтер не ответил — проверь USB и CUPS на сервере",
+        printer: data.printer,
+      };
+    }
+
+    return { ok: true, printer: data.printer };
   } catch {
-    return false;
+    return {
+      ok: false,
+      message: "Нет связи с сервером печати",
+    };
   }
 }

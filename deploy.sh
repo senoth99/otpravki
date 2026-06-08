@@ -50,6 +50,8 @@ if ! command -v lp &>/dev/null; then
   echo "==> Устанавливаю CUPS для печати..."
   as_root apt-get install -y cups cups-client
 fi
+as_root systemctl enable cups 2>/dev/null || true
+as_root systemctl start cups 2>/dev/null || true
 
 echo "==> Устанавливаю зависимости..."
 npm ci
@@ -100,6 +102,7 @@ Environment=NODE_ENV=production
 Environment=PORT=${PORT}
 Environment=HOSTNAME=0.0.0.0
 Environment=DATA_DIR=${DATA_DIR}
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 EnvironmentFile=-${APP_DIR}/.env
 ExecStart=/usr/bin/env node server.js
 Restart=on-failure

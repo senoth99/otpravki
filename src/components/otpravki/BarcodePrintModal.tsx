@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { printOrderBarcode } from "@/lib/print-barcode";
 
 interface BarcodePrintModalProps {
@@ -15,8 +16,18 @@ export function BarcodePrintModal({
   onClose,
   onPrinted,
 }: BarcodePrintModalProps) {
+  const [error, setError] = useState<string | null>(null);
+  const [printing, setPrinting] = useState(false);
+
   const handlePrint = async () => {
-    await printOrderBarcode(orderNumber, barcodeData);
+    setPrinting(true);
+    setError(null);
+    const result = await printOrderBarcode(orderNumber, barcodeData);
+    setPrinting(false);
+    if (!result.ok) {
+      setError(result.message ?? "Не удалось напечатать");
+      return;
+    }
     onPrinted();
   };
 
@@ -33,20 +44,28 @@ export function BarcodePrintModal({
           <p className="mt-2 text-xs text-gray-500">CASHER COLLECTION</p>
         </div>
 
+        {error && (
+          <p className="mb-4 rounded-xl bg-red-50 px-3 py-2 text-center text-sm text-red-700">
+            {error}
+          </p>
+        )}
+
         <div className="flex gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-xl border border-gray-200 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            disabled={printing}
+            className="flex-1 rounded-xl border border-gray-200 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
             Отмена
           </button>
           <button
             type="button"
             onClick={handlePrint}
-            className="flex-1 rounded-xl bg-gray-900 py-3 text-sm font-medium text-white hover:bg-gray-800"
+            disabled={printing}
+            className="flex-1 rounded-xl bg-gray-900 py-3 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
           >
-            Печать
+            {printing ? "Печать…" : "Печать"}
           </button>
         </div>
       </div>
