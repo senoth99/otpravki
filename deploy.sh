@@ -172,6 +172,9 @@ Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=USE_MOCK_ORDERS=${USE_MOCK_ORDERS_VALUE}
 Environment=ORDERS_API_URL=${ORDERS_API_URL_VALUE}
 Environment=CASHER_API_KEY=${CASHER_API_KEY_VALUE}
+Environment=BARCODE_LABEL_WIDTH_MM=${BARCODE_LABEL_WIDTH_MM:-100}
+Environment=BARCODE_LABEL_HEIGHT_MM=${BARCODE_LABEL_HEIGHT_MM:-150}
+Environment=BARCODE_LABEL_DPI=${BARCODE_LABEL_DPI:-203}
 EnvironmentFile=-${APP_DIR}/.env
 ExecStart=/usr/bin/env node server.js
 Restart=on-failure
