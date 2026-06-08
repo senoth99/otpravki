@@ -46,13 +46,19 @@ export async function getSharedWorkspace(): Promise<SharedWorkspaceState | null>
   return memoryState;
 }
 
-export async function initSharedWorkspace(
+function isStaleMockWorkspace(
+  existing: SharedWorkspaceState,
+  resetToken: string | null,
+): boolean {
+  if (!resetToken) return false;
+  return existing.resetToken !== resetToken;
+}
+
+export async function resetSharedWorkspace(
   assemblyItems: AssemblyItem[],
   orders: ShippingOrder[],
+  resetToken?: string,
 ): Promise<SharedWorkspaceState> {
-  const existing = await getSharedWorkspace();
-  if (existing) return existing;
-
   const state: SharedWorkspaceState = {
     version: 1,
     revision: 1,
@@ -60,11 +66,26 @@ export async function initSharedWorkspace(
     orders,
     updatedAt: Date.now(),
     updatedBy: "server",
+    resetToken,
   };
 
   memoryState = state;
   await writeToDisk(state);
+  broadcast(state);
   return state;
+}
+
+export async function initSharedWorkspace(
+  assemblyItems: AssemblyItem[],
+  orders: ShippingOrder[],
+  resetToken?: string,
+): Promise<SharedWorkspaceState> {
+  const existing = await getSharedWorkspace();
+  if (existing && !isStaleMockWorkspace(existing, resetToken ?? null)) {
+    return existing;
+  }
+
+  return resetSharedWorkspace(assemblyItems, orders, resetToken);
 }
 
 export async function applyWorkspaceUpdate(

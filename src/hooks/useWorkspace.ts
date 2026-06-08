@@ -13,6 +13,7 @@ import {
   pushWorkspace,
   saveWorkspace,
   subscribeWorkspaceStream,
+  syncResetToken,
 } from "@/lib/workspace";
 
 interface UseWorkspaceOptions {
@@ -100,8 +101,12 @@ export function useWorkspace({ initialAssembly, initialOrders }: UseWorkspaceOpt
 
   useEffect(() => {
     const bootstrap = async () => {
-      const local = loadWorkspace();
       const remote = await fetchSharedWorkspace();
+      if (remote?.resetToken) {
+        syncResetToken(remote.resetToken);
+      }
+
+      const local = loadWorkspace();
 
       if (remote) {
         const base = local ?? createWorkspace(initialAssembly, initialOrders);

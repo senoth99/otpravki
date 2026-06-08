@@ -46,6 +46,21 @@ source .env
 set +a
 PORT="${PORT:-3000}"
 
+reset_mock_workspace() {
+  if [[ "${USE_MOCK_ORDERS:-true}" == "false" ]]; then
+    return
+  fi
+
+  mkdir -p "$DATA_DIR/workspace"
+  local token
+  token="$(git -C "$APP_DIR" rev-parse --short HEAD 2>/dev/null || date +%s)"
+  echo "$token" > "$DATA_DIR/workspace/reset-token"
+  rm -f "$DATA_DIR/workspace/state.json"
+  echo "==> Сброс мок-состояния ($token)"
+}
+
+reset_mock_workspace
+
 if ! command -v lp &>/dev/null; then
   echo "==> Устанавливаю CUPS для печати..."
   as_root apt-get install -y cups cups-client

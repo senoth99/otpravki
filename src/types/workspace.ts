@@ -10,4 +10,6 @@ export interface WorkspaceState {
 export interface SharedWorkspaceState extends WorkspaceState {
   revision: number;
   updatedBy?: string;
+  /** Меняется при деплое в мок-режиме — клиент сбрасывает localStorage */
+  resetToken?: string;
 }

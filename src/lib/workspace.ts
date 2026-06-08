@@ -5,6 +5,7 @@ import { mergeWorkspaces } from "@/lib/workspace-merge";
 const WORKSPACE_KEY = "otpravki-workspace-v1";
 const SYNC_QUEUE_KEY = "otpravki-sync-queue-v1";
 const CLIENT_ID_KEY = "otpravki-client-id";
+const RESET_TOKEN_KEY = "otpravki-reset-token";
 
 export type { WorkspaceState, SharedWorkspaceState };
 
@@ -31,6 +32,22 @@ export function loadWorkspace(): WorkspaceState | null {
 
 export function saveWorkspace(state: WorkspaceState) {
   localStorage.setItem(WORKSPACE_KEY, JSON.stringify(state));
+}
+
+export function clearLocalWorkspace() {
+  localStorage.removeItem(WORKSPACE_KEY);
+  localStorage.removeItem(SYNC_QUEUE_KEY);
+}
+
+export function syncResetToken(serverToken: string | undefined) {
+  if (!serverToken) return false;
+
+  const localToken = localStorage.getItem(RESET_TOKEN_KEY);
+  if (localToken === serverToken) return false;
+
+  clearLocalWorkspace();
+  localStorage.setItem(RESET_TOKEN_KEY, serverToken);
+  return true;
 }
 
 export function enqueueSync(workspace: WorkspaceState) {
