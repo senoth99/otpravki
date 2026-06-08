@@ -1,0 +1,180 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
+import type { SharedWorkspaceState } from "@/types/workspace";
+import {
+  applySharedWorkspace,
+  createWorkspace,
+  fetchSharedWorkspace,
+  flushSyncQueue,
+  getPendingSyncCount,
+  loadWorkspace,
+  pushWorkspace,
+  saveWorkspace,
+  subscribeWorkspaceStream,
+} from "@/lib/workspace";
+
+interface UseWorkspaceOptions {
+  initialAssembly: AssemblyItem[];
+  initialOrders: ShippingOrder[];
+}
+
+export function useWorkspace({ initialAssembly, initialOrders }: UseWorkspaceOptions) {
+  const hydrated = useRef(false);
+  const revisionRef = useRef(0);
+  const applyingRemote = useRef(false);
+  const assemblyRef = useRef(initialAssembly);
+  const ordersRef = useRef(initialOrders);
+
+  const [assemblyItems, setAssemblyItems] = useState(initialAssembly);
+  const [orders, setOrders] = useState(initialOrders);
+  const [isOnline, setIsOnline] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [pendingSync, setPendingSync] = useState(0);
+  const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
+
+  assemblyRef.current = assemblyItems;
+  ordersRef.current = orders;
+
+  const applyRemote = useCallback((remote: SharedWorkspaceState) => {
+    if (remote.revision <= revisionRef.current) return;
+
+    applyingRemote.current = true;
+    revisionRef.current = remote.revision;
+
+    const local = createWorkspace(assemblyRef.current, ordersRef.current);
+    const merged = applySharedWorkspace(local, remote);
+
+    setAssemblyItems(merged.assemblyItems);
+    setOrders(merged.orders);
+    saveWorkspace(merged);
+
+    applyingRemote.current = false;
+    setLastSyncAt(Date.now());
+    setPendingSync(getPendingSyncCount());
+  }, []);
+
+  const pushToServer = useCallback(async (workspace: ReturnType<typeof createWorkspace>) => {
+    if (!navigator.onLine) {
+      setPendingSync(getPendingSyncCount());
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      const result = await pushWorkspace(workspace);
+      if (result.workspace) {
+        revisionRef.current = result.workspace.revision;
+        setLastSyncAt(Date.now());
+      }
+      setPendingSync(getPendingSyncCount());
+    } finally {
+      setIsSyncing(false);
+    }
+  }, []);
+
+  const persist = useCallback(
+    (assembly: AssemblyItem[], ords: ShippingOrder[]) => {
+      if (applyingRemote.current) return;
+
+      const workspace = createWorkspace(assembly, ords);
+      saveWorkspace(workspace);
+      void pushToServer(workspace);
+    },
+    [pushToServer],
+  );
+
+  const runSync = useCallback(async () => {
+    if (!navigator.onLine) return { synced: 0, failed: 0 };
+    setIsSyncing(true);
+    try {
+      const result = await flushSyncQueue();
+      setPendingSync(getPendingSyncCount());
+      if (result.synced > 0) setLastSyncAt(Date.now());
+      return result;
+    } finally {
+      setIsSyncing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const bootstrap = async () => {
+      const local = loadWorkspace();
+      const remote = await fetchSharedWorkspace();
+
+      if (remote) {
+        const base = local ?? createWorkspace(initialAssembly, initialOrders);
+        const merged = applySharedWorkspace(base, remote);
+        revisionRef.current = merged.revision;
+        setAssemblyItems(merged.assemblyItems);
+        setOrders(merged.orders);
+        saveWorkspace(merged);
+      } else if (local) {
+        setAssemblyItems(local.assemblyItems);
+        setOrders(local.orders);
+        void pushToServer(local);
+      }
+
+      hydrated.current = true;
+      setPendingSync(getPendingSyncCount());
+      setIsOnline(navigator.onLine);
+      void runSync();
+    };
+
+    void bootstrap();
+  }, [initialAssembly, initialOrders, pushToServer, runSync]);
+
+  useEffect(() => {
+    return subscribeWorkspaceStream((workspace) => {
+      applyRemote(workspace);
+    });
+  }, [applyRemote]);
+
+  useEffect(() => {
+    const onOnline = () => {
+      setIsOnline(true);
+      void runSync();
+    };
+    const onOffline = () => setIsOnline(false);
+
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, [runSync]);
+
+  const updateAssembly = useCallback(
+    (items: AssemblyItem[]) => {
+      setAssemblyItems(items);
+      if (hydrated.current) persist(items, ordersRef.current);
+    },
+    [persist],
+  );
+
+  const updateOrders = useCallback(
+    (next: ShippingOrder[] | ((prev: ShippingOrder[]) => ShippingOrder[])) => {
+      setOrders((prev) => {
+        const resolved = typeof next === "function" ? next(prev) : next;
+        if (hydrated.current) persist(assemblyRef.current, resolved);
+        return resolved;
+      });
+    },
+    [persist],
+  );
+
+  return {
+    assemblyItems,
+    orders,
+    updateAssembly,
+    updateOrders,
+    isOnline,
+    isSyncing,
+    pendingSync,
+    lastSyncAt,
+    syncNow: runSync,
+  };
+}
