@@ -8,6 +8,8 @@ const execFileAsync = promisify(execFile);
 const RENDER_DPI = Number(process.env.BARCODE_LABEL_DPI ?? 203);
 const LABEL_WIDTH_MM = Number(process.env.BARCODE_LABEL_WIDTH_MM ?? 100);
 const LABEL_HEIGHT_MM = Number(process.env.BARCODE_LABEL_HEIGHT_MM ?? 150);
+const LABEL_SCALE = Number(process.env.BARCODE_LABEL_SCALE ?? 0.5);
+const LABEL_ROTATION = Number(process.env.BARCODE_LABEL_ROTATION ?? 180);
 
 function labelWidthPoints(): number {
   return Math.round((LABEL_WIDTH_MM / 25.4) * 72);
@@ -92,7 +94,7 @@ export function parsePbmP4(buffer: Buffer): {
   const widthBytes = Math.ceil(widthBits / 8);
   const expected = widthBytes * height;
 
-  const bitmap = buffer.subarray(offset, offset + expected);
+  const bitmap = Buffer.from(buffer.subarray(offset, offset + expected));
   if (bitmap.length < expected) {
     throw new Error("PBM обрезан");
   }
@@ -100,7 +102,29 @@ export function parsePbmP4(buffer: Buffer): {
   return { widthBits, height, widthBytes, bitmap };
 }
 
-/** PBM и TSPL используют противоположную полярность битов */
+type Raster = {
+  bitmap: Buffer;
+  widthBits: number;
+  height: number;
+  widthBytes: number;
+};
+
+function getBit(bitmap: Buffer, widthBytes: number, x: number, y: number): boolean {
+  const byteIndex = y * widthBytes + Math.floor(x / 8);
+  const bitIndex = 7 - (x % 8);
+  return (bitmap[byteIndex] & (1 << bitIndex)) !== 0;
+}
+
+function setBit(bitmap: Buffer, widthBytes: number, x: number, y: number, on: boolean) {
+  const byteIndex = y * widthBytes + Math.floor(x / 8);
+  const bitIndex = 7 - (x % 8);
+  if (on) {
+    bitmap[byteIndex] |= 1 << bitIndex;
+  } else {
+    bitmap[byteIndex] &= ~(1 << bitIndex);
+  }
+}
+
 function invertBitmap(data: Buffer): Buffer {
   const out = Buffer.alloc(data.length);
   for (let i = 0; i < data.length; i++) {
@@ -109,7 +133,99 @@ function invertBitmap(data: Buffer): Buffer {
   return out;
 }
 
-export function buildTsplLabel(widthBytes: number, height: number, bitmap: Buffer): Buffer {
+function scaleBitmap(raster: Raster, factor: number): Raster {
+  const newW = Math.max(8, Math.round(raster.widthBits * factor));
+  const newH = Math.max(8, Math.round(raster.height * factor));
+  const newWB = Math.ceil(newW / 8);
+  const out = Buffer.alloc(newWB * newH);
+
+  for (let y = 0; y < newH; y++) {
+    for (let x = 0; x < newW; x++) {
+      const sx = Math.min(raster.widthBits - 1, Math.floor(x / factor));
+      const sy = Math.min(raster.height - 1, Math.floor(y / factor));
+      if (getBit(raster.bitmap, raster.widthBytes, sx, sy)) {
+        setBit(out, newWB, x, y, true);
+      }
+    }
+  }
+
+  return { bitmap: out, widthBits: newW, height: newH, widthBytes: newWB };
+}
+
+function rotateBitmap(raster: Raster, degrees: number): Raster {
+  const normalized = ((degrees % 360) + 360) % 360;
+  if (normalized === 0) return raster;
+
+  const { widthBits: w, height: h, widthBytes: wb, bitmap } = raster;
+
+  if (normalized === 180) {
+    const out = Buffer.alloc(bitmap.length);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (getBit(bitmap, wb, x, y)) {
+          setBit(out, wb, w - 1 - x, h - 1 - y, true);
+        }
+      }
+    }
+    return { bitmap: out, widthBits: w, height: h, widthBytes: wb };
+  }
+
+  const newW = normalized === 90 || normalized === 270 ? h : w;
+  const newH = normalized === 90 || normalized === 270 ? w : h;
+  const newWB = Math.ceil(newW / 8);
+  const out = Buffer.alloc(newWB * newH);
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!getBit(bitmap, wb, x, y)) continue;
+
+      let nx = x;
+      let ny = y;
+      if (normalized === 90) {
+        nx = h - 1 - y;
+        ny = x;
+      } else if (normalized === 270) {
+        nx = y;
+        ny = w - 1 - x;
+      }
+
+      setBit(out, newWB, nx, ny, true);
+    }
+  }
+
+  return { bitmap: out, widthBits: newW, height: newH, widthBytes: newWB };
+}
+
+function prepareRaster(
+  raster: Raster,
+  invert: boolean,
+): Raster & { offsetX: number; offsetY: number } {
+  let prepared: Raster = {
+    ...raster,
+    bitmap: invert ? invertBitmap(raster.bitmap) : Buffer.from(raster.bitmap),
+  };
+
+  if (LABEL_SCALE > 0 && LABEL_SCALE !== 1) {
+    prepared = scaleBitmap(prepared, LABEL_SCALE);
+  }
+
+  if (LABEL_ROTATION !== 0) {
+    prepared = rotateBitmap(prepared, LABEL_ROTATION);
+  }
+
+  const offsetX = Math.max(0, Math.round((labelWidthPx() - prepared.widthBits) / 2));
+  const offsetY = Math.max(0, Math.round((labelHeightPx() - prepared.height) / 2));
+
+  return { ...prepared, offsetX, offsetY };
+}
+
+export function buildTsplLabel(
+  offsetX: number,
+  offsetY: number,
+  widthBytes: number,
+  height: number,
+  bitmap: Buffer,
+): Buffer {
   const header = [
     `SIZE ${LABEL_WIDTH_MM} mm,${LABEL_HEIGHT_MM} mm`,
     "GAP 2 mm,0",
@@ -118,7 +234,7 @@ export function buildTsplLabel(widthBytes: number, height: number, bitmap: Buffe
     "CLS",
   ].join("\r\n");
 
-  const bitmapCmd = `BITMAP 0,0,${widthBytes},${height},0,`;
+  const bitmapCmd = `BITMAP ${offsetX},${offsetY},${widthBytes},${height},0,`;
   const footer = "\r\nPRINT 1\r\n";
 
   return Buffer.concat([
@@ -168,10 +284,17 @@ export async function printTsplLabel(
 
   await renderPdfToPbm(pdfPath, pbmPath);
   const pbm = await readFile(pbmPath);
-  const { widthBytes, height, bitmap } = parsePbmP4(pbm);
+  const parsed = parsePbmP4(pbm);
   const shouldInvert = process.env.BARCODE_INVERT_BITMAP !== "false";
-  const raster = shouldInvert ? invertBitmap(bitmap) : bitmap;
-  const tspl = buildTsplLabel(widthBytes, height, raster);
+  const raster = prepareRaster(parsed, shouldInvert);
+
+  const tspl = buildTsplLabel(
+    raster.offsetX,
+    raster.offsetY,
+    raster.widthBytes,
+    raster.height,
+    raster.bitmap,
+  );
   await writeFile(tsplPath, tspl);
 
   const usb = await resolveUsbDevice();
