@@ -105,31 +105,6 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     autoHandledRef.current = null;
   }, []);
 
-  const runOrderPrint = useCallback(
-    async (order: ShippingOrder, orderIndex: number) => {
-      const result = await printOrderBarcode(order.orderNumber, {
-        orderId: order.id,
-        barcodeUrl: order.barcodeUrl,
-      });
-
-      if (!result.ok) {
-        return { ok: false as const, message: result.message ?? "Не удалось напечатать баркод" };
-      }
-
-      onOrdersChange((prev) => {
-        const updated = prev.map((item, idx) =>
-          idx === orderIndex
-            ? { ...item, barcodePrinted: true, barcodePrintedAt: Date.now() }
-            : item,
-        );
-        return updated;
-      });
-
-      return { ok: true as const };
-    },
-    [onOrdersChange],
-  );
-
   const handleAutoModeToggle = useCallback(() => {
     if (autoMode) {
       exitAutoMode();
@@ -250,35 +225,40 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     autoHandledRef.current = currentOrder.id;
     const shippedNumber = currentOrder.orderNumber;
     const shippedIndex = currentIndex;
+    const shippedAt = Date.now();
+
+    const updatedOrders = orders.map((order, idx) =>
+      idx === shippedIndex
+        ? { ...order, barcodePrinted: true, barcodePrintedAt: shippedAt }
+        : order,
+    );
+    const nextStatuses = updatedOrders.map((order) =>
+      getOrderDisplayStatus(order, assemblyItems),
+    );
+    const hasNext = findFirstAutoOrderIndex(updatedOrders, nextStatuses) !== null;
+
+    onOrdersChange(updatedOrders);
+    setViewingShippedId(currentOrder.id);
+    setCountdown({ orderNumber: shippedNumber, secondsLeft: 5, hasNext });
 
     void (async () => {
-      const result = await runOrderPrint(currentOrder, shippedIndex);
-      if (!result.ok) {
-        autoHandledRef.current = null;
-        setPrintError(result.message);
-        return;
-      }
+      const result = await printOrderBarcode(shippedNumber, {
+        orderId: currentOrder.id,
+        barcodeUrl: currentOrder.barcodeUrl,
+      });
+      if (result.ok) return;
 
-      const nextStatuses = orders.map((order, idx) =>
-        idx === shippedIndex
-          ? getOrderDisplayStatus(
-              { ...order, barcodePrinted: true, barcodePrintedAt: Date.now() },
-              assemblyItems,
-            )
-          : orderStatuses[idx],
+      autoHandledRef.current = null;
+      setCountdown(null);
+      setViewingShippedId(null);
+      onOrdersChange((prev) =>
+        prev.map((order, idx) =>
+          idx === shippedIndex
+            ? { ...order, barcodePrinted: false, barcodePrintedAt: undefined }
+            : order,
+        ),
       );
-      const hasNext =
-        findFirstAutoOrderIndex(
-          orders.map((order, idx) =>
-            idx === shippedIndex
-              ? { ...order, barcodePrinted: true, barcodePrintedAt: Date.now() }
-              : order,
-          ),
-          nextStatuses,
-        ) !== null;
-
-      setViewingShippedId(currentOrder.id);
-      setCountdown({ orderNumber: shippedNumber, secondsLeft: 5, hasNext });
+      setPrintError(result.message ?? "Не удалось напечатать баркод");
     })();
   }, [
     allScanned,
@@ -289,9 +269,8 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     countdown,
     currentIndex,
     currentOrder,
-    orderStatuses,
+    onOrdersChange,
     orders,
-    runOrderPrint,
   ]);
 
   const retryAutoPrint = useCallback(() => {
