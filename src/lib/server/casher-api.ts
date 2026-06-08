@@ -3,8 +3,21 @@ export const ORDERS_API_BASE =
   process.env.CASHER_API_URL?.replace(/\/$/, "") ??
   "https://api.stage.cashercollection.com";
 
+function sanitizeApiKey(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  const trimmed = raw.trim().replace(/^['"]|['"]$/g, "");
+  return trimmed || undefined;
+}
+
+/** Квадратные скобки — чтобы Next.js не «запекал» пустое значение при сборке */
 export function getCasherApiKey(): string | undefined {
-  return process.env.CASHER_API_KEY?.trim() || process.env.api?.trim() || undefined;
+  const env = process.env as Record<string, string | undefined>;
+  return (
+    sanitizeApiKey(env.CASHER_API_KEY) ??
+    sanitizeApiKey(env.api) ??
+    sanitizeApiKey(env.API) ??
+    undefined
+  );
 }
 
 export function casherAuthHeaders(): HeadersInit {

@@ -142,6 +142,14 @@ cp -r .next/static .next/standalone/.next/static
 UNIT_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 echo "==> Настраиваю systemd ($SERVICE_NAME)..."
 
+CASHER_API_KEY_VALUE="${CASHER_API_KEY:-${api:-}}"
+ORDERS_API_URL_VALUE="${ORDERS_API_URL:-https://api.stage.cashercollection.com}"
+USE_MOCK_ORDERS_VALUE="${USE_MOCK_ORDERS:-false}"
+
+if [[ "${USE_MOCK_ORDERS_VALUE}" == "false" && -z "${CASHER_API_KEY_VALUE}" ]]; then
+  echo "    ⚠️  CASHER_API_KEY не задан в .env — API заказов вернёт 401"
+fi
+
 as_root tee "$UNIT_FILE" > /dev/null <<EOF
 [Unit]
 Description=Otpravki — сборка и отправка заказов
@@ -158,6 +166,9 @@ Environment=PORT=${PORT}
 Environment=HOSTNAME=0.0.0.0
 Environment=DATA_DIR=${DATA_DIR}
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=USE_MOCK_ORDERS=${USE_MOCK_ORDERS_VALUE}
+Environment=ORDERS_API_URL=${ORDERS_API_URL_VALUE}
+Environment=CASHER_API_KEY=${CASHER_API_KEY_VALUE}
 EnvironmentFile=-${APP_DIR}/.env
 ExecStart=/usr/bin/env node server.js
 Restart=on-failure

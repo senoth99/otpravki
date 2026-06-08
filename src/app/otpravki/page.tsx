@@ -50,7 +50,7 @@ export default async function OtpravkiPage() {
     return (
       <EmptyState
         title="Не удалось загрузить заказы"
-        hint={`${message}. Проверь api= в .env и перезапусти сервис.`}
+        hint={`${message}. Проверь CASHER_API_KEY в .env и: sudo systemctl restart otpravki`}
       />
     );
   }

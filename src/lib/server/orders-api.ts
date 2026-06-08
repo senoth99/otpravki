@@ -19,6 +19,11 @@ export async function fetchUnshippedOrders(): Promise<ApiUnshippedOrder[]> {
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
+    if (res.status === 401) {
+      throw new Error(
+        "Неверный API-ключ (401). Проверь CASHER_API_KEY в .env и перезапусти: sudo systemctl restart otpravki",
+      );
+    }
     throw new Error(`API заказов: ${res.status}${body ? ` — ${body.slice(0, 200)}` : ""}`);
   }
 
