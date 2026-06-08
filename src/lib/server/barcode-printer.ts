@@ -14,7 +14,7 @@ const PRINT_DIR = path.join(DATA_DIR, "print");
 const LOG_FILE = path.join(DATA_DIR, "print", "log.txt");
 
 const VIRTUAL_PRINTER_RE = /pdf|fax|xps|onenote|save|virtual|document|cups-pdf/i;
-const LABEL_PRINTER_RE = /zebra|zdesigner|tsc|te-|xprinter|xp-|godex|g500|barcode|label|dp-?d|ql-|hprt|4barcode/i;
+const LABEL_PRINTER_RE = /zebra|zdesigner|tsc|te-|xprinter|xp-|godex|g500|barcode|label|dp-?d|ql-|hprt|4barcode|thermal|hotlabel|munbyn|polono|knaon/i;
 
 let cachedPrinter: string | null | undefined;
 
