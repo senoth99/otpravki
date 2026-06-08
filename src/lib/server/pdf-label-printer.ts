@@ -2,6 +2,7 @@ import { execFile } from "child_process";
 import { rename, stat, writeFile } from "fs/promises";
 import path from "path";
 import { promisify } from "util";
+import { printTsplLabel } from "@/lib/server/tspl-label-printer";
 
 const execFileAsync = promisify(execFile);
 
@@ -54,7 +55,6 @@ async function fileHasContent(filePath: string, minBytes = 500): Promise<boolean
   }
 }
 
-/** PDF → PNG 100×150 мм, вписать страницу целиком */
 async function renderWithGhostscript(pdfPath: string, pngPath: string): Promise<boolean> {
   if (!(await commandExists("gs"))) return false;
 
@@ -117,13 +117,7 @@ async function renderWithPdftoppm(pdfPath: string, pngPath: string): Promise<voi
 async function renderPdfToPng(pdfPath: string, pngPath: string): Promise<void> {
   const gsOk = await renderWithGhostscript(pdfPath, pngPath);
   if (!gsOk) {
-    try {
-      await renderWithPdftoppm(pdfPath, pngPath);
-    } catch {
-      throw new Error(
-        "Не удалось отрендерить PDF. На сервере: apt install poppler-utils ghostscript",
-      );
-    }
+    await renderWithPdftoppm(pdfPath, pngPath);
   }
 }
 
@@ -145,13 +139,15 @@ const LABEL_LP_OPTS = [
   [],
 ];
 
-/** Печать PDF-этикетки 100×150 мм (СДЭК barcodeUrl) */
+export type LabelPrintFormat = "tspl" | "pdf" | "png";
+
+/** Печать этикетки 100×150: TSPL raw → PDF → PNG */
 export async function printPdfLabel(
   printer: string,
   pdf: Buffer,
   workDir: string,
   stamp: string,
-): Promise<"png" | "pdf"> {
+): Promise<LabelPrintFormat> {
   assertPdfBuffer(pdf);
 
   const pdfPath = path.join(workDir, `label-${stamp}.pdf`);
@@ -160,10 +156,15 @@ export async function printPdfLabel(
 
   let lastError: Error | null = null;
 
-  for (const opts of [
-    ...LABEL_LP_OPTS,
-    ["-o", "pdfAutoRotate=off", "-o", `media=${labelMediaOption()}`, "-o", "fit-to-page"],
-  ]) {
+  try {
+    await printTsplLabel(printer, pdfPath, workDir, stamp);
+    await sleep(POST_SPOOL_MS);
+    return "tspl";
+  } catch (error) {
+    lastError = error instanceof Error ? error : new Error("tspl failed");
+  }
+
+  for (const opts of LABEL_LP_OPTS) {
     try {
       await runLp(printer, pdfPath, opts);
       await sleep(POST_SPOOL_MS);
@@ -175,18 +176,17 @@ export async function printPdfLabel(
 
   try {
     await renderPdfToPng(pdfPath, pngPath);
-  } catch (error) {
-    throw lastError ?? (error instanceof Error ? error : new Error("render failed"));
-  }
-
-  for (const opts of LABEL_LP_OPTS) {
-    try {
-      await runLp(printer, pngPath, opts);
-      await sleep(POST_SPOOL_MS);
-      return "png";
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error("lp png failed");
+    for (const opts of LABEL_LP_OPTS) {
+      try {
+        await runLp(printer, pngPath, opts);
+        await sleep(POST_SPOOL_MS);
+        return "png";
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error("lp png failed");
+      }
     }
+  } catch (error) {
+    lastError = error instanceof Error ? error : new Error("render failed");
   }
 
   throw lastError ?? new Error("Не удалось отправить этикетку на принтер");

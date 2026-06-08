@@ -97,6 +97,7 @@ setup_printer() {
   fi
 
   if as_root lpadmin -p "$printer_name" -E -v "$usb_uri" -m raw 2>/dev/null \
+    || as_root lpadmin -p "$printer_name" -E -v "$usb_uri" -i /usr/share/cups/model/textonly.ppd 2>/dev/null \
     || as_root lpadmin -p "$printer_name" -E -v "$usb_uri" -m everywhere 2>/dev/null; then
     as_root lpoptions -d "$printer_name" 2>/dev/null || true
     echo "    добавлен: $printer_name ($usb_uri)"
