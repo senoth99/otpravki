@@ -1,6 +1,6 @@
 import { buildAssemblyItemsFromProducts } from "@/lib/assembly";
-import { fetchAssemblyItems } from "@/lib/api";
-import { generateOrdersFromAssembly } from "@/lib/mock-orders";
+import { fetchProducts } from "@/lib/api";
+import { generateOrdersFromAssembly, pickRandomProducts } from "@/lib/mock-orders";
 import { sortAssemblyItemsByUrgency } from "@/lib/assembly-sort";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 
@@ -8,7 +8,8 @@ export async function buildMockWorkspaceData(): Promise<{
   assemblyItems: AssemblyItem[];
   orders: ShippingOrder[];
 } | null> {
-  const assemblyProducts = await fetchAssemblyItems();
+  const products = await fetchProducts();
+  const assemblyProducts = pickRandomProducts(products, 5);
   if (assemblyProducts.length === 0) return null;
 
   const rawAssemblyItems = buildAssemblyItemsFromProducts(assemblyProducts);

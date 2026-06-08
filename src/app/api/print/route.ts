@@ -21,16 +21,20 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       orderNumber?: string;
       barcodeData?: string;
+      barcodeUrl?: string;
     };
 
-    if (!body.orderNumber || !body.barcodeData) {
+    if (!body.orderNumber) {
       return NextResponse.json(
         { ok: false, reason: "invalid_payload", message: "Некорректные данные заказа" },
         { status: 400 },
       );
     }
 
-    const result = await printToBarcodePrinter(body.orderNumber, body.barcodeData);
+    const result = await printToBarcodePrinter(body.orderNumber, {
+      barcodeUrl: body.barcodeUrl,
+      barcodeData: body.barcodeData,
+    });
     if (!result.ok) {
       return NextResponse.json(
         {

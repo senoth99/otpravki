@@ -1,4 +1,10 @@
-import type { AssemblyItem, OrderUrgency, ShippingOrder, ShippingOrderItem } from "@/types/shipping";
+import type {
+  ApiProduct,
+  AssemblyItem,
+  OrderUrgency,
+  ShippingOrder,
+  ShippingOrderItem,
+} from "@/types/shipping";
 import { URGENCY_WEIGHT } from "@/lib/urgency";
 
 const URGENCIES: OrderUrgency[] = ["critical", "high", "normal", "low"];
@@ -37,6 +43,23 @@ function toOrderItem(item: AssemblyItem, quantity: number): ShippingOrderItem {
     quantity,
     scannedCount: 0,
   };
+}
+
+export function pickRandomProducts(products: ApiProduct[], count: number): ApiProduct[] {
+  const shuffled = [...products].sort(() => Math.random() - 0.5);
+  const picked: ApiProduct[] = [];
+  const usedIds = new Set<string>();
+
+  for (const product of shuffled) {
+    if (picked.length >= count) break;
+    if (usedIds.has(product.id)) continue;
+    const visibleSizes = product.sizes.filter((s) => s.isVisible && s.size !== "One Size");
+    if (visibleSizes.length === 0) continue;
+    usedIds.add(product.id);
+    picked.push(product);
+  }
+
+  return picked;
 }
 
 export function generateOrdersFromAssembly(assemblyItems: AssemblyItem[], count = 5): ShippingOrder[] {

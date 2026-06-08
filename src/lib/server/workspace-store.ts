@@ -2,7 +2,9 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
+import { mergeFreshOrdersData } from "@/lib/workspace-api-merge";
 import { mergeWorkspaces } from "@/lib/workspace-merge";
+import type { WorkspaceData } from "@/lib/build-workspace";
 import { appendSyncEvent, forwardToRemote } from "@/lib/server/sync-store";
 
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
@@ -73,6 +75,30 @@ export async function resetSharedWorkspace(
   await writeToDisk(state);
   broadcast(state);
   return state;
+}
+
+export async function syncWorkspaceFromApi(fresh: WorkspaceData): Promise<SharedWorkspaceState> {
+  const existing = await getSharedWorkspace();
+
+  const next: SharedWorkspaceState = existing
+    ? {
+        ...mergeFreshOrdersData(existing, fresh),
+        revision: existing.revision + 1,
+        updatedBy: "api-sync",
+      }
+    : {
+        version: 1,
+        revision: 1,
+        assemblyItems: fresh.assemblyItems,
+        orders: fresh.orders,
+        updatedAt: Date.now(),
+        updatedBy: "server",
+      };
+
+  memoryState = next;
+  await writeToDisk(next);
+  broadcast(next);
+  return next;
 }
 
 export async function initSharedWorkspace(

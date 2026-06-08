@@ -8,6 +8,7 @@ export interface ProductSize {
 export interface ApiProduct {
   id: string;
   name: string;
+  slug: string;
   images: string[];
   brand: string;
   sizes: ProductSize[];
@@ -52,8 +53,12 @@ export interface ShippingOrder {
   urgency: OrderUrgency;
   deadline: string;
   items: ShippingOrderItem[];
+  barcodeUrl?: string;
   barcodePrinted: boolean;
   barcodePrintedAt?: number;
+  allInStockAtWarehouse?: boolean;
+  city?: string;
+  trackingNumber?: string;
 }
 
 export type ShippingTab = "assembly" | "shipping";

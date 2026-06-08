@@ -47,7 +47,7 @@ set +a
 PORT="${PORT:-3000}"
 
 reset_mock_workspace() {
-  if [[ "${USE_MOCK_ORDERS:-true}" == "false" ]]; then
+  if [[ "${USE_MOCK_ORDERS:-false}" == "false" ]]; then
     return
   fi
 

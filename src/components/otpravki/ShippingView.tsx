@@ -202,10 +202,11 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     autoHandledRef.current = currentOrder.id;
 
     const shippedNumber = currentOrder.orderNumber;
+    const shippedBarcodeUrl = currentOrder.barcodeUrl;
     const shippedIndex = currentIndex;
 
     void (async () => {
-      const result = await printOrderBarcode(shippedNumber, shippedNumber);
+      const result = await printOrderBarcode(shippedNumber, { barcodeUrl: shippedBarcodeUrl });
       if (!result.ok) {
         autoHandledRef.current = null;
         setPrintError(result.message ?? "Не удалось напечатать баркод");
@@ -433,7 +434,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
       {printModalOpen && (
         <BarcodePrintModal
           orderNumber={currentOrder.orderNumber}
-          barcodeData={currentOrder.orderNumber}
+          barcodeUrl={currentOrder.barcodeUrl}
           onClose={() => setPrintModalOpen(false)}
           onPrinted={handlePrinted}
         />

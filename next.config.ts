@@ -9,6 +9,11 @@ const nextConfig: NextConfig = {
         hostname: "api.cashercollection.com",
         pathname: "/uploads/**",
       },
+      {
+        protocol: "https",
+        hostname: "api.stage.cashercollection.com",
+        pathname: "/uploads/**",
+      },
     ],
   },
 };

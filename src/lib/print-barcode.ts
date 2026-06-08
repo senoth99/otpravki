@@ -4,16 +4,25 @@ export interface PrintResult {
   printer?: string | null;
 }
 
+export interface PrintOrderOptions {
+  barcodeUrl?: string;
+  barcodeData?: string;
+}
+
 /** Серверная печать на баркод-принтер через CUPS */
 export async function printOrderBarcode(
   orderNumber: string,
-  barcodeData: string,
+  options: PrintOrderOptions = {},
 ): Promise<PrintResult> {
   try {
     const res = await fetch("/api/print", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderNumber, barcodeData }),
+      body: JSON.stringify({
+        orderNumber,
+        barcodeUrl: options.barcodeUrl,
+        barcodeData: options.barcodeData ?? orderNumber,
+      }),
     });
 
     const data = (await res.json()) as {

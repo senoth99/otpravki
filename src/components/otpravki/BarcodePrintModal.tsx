@@ -5,14 +5,14 @@ import { printOrderBarcode } from "@/lib/print-barcode";
 
 interface BarcodePrintModalProps {
   orderNumber: string;
-  barcodeData: string;
+  barcodeUrl?: string;
   onClose: () => void;
   onPrinted: () => void;
 }
 
 export function BarcodePrintModal({
   orderNumber,
-  barcodeData,
+  barcodeUrl,
   onClose,
   onPrinted,
 }: BarcodePrintModalProps) {
@@ -22,7 +22,7 @@ export function BarcodePrintModal({
   const handlePrint = async () => {
     setPrinting(true);
     setError(null);
-    const result = await printOrderBarcode(orderNumber, barcodeData);
+    const result = await printOrderBarcode(orderNumber, { barcodeUrl });
     setPrinting(false);
     if (!result.ok) {
       setError(result.message ?? "Не удалось напечатать");
@@ -38,10 +38,10 @@ export function BarcodePrintModal({
         <p className="mt-2 text-sm text-gray-600">Заказ {orderNumber}</p>
 
         <div className="my-6 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
-          <p className="font-mono text-2xl tracking-widest text-gray-800">
-            ||||| {barcodeData} |||||
+          <p className="font-mono text-lg text-gray-800">{orderNumber}</p>
+          <p className="mt-2 text-xs text-gray-500">
+            {barcodeUrl ? "Этикетка СДЭК (PDF)" : "CASHER COLLECTION"}
           </p>
-          <p className="mt-2 text-xs text-gray-500">CASHER COLLECTION</p>
         </div>
 
         {error && (

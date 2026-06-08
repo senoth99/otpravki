@@ -4,6 +4,7 @@ import path from "path";
 import { promisify } from "util";
 import { buildLabelHtml } from "@/lib/label-html";
 import { buildLabelText, buildLabelTspl, buildLabelZpl } from "@/lib/label-formats";
+import { downloadBarcodePdf } from "@/lib/server/orders-api";
 
 const execFileAsync = promisify(execFile);
 
@@ -167,10 +168,15 @@ async function sendToPrinter(
   await execFileAsync("lp", args, { timeout: 15_000, env: process.env });
 }
 
-/** Прямая печать на термопринтер */
+export interface PrintLabelOptions {
+  barcodeUrl?: string;
+  barcodeData?: string;
+}
+
+/** Печать этикетки СДЭК (PDF) или сгенерированного баркода */
 export async function printToBarcodePrinter(
   orderNumber: string,
-  barcodeData: string,
+  options: PrintLabelOptions = {},
 ): Promise<PrintJobResult> {
   const printer = await detectBarcodePrinter();
   await mkdir(PRINT_DIR, { recursive: true });
@@ -180,14 +186,30 @@ export async function printToBarcodePrinter(
     return { ok: false, printer: null, error: NO_PRINTER_MESSAGE };
   }
 
+  let lastError = "Не удалось напечатать на принтере";
+
+  if (options.barcodeUrl) {
+    const file = path.join(PRINT_DIR, `label-${Date.now()}.pdf`);
+    try {
+      const pdf = await downloadBarcodePdf(options.barcodeUrl);
+      await writeFile(file, pdf);
+      await sendToPrinter(printer, file, false);
+      await logPrint(`OK pdf printer=${printer} order=${orderNumber}`);
+      return { ok: true, printer, format: "pdf" };
+    } catch (error) {
+      lastError =
+        error instanceof Error ? error.message : "Не удалось напечатать PDF-этикетку";
+      await logPrint(`FAIL pdf printer=${printer} ${lastError}`);
+    }
+  }
+
+  const barcodeData = options.barcodeData ?? orderNumber;
   const attempts: { format: string; ext: string; content: string; raw: boolean }[] = [
     { format: "zpl", ext: "zpl", content: buildLabelZpl(orderNumber, barcodeData), raw: true },
     { format: "tspl", ext: "tspl", content: buildLabelTspl(orderNumber, barcodeData), raw: true },
     { format: "text", ext: "txt", content: buildLabelText(orderNumber, barcodeData), raw: true },
     { format: "html", ext: "html", content: buildLabelHtml(orderNumber, barcodeData), raw: false },
   ];
-
-  let lastError = "Не удалось напечатать на принтере";
 
   for (const attempt of attempts) {
     const file = path.join(PRINT_DIR, `label-${Date.now()}.${attempt.ext}`);
