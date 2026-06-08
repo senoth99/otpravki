@@ -100,6 +100,15 @@ export function parsePbmP4(buffer: Buffer): {
   return { widthBits, height, widthBytes, bitmap };
 }
 
+/** PBM и TSPL используют противоположную полярность битов */
+function invertBitmap(data: Buffer): Buffer {
+  const out = Buffer.alloc(data.length);
+  for (let i = 0; i < data.length; i++) {
+    out[i] = data[i] ^ 0xff;
+  }
+  return out;
+}
+
 export function buildTsplLabel(widthBytes: number, height: number, bitmap: Buffer): Buffer {
   const header = [
     `SIZE ${LABEL_WIDTH_MM} mm,${LABEL_HEIGHT_MM} mm`,
@@ -160,7 +169,9 @@ export async function printTsplLabel(
   await renderPdfToPbm(pdfPath, pbmPath);
   const pbm = await readFile(pbmPath);
   const { widthBytes, height, bitmap } = parsePbmP4(pbm);
-  const tspl = buildTsplLabel(widthBytes, height, bitmap);
+  const shouldInvert = process.env.BARCODE_INVERT_BITMAP !== "false";
+  const raster = shouldInvert ? invertBitmap(bitmap) : bitmap;
+  const tspl = buildTsplLabel(widthBytes, height, raster);
   await writeFile(tsplPath, tspl);
 
   const usb = await resolveUsbDevice();
