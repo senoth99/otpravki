@@ -10,11 +10,13 @@ echo "==> Otpravki deploy (Debian)"
 echo "    Папка: $APP_DIR"
 echo "    Порт:  $PORT"
 
-if [[ "$(id -u)" -eq 0 ]]; then
-  SUDO=""
-else
-  SUDO="sudo"
-fi
+as_root() {
+  if [[ "$(id -u)" -eq 0 ]]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
 
 install_node() {
   if command -v node &>/dev/null && [[ "$(node -v | cut -d. -f1 | tr -d v)" -ge 18 ]]; then
@@ -23,10 +25,10 @@ install_node() {
   fi
 
   echo "==> Устанавливаю Node.js 20..."
-  $SUDO apt-get update -qq
-  $SUDO apt-get install -y curl ca-certificates gnupg
-  curl -fsSL https://deb.nodesource.com/setup_20.x | $SUDO -E bash -
-  $SUDO apt-get install -y nodejs
+  as_root apt-get update -qq
+  as_root apt-get install -y curl ca-certificates gnupg
+  curl -fsSL https://deb.nodesource.com/setup_20.x | as_root bash -
+  as_root apt-get install -y nodejs
   echo "==> Node $(node -v), npm $(npm -v)"
 }
 
@@ -46,7 +48,7 @@ PORT="${PORT:-3000}"
 
 if ! command -v lp &>/dev/null; then
   echo "==> Устанавливаю CUPS для печати..."
-  $SUDO apt-get install -y cups cups-client
+  as_root apt-get install -y cups cups-client
 fi
 
 echo "==> Устанавливаю зависимости..."
@@ -64,7 +66,7 @@ cp -r .next/static .next/standalone/.next/static
 UNIT_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 echo "==> Настраиваю systemd ($SERVICE_NAME)..."
 
-$SUDO tee "$UNIT_FILE" > /dev/null <<EOF
+as_root tee "$UNIT_FILE" > /dev/null <<EOF
 [Unit]
 Description=Otpravki — сборка и отправка заказов
 After=network-online.target
@@ -88,13 +90,13 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-$SUDO systemctl daemon-reload
-$SUDO systemctl enable "$SERVICE_NAME"
-$SUDO systemctl restart "$SERVICE_NAME"
+as_root systemctl daemon-reload
+as_root systemctl enable "$SERVICE_NAME"
+as_root systemctl restart "$SERVICE_NAME"
 
 sleep 1
 
-if $SUDO systemctl is-active --quiet "$SERVICE_NAME"; then
+if as_root systemctl is-active --quiet "$SERVICE_NAME"; then
   STATUS="работает"
 else
   STATUS="ошибка — смотри: sudo journalctl -u $SERVICE_NAME -n 30"
