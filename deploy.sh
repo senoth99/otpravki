@@ -54,6 +54,25 @@ fi
 echo "==> Устанавливаю зависимости..."
 npm ci
 
+mkdir -p "$DATA_DIR/cache"
+API_URL="${PRODUCTS_API_URL:-https://api.cashercollection.com}"
+echo "==> Кэширую товары (если есть интернет)..."
+if PRODUCTS_JSON="$(curl -fsS --max-time 30 "${API_URL}/products" 2>/dev/null)"; then
+  node -e "
+    const fs = require('fs');
+    const products = JSON.parse(process.argv[1]).filter(
+      (p) => !p.isDeleted && p.inStock && p.images?.length,
+    );
+    fs.writeFileSync(
+      process.argv[2],
+      JSON.stringify({ fetchedAt: Date.now(), data: products }),
+    );
+    console.log('    товаров в кэше:', products.length);
+  " "$PRODUCTS_JSON" "$DATA_DIR/cache/products.json"
+else
+  echo "    нет сети — сборка продолжится без кэша"
+fi
+
 echo "==> Собираю приложение..."
 npm run build
 

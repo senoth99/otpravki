@@ -44,7 +44,7 @@ async function fetchRemote(): Promise<ApiProduct[]> {
 
 export async function getProductsWithCache(): Promise<{
   products: ApiProduct[];
-  source: "network" | "cache" | "stale-cache";
+  source: "network" | "cache" | "stale-cache" | "empty";
 }> {
   const cached = await readCache();
   const cacheFresh = cached && Date.now() - cached.fetchedAt < TTL_MS;
@@ -61,6 +61,6 @@ export async function getProductsWithCache(): Promise<{
     if (cached) {
       return { products: cached.data, source: "stale-cache" };
     }
-    throw new Error("Нет интернета и локального кэша товаров");
+    return { products: [], source: "empty" };
   }
 }
