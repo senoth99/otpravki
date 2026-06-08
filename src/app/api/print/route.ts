@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
 import {
-  detectBarcodePrinter,
+  getPrinterDiagnostics,
   printToBarcodePrinter,
 } from "@/lib/server/barcode-printer";
 
 export async function GET() {
-  const printer = await detectBarcodePrinter();
+  const info = await getPrinterDiagnostics();
   return NextResponse.json({
-    ok: Boolean(printer),
-    printer: printer ?? null,
+    ok: Boolean(info.printer),
+    printer: info.printer,
+    defaultPrinter: info.defaultPrinter,
+    printers: info.printers,
     auto: !process.env.BARCODE_PRINTER?.trim(),
+    hint: info.hint,
   });
 }
 

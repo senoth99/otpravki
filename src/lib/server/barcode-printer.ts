@@ -28,6 +28,17 @@ function parsePrinterList(output: string): string[] {
   return [...output.matchAll(/^printer\s+(\S+)/gm)].map((m) => m[1]);
 }
 
+function parseAcceptingPrinters(output: string): string[] {
+  return [...output.matchAll(/^(\S+)\s+accepting/gm)].map((m) => m[1]);
+}
+
+function parseEnumeratedPrinters(output: string): string[] {
+  return output
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("printer "));
+}
+
 function parseDefaultPrinter(output: string): string | null {
   const match =
     output.match(/system default destination:\s*(.+)/i) ??
@@ -73,6 +84,31 @@ function pickBestPrinter(printers: string[], defaultName: string | null): string
   return physical[0];
 }
 
+async function listCupsPrinters(): Promise<string[]> {
+  const listOut = await runLpstat(["-p"]);
+  if (listOut) {
+    const printers = parsePrinterList(listOut);
+    if (printers.length > 0) return printers;
+  }
+
+  const acceptingOut = await runLpstat(["-a"]);
+  if (acceptingOut) {
+    const printers = parseAcceptingPrinters(acceptingOut);
+    if (printers.length > 0) return printers;
+  }
+
+  const enumOut = await runLpstat(["-e"]);
+  if (enumOut) {
+    const printers = parseEnumeratedPrinters(enumOut);
+    if (printers.length > 0) return printers;
+  }
+
+  return [];
+}
+
+const NO_PRINTER_MESSAGE =
+  "Принтер не настроен в CUPS. Подключи USB-принтер, выполни ./deploy.sh или lpinfo -v на сервере. Можно указать BARCODE_PRINTER в .env";
+
 /** Находит принтер в CUPS */
 export async function detectBarcodePrinter(): Promise<string | null> {
   const fromEnv = process.env.BARCODE_PRINTER?.trim();
@@ -82,15 +118,34 @@ export async function detectBarcodePrinter(): Promise<string | null> {
 
   const defaultOut = await runLpstat(["-d"]);
   const defaultName = defaultOut ? parseDefaultPrinter(defaultOut) : null;
-  const listOut = await runLpstat(["-p"]);
+  const printers = await listCupsPrinters();
 
-  if (listOut) {
-    cachedPrinter = pickBestPrinter(parsePrinterList(listOut), defaultName);
+  if (printers.length > 0) {
+    cachedPrinter = pickBestPrinter(printers, defaultName);
     return cachedPrinter;
   }
 
   cachedPrinter = defaultName && !isVirtualPrinter(defaultName) ? defaultName : null;
   return cachedPrinter;
+}
+
+export async function getPrinterDiagnostics(): Promise<{
+  printer: string | null;
+  defaultPrinter: string | null;
+  printers: string[];
+  hint: string | null;
+}> {
+  const defaultOut = await runLpstat(["-d"]);
+  const defaultPrinter = defaultOut ? parseDefaultPrinter(defaultOut) : null;
+  const printers = await listCupsPrinters();
+  const printer = await detectBarcodePrinter();
+
+  return {
+    printer,
+    defaultPrinter,
+    printers,
+    hint: printer ? null : NO_PRINTER_MESSAGE,
+  };
 }
 
 export interface PrintJobResult {
@@ -101,17 +156,13 @@ export interface PrintJobResult {
 }
 
 async function sendToPrinter(
-  printer: string | null,
+  printer: string,
   file: string,
   raw: boolean,
 ): Promise<void> {
-  const args = printer
-    ? raw
-      ? ["-d", printer, "-o", "raw", file]
-      : ["-d", printer, file]
-    : raw
-      ? ["-o", "raw", file]
-      : [file];
+  const args = raw
+    ? ["-d", printer, "-o", "raw", file]
+    : ["-d", printer, file];
 
   await execFileAsync("lp", args, { timeout: 15_000, env: process.env });
 }
@@ -124,6 +175,11 @@ export async function printToBarcodePrinter(
   const printer = await detectBarcodePrinter();
   await mkdir(PRINT_DIR, { recursive: true });
 
+  if (!printer) {
+    await logPrint(`FAIL no_printer order=${orderNumber}`);
+    return { ok: false, printer: null, error: NO_PRINTER_MESSAGE };
+  }
+
   const attempts: { format: string; ext: string; content: string; raw: boolean }[] = [
     { format: "zpl", ext: "zpl", content: buildLabelZpl(orderNumber, barcodeData), raw: true },
     { format: "tspl", ext: "tspl", content: buildLabelTspl(orderNumber, barcodeData), raw: true },
@@ -131,7 +187,7 @@ export async function printToBarcodePrinter(
     { format: "html", ext: "html", content: buildLabelHtml(orderNumber, barcodeData), raw: false },
   ];
 
-  let lastError = "Принтер не найден или CUPS не запущен";
+  let lastError = "Не удалось напечатать на принтере";
 
   for (const attempt of attempts) {
     const file = path.join(PRINT_DIR, `label-${Date.now()}.${attempt.ext}`);

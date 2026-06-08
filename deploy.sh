@@ -53,6 +53,43 @@ fi
 as_root systemctl enable cups 2>/dev/null || true
 as_root systemctl start cups 2>/dev/null || true
 
+setup_printer() {
+  local printer_name="${BARCODE_PRINTER:-OtpravkiLabel}"
+
+  if lpstat -p 2>/dev/null | grep -q '^printer '; then
+    local default_dest
+    default_dest="$(lpstat -d 2>/dev/null | sed -n 's/.*default destination: //p' | head -1 | tr -d '[:space:]')"
+    if [[ -z "$default_dest" || "$default_dest" == "none" || "$default_dest" == *"нет"* ]]; then
+      local first
+      first="$(lpstat -p 2>/dev/null | awk '/^printer / {print $2; exit}')"
+      if [[ -n "$first" ]]; then
+        as_root lpoptions -d "$first" 2>/dev/null || true
+        echo "==> Принтер по умолчанию: $first"
+      fi
+    fi
+    return
+  fi
+
+  echo "==> Ищу USB-принтер..."
+  local usb_uri
+  usb_uri="$(lpinfo -v 2>/dev/null | awk '/usb:/ {print $2; exit}')"
+  if [[ -z "$usb_uri" ]]; then
+    echo "    USB-принтер не найден — подключи кабель и снова ./deploy.sh"
+    return
+  fi
+
+  if as_root lpadmin -p "$printer_name" -E -v "$usb_uri" -m raw 2>/dev/null \
+    || as_root lpadmin -p "$printer_name" -E -v "$usb_uri" -m everywhere 2>/dev/null; then
+    as_root lpoptions -d "$printer_name" 2>/dev/null || true
+    echo "    добавлен: $printer_name ($usb_uri)"
+  else
+    echo "    не удалось добавить принтер — выполни вручную:"
+    echo "    lpadmin -p $printer_name -E -v $usb_uri -m raw"
+  fi
+}
+
+setup_printer
+
 echo "==> Устанавливаю зависимости..."
 npm ci
 
