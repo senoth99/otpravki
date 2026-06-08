@@ -57,7 +57,6 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
   const [printModalOpen, setPrintModalOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
-  const [isPrinting, setIsPrinting] = useState(false);
   const [autoPrintRetry, setAutoPrintRetry] = useState(0);
   const [countdown, setCountdown] = useState<CountdownState | null>(null);
   const autoHandledRef = useRef<string | null>(null);
@@ -103,18 +102,15 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
   const exitAutoMode = useCallback(() => {
     setAutoMode(false);
     setCountdown(null);
-    setIsPrinting(false);
     autoHandledRef.current = null;
   }, []);
 
   const runOrderPrint = useCallback(
     async (order: ShippingOrder, orderIndex: number) => {
-      setIsPrinting(true);
       const result = await printOrderBarcode(order.orderNumber, {
         orderId: order.id,
         barcodeUrl: order.barcodeUrl,
       });
-      setIsPrinting(false);
 
       if (!result.ok) {
         return { ok: false as const, message: result.message ?? "Не удалось напечатать баркод" };
@@ -248,7 +244,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
   }, [autoMode, countdown, currentIndex, currentOrder, orderStatuses, orders]);
 
   useEffect(() => {
-    if (!autoMode || !allScanned || !canScan || countdown || isPrinting || !currentOrder) return;
+    if (!autoMode || !allScanned || !canScan || countdown || !currentOrder) return;
     if (autoHandledRef.current === currentOrder.id) return;
 
     autoHandledRef.current = currentOrder.id;
@@ -293,7 +289,6 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     countdown,
     currentIndex,
     currentOrder,
-    isPrinting,
     orderStatuses,
     orders,
     runOrderPrint,
@@ -523,15 +518,6 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
       )}
 
       {scanError && <ScanErrorPopup message={scanError} onClose={() => setScanError(null)} />}
-
-      {isPrinting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="rounded-2xl bg-white px-8 py-6 text-center shadow-xl">
-            <p className="text-sm font-medium text-gray-900">Печать этикетки…</p>
-            <p className="mt-1 text-xs text-gray-500">Скачиваем PDF из API</p>
-          </div>
-        </div>
-      )}
 
       {printError && (
         <ScanErrorPopup
