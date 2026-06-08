@@ -57,6 +57,8 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
   const [printModalOpen, setPrintModalOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [autoPrintRetry, setAutoPrintRetry] = useState(0);
   const [countdown, setCountdown] = useState<CountdownState | null>(null);
   const autoHandledRef = useRef<string | null>(null);
 
@@ -101,8 +103,36 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
   const exitAutoMode = useCallback(() => {
     setAutoMode(false);
     setCountdown(null);
+    setIsPrinting(false);
     autoHandledRef.current = null;
   }, []);
+
+  const runOrderPrint = useCallback(
+    async (order: ShippingOrder, orderIndex: number) => {
+      setIsPrinting(true);
+      const result = await printOrderBarcode(order.orderNumber, {
+        orderId: order.id,
+        barcodeUrl: order.barcodeUrl,
+      });
+      setIsPrinting(false);
+
+      if (!result.ok) {
+        return { ok: false as const, message: result.message ?? "Не удалось напечатать баркод" };
+      }
+
+      onOrdersChange((prev) => {
+        const updated = prev.map((item, idx) =>
+          idx === orderIndex
+            ? { ...item, barcodePrinted: true, barcodePrintedAt: Date.now() }
+            : item,
+        );
+        return updated;
+      });
+
+      return { ok: true as const };
+    },
+    [onOrdersChange],
+  );
 
   const handleAutoModeToggle = useCallback(() => {
     if (autoMode) {
@@ -218,49 +248,62 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
   }, [autoMode, countdown, currentIndex, currentOrder, orderStatuses, orders]);
 
   useEffect(() => {
-    if (!autoMode || !allScanned || !canScan || countdown || !currentOrder) return;
+    if (!autoMode || !allScanned || !canScan || countdown || isPrinting || !currentOrder) return;
     if (autoHandledRef.current === currentOrder.id) return;
 
     autoHandledRef.current = currentOrder.id;
-
     const shippedNumber = currentOrder.orderNumber;
-    const shippedBarcodeUrl = currentOrder.barcodeUrl;
     const shippedIndex = currentIndex;
 
     void (async () => {
-      const result = await printOrderBarcode(shippedNumber, {
-        orderId: currentOrder.id,
-        barcodeUrl: shippedBarcodeUrl,
-      });
+      const result = await runOrderPrint(currentOrder, shippedIndex);
       if (!result.ok) {
         autoHandledRef.current = null;
-        setPrintError(result.message ?? "Не удалось напечатать баркод");
+        setPrintError(result.message);
         return;
       }
 
-      onOrdersChange((prev) => {
-        const updated = prev.map((order, idx) =>
-          idx === shippedIndex
-            ? { ...order, barcodePrinted: true, barcodePrintedAt: Date.now() }
-            : order,
-        );
-        const nextStatuses = updated.map((o) => getOrderDisplayStatus(o, assemblyItems));
-        const hasNext = findFirstAutoOrderIndex(updated, nextStatuses) !== null;
-        setCountdown({ orderNumber: shippedNumber, secondsLeft: 5, hasNext });
-        setViewingShippedId(currentOrder.id);
-        return updated;
-      });
+      const nextStatuses = orders.map((order, idx) =>
+        idx === shippedIndex
+          ? getOrderDisplayStatus(
+              { ...order, barcodePrinted: true, barcodePrintedAt: Date.now() },
+              assemblyItems,
+            )
+          : orderStatuses[idx],
+      );
+      const hasNext =
+        findFirstAutoOrderIndex(
+          orders.map((order, idx) =>
+            idx === shippedIndex
+              ? { ...order, barcodePrinted: true, barcodePrintedAt: Date.now() }
+              : order,
+          ),
+          nextStatuses,
+        ) !== null;
+
+      setViewingShippedId(currentOrder.id);
+      setCountdown({ orderNumber: shippedNumber, secondsLeft: 5, hasNext });
     })();
   }, [
     allScanned,
     assemblyItems,
     autoMode,
+    autoPrintRetry,
     canScan,
     countdown,
     currentIndex,
     currentOrder,
-    onOrdersChange,
+    isPrinting,
+    orderStatuses,
+    orders,
+    runOrderPrint,
   ]);
+
+  const retryAutoPrint = useCallback(() => {
+    setPrintError(null);
+    autoHandledRef.current = null;
+    setAutoPrintRetry((value) => value + 1);
+  }, []);
 
   useEffect(() => {
     if (!countdown) return;
@@ -481,11 +524,25 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
 
       {scanError && <ScanErrorPopup message={scanError} onClose={() => setScanError(null)} />}
 
+      {isPrinting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="rounded-2xl bg-white px-8 py-6 text-center shadow-xl">
+            <p className="text-sm font-medium text-gray-900">Печать этикетки…</p>
+            <p className="mt-1 text-xs text-gray-500">Скачиваем PDF из API</p>
+          </div>
+        </div>
+      )}
+
       {printError && (
         <ScanErrorPopup
           title="Ошибка печати"
           message={printError}
-          onClose={() => setPrintError(null)}
+          onClose={() => {
+            setPrintError(null);
+            autoHandledRef.current = null;
+          }}
+          onRetry={autoMode ? retryAutoPrint : undefined}
+          retryLabel="Печать снова"
         />
       )}
 

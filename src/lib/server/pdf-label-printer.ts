@@ -1,13 +1,12 @@
 import { execFile } from "child_process";
-import { rename, writeFile } from "fs/promises";
+import { rename, stat, writeFile } from "fs/promises";
 import path from "path";
 import { promisify } from "util";
 
 const execFileAsync = promisify(execFile);
 
-/** CDEK PDF: MediaBox 400×250 pt ≈ 141×88 mm */
-const LABEL_WIDTH_MM = "141";
-const LABEL_HEIGHT_MM = "88";
+const RENDER_DPI = "203";
+const POST_SPOOL_MS = 2500;
 
 export function assertPdfBuffer(data: Buffer): void {
   if (data.length < 5 || data.subarray(0, 5).toString("ascii") !== "%PDF-") {
@@ -24,6 +23,15 @@ async function commandExists(cmd: string): Promise<boolean> {
   }
 }
 
+async function fileHasContent(filePath: string, minBytes = 500): Promise<boolean> {
+  try {
+    const info = await stat(filePath);
+    return info.size >= minBytes;
+  } catch {
+    return false;
+  }
+}
+
 async function renderWithGhostscript(pdfPath: string, pngPath: string): Promise<boolean> {
   if (!(await commandExists("gs"))) return false;
 
@@ -34,125 +42,64 @@ async function renderWithGhostscript(pdfPath: string, pngPath: string): Promise<
         "-dSAFER",
         "-dBATCH",
         "-dNOPAUSE",
-        "-sDEVICE=pngmono",
-        "-r300",
+        "-sDEVICE=pnggray",
+        `-r${RENDER_DPI}`,
         "-dFirstPage=1",
         "-dLastPage=1",
         `-sOutputFile=${pngPath}`,
         pdfPath,
       ],
-      { timeout: 30_000 },
+      { timeout: 20_000 },
     );
-    return true;
+    return fileHasContent(pngPath);
   } catch {
     return false;
   }
 }
 
-async function renderWithPdftoppm(pdfPath: string, pngBase: string): Promise<string> {
+async function renderWithPdftoppm(pdfPath: string, pngPath: string): Promise<void> {
+  const pngBase = pngPath.replace(/\.png$/, "");
   await execFileAsync(
     "pdftoppm",
-    ["-png", "-gray", "-r", "300", "-singlefile", "-cropbox", pdfPath, pngBase],
-    { timeout: 30_000 },
+    ["-png", "-gray", "-r", RENDER_DPI, "-singlefile", "-cropbox", pdfPath, pngBase],
+    { timeout: 20_000 },
   );
-  return `${pngBase}.png`;
-}
 
-async function flattenToMonochrome(pngPath: string): Promise<void> {
-  if (!(await commandExists("convert"))) return;
+  const rendered = `${pngBase}.png`;
+  if (rendered !== pngPath) {
+    await rename(rendered, pngPath);
+  }
 
-  try {
-    await execFileAsync(
-      "convert",
-      [pngPath, "-flatten", "-colorspace", "Gray", "-threshold", "50%", pngPath],
-      { timeout: 15_000 },
-    );
-  } catch {
-    // optional enhancement
+  if (!(await fileHasContent(pngPath))) {
+    throw new Error("pdftoppm создал пустой файл");
   }
 }
 
 async function renderPdfToPng(pdfPath: string, pngPath: string): Promise<void> {
-  const pngBase = pngPath.replace(/\.png$/, "");
   const gsOk = await renderWithGhostscript(pdfPath, pngPath);
-
   if (!gsOk) {
     try {
-      const rendered = await renderWithPdftoppm(pdfPath, pngBase);
-      if (rendered !== pngPath) {
-        await rename(rendered, pngPath);
-      }
+      await renderWithPdftoppm(pdfPath, pngPath);
     } catch {
       throw new Error(
         "Не удалось отрендерить PDF. На сервере: apt install poppler-utils ghostscript",
       );
     }
   }
-
-  await flattenToMonochrome(pngPath);
 }
 
-async function runLp(printer: string, file: string, extraArgs: string[] = []): Promise<string> {
-  const { stdout } = await execFileAsync("lp", ["-d", printer, ...extraArgs, file], {
-    timeout: 30_000,
+async function runLp(printer: string, file: string, extraArgs: string[] = []): Promise<void> {
+  await execFileAsync("lp", ["-d", printer, ...extraArgs, file], {
+    timeout: 15_000,
     env: process.env,
   });
-  return stdout.trim();
-}
-
-/** Ждём, пока CUPS прочитает файл (lp возвращается сразу после постановки в очередь) */
-async function waitForPrintJob(jobInfo: string): Promise<void> {
-  const match =
-    jobInfo.match(/(?:request id|запрос id|идентификатор запроса)[:\s—-]+\s*(\S+)/i) ??
-    jobInfo.match(/(\S+-\d+)\s*$/);
-  if (!match) {
-    await sleep(8000);
-    return;
-  }
-
-  const jobId = match[1];
-  const deadline = Date.now() + 45_000;
-
-  while (Date.now() < deadline) {
-    try {
-      const { stdout } = await execFileAsync("lpstat", ["-W", "completed", "-o", jobId], {
-        timeout: 5000,
-      });
-      if (stdout.includes(jobId)) return;
-    } catch {
-      // job still processing
-    }
-    await sleep(500);
-  }
 }
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-const PNG_PRINT_OPTS = [
-  "-o",
-  "fit-to-page",
-  "-o",
-  "print-color-mode=monochrome",
-  "-o",
-  `media=Custom.${LABEL_WIDTH_MM}x${LABEL_HEIGHT_MM}mm`,
-  "-o",
-  "document-format=image/png",
-];
-
-const PDF_PRINT_OPTS = [
-  "-o",
-  "pdfAutoRotate=off",
-  "-o",
-  "fit-to-page",
-  "-o",
-  "print-color-mode=monochrome",
-  "-o",
-  `media=Custom.${LABEL_WIDTH_MM}x${LABEL_HEIGHT_MM}mm`,
-];
-
-/** Печать PDF-этикетки СДЭК: рендер в монохром PNG → lp (файл не удаляем до завершения) */
+/** Печать PDF-этикетки СДЭК */
 export async function printPdfLabel(
   printer: string,
   pdf: Buffer,
@@ -165,34 +112,54 @@ export async function printPdfLabel(
   const pngPath = path.join(workDir, `label-${stamp}.png`);
   await writeFile(pdfPath, pdf);
 
-  await renderPdfToPng(pdfPath, pngPath);
+  let pngReady = false;
+  try {
+    await renderPdfToPng(pdfPath, pngPath);
+    pngReady = true;
+  } catch {
+    pngReady = false;
+  }
 
-  const pngAttempts: string[][] = [
-    PNG_PRINT_OPTS,
-    ["-o", "fit-to-page", "-o", "print-color-mode=monochrome"],
-    [],
-  ];
+  if (pngReady) {
+    const pngAttempts: string[][] = [
+      [],
+      ["-o", "fit-to-page"],
+      ["-o", "print-color-mode=monochrome"],
+      ["-o", "fit-to-page", "-o", "print-color-mode=monochrome"],
+    ];
 
-  let lastError: Error | null = null;
-  for (const opts of pngAttempts) {
-    try {
-      const job = await runLp(printer, pngPath, opts);
-      await waitForPrintJob(job);
-      return "png";
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error("lp png failed");
+    let lastPngError: Error | null = null;
+    for (const opts of pngAttempts) {
+      try {
+        await runLp(printer, pngPath, opts);
+        await sleep(POST_SPOOL_MS);
+        return "png";
+      } catch (error) {
+        lastPngError = error instanceof Error ? error : new Error("lp png failed");
+      }
+    }
+
+    if (lastPngError) {
+      // fall through to PDF
     }
   }
 
-  for (const opts of [PDF_PRINT_OPTS, ["-o", "fit-to-page"], [] as string[]]) {
+  const pdfAttempts: string[][] = [
+    [],
+    ["-o", "fit-to-page"],
+    ["-o", "pdfAutoRotate=off", "-o", "fit-to-page"],
+  ];
+
+  let lastError: Error | null = null;
+  for (const opts of pdfAttempts) {
     try {
-      const job = await runLp(printer, pdfPath, opts);
-      await waitForPrintJob(job);
+      await runLp(printer, pdfPath, opts);
+      await sleep(POST_SPOOL_MS);
       return "pdf";
     } catch (error) {
       lastError = error instanceof Error ? error : new Error("lp pdf failed");
     }
   }
 
-  throw lastError ?? new Error("Не удалось напечатать этикетку");
+  throw lastError ?? new Error("Не удалось отправить этикетку на принтер");
 }

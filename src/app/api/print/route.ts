@@ -4,6 +4,8 @@ import {
   printToBarcodePrinter,
 } from "@/lib/server/barcode-printer";
 
+export const maxDuration = 60;
+
 export async function GET() {
   const info = await getPrinterDiagnostics();
   return NextResponse.json({
