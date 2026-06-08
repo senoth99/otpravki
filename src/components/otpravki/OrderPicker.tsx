@@ -14,6 +14,8 @@ interface OrderPickerProps {
   statuses: OrderDisplayStatus[];
   onSelect: (index: number) => void;
   locked?: boolean;
+  /** Индексы заказов, видимых в пикере (по умолчанию — все) */
+  visibleIndices?: number[];
 }
 
 function tabClass(status: OrderDisplayStatus, active: boolean): string {
@@ -195,14 +197,25 @@ function CompactOrderPicker({
 }
 
 export function OrderPicker(props: OrderPickerProps) {
-  const { orders, currentIndex, statuses, onSelect, locked } = props;
+  const { orders, currentIndex, statuses, onSelect, locked, visibleIndices } = props;
+
+  const poolIndices = visibleIndices ?? orders.map((_, index) => index);
 
   const sortedIndices = useMemo(
-    () => getSortedOrderIndices(orders, statuses),
-    [orders, statuses],
+    () => getSortedOrderIndices(
+      poolIndices.map((index) => orders[index]),
+      poolIndices.map((index) => statuses[index]),
+    ).map((sortedPos) => poolIndices[sortedPos]),
+    [orders, statuses, poolIndices],
   );
 
-  if (orders.length > COMPACT_THRESHOLD) {
+  if (poolIndices.length === 0) {
+    return (
+      <p className="px-1 py-2 text-center text-sm text-gray-400">Все заказы отправлены</p>
+    );
+  }
+
+  if (poolIndices.length > COMPACT_THRESHOLD) {
     return <CompactOrderPicker {...props} sortedIndices={sortedIndices} />;
   }
 

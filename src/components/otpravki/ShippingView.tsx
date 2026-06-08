@@ -16,6 +16,7 @@ import { BarcodeScanner } from "./BarcodeScanner";
 import { OrderItemRow } from "./OrderItemRow";
 import { OrderPicker } from "./OrderPicker";
 import { ScanErrorPopup } from "./ScanErrorPopup";
+import { ShippedArchive } from "./ShippedArchive";
 import { ShippedOrderCard } from "./ShippedOrderCard";
 
 const URGENCY_LABELS: Record<string, { label: string; className: string }> = {
@@ -49,6 +50,7 @@ function findNextActiveIndex(orders: ShippingOrder[], from: number): number | nu
 
 export function ShippingView({ orders, assemblyItems, onOrdersChange }: ShippingViewProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [viewingShippedId, setViewingShippedId] = useState<string | null>(null);
   const [manualMode, setManualMode] = useState(false);
   const [autoMode, setAutoMode] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -68,15 +70,33 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     [orders, assemblyItems],
   );
 
+  const activeIndices = useMemo(
+    () => orders.map((_, index) => index).filter((index) => !orders[index].barcodePrinted),
+    [orders],
+  );
+
+  const shippedOrders = useMemo(
+    () =>
+      orders
+        .filter((order) => order.barcodePrinted)
+        .sort((a, b) => (b.barcodePrintedAt ?? 0) - (a.barcodePrintedAt ?? 0)),
+    [orders],
+  );
+
   const currentOrder = orders[currentIndex];
+  const viewingShippedOrder = viewingShippedId
+    ? orders.find((order) => order.id === viewingShippedId) ?? null
+    : null;
+  const displayOrder = viewingShippedOrder ?? currentOrder;
   const assemblyStatus = assemblyStatuses[currentIndex];
   const isAssemblyReady = assemblyStatus?.ready ?? false;
-  const isShipped = currentOrder?.barcodePrinted ?? false;
+  const isShipped = displayOrder?.barcodePrinted ?? false;
+  const isViewingArchive = viewingShippedOrder !== null;
 
   const allScanned =
-    currentOrder?.items.every((i) => i.scannedCount >= i.quantity) ?? false;
-  const urgency = currentOrder ? URGENCY_LABELS[currentOrder.urgency] : null;
-  const canScan = isAssemblyReady && !isShipped && !countdown;
+    displayOrder?.items.every((i) => i.scannedCount >= i.quantity) ?? false;
+  const urgency = displayOrder ? URGENCY_LABELS[displayOrder.urgency] : null;
+  const canScan = isAssemblyReady && !isShipped && !countdown && !isViewingArchive;
 
   const exitAutoMode = useCallback(() => {
     setAutoMode(false);
@@ -166,6 +186,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
 
   const handlePrinted = () => {
     setPrintModalOpen(false);
+    const shippedId = currentOrder?.id;
     onOrdersChange((prev) => {
       const updated = prev.map((order, idx) =>
         idx === currentIndex
@@ -173,6 +194,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
           : order,
       );
       goToNextOrder(updated);
+      if (shippedId) setViewingShippedId(shippedId);
       return updated;
     });
   };
@@ -222,6 +244,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
         const nextStatuses = updated.map((o) => getOrderDisplayStatus(o, assemblyItems));
         const hasNext = findFirstAutoOrderIndex(updated, nextStatuses) !== null;
         setCountdown({ orderNumber: shippedNumber, secondsLeft: 5, hasNext });
+        setViewingShippedId(currentOrder.id);
         return updated;
       });
     })();
@@ -241,6 +264,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
 
     if (countdown.secondsLeft <= 0) {
       setCountdown(null);
+      setViewingShippedId(null);
       autoHandledRef.current = null;
       const next = findFirstAutoOrderIndex(orders, orderStatuses);
       if (next !== null) setCurrentIndex(next);
@@ -254,7 +278,18 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     return () => window.clearTimeout(timer);
   }, [countdown, orders, orderStatuses]);
 
-  if (!currentOrder) {
+  useEffect(() => {
+    if (viewingShippedId) return;
+    if (currentOrder?.barcodePrinted) {
+      const next = findNextActiveIndex(orders, currentIndex);
+      if (next !== null) setCurrentIndex(next);
+    }
+  }, [orders, currentIndex, currentOrder, viewingShippedId]);
+
+  const hasActiveOrders = activeIndices.length > 0;
+  const hasShippedOrders = shippedOrders.length > 0;
+
+  if (!hasActiveOrders && !hasShippedOrders) {
     return (
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
         <div className="border-b border-gray-100 px-1 py-1 sm:px-2">
@@ -267,11 +302,20 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     );
   }
 
-  const totalUnits = currentOrder.items.reduce((sum, i) => sum + i.quantity, 0);
-  const scannedCount = currentOrder.items.reduce((sum, i) => sum + i.scannedCount, 0);
+  const totalUnits = displayOrder?.items.reduce((sum, i) => sum + i.quantity, 0) ?? 0;
+  const scannedCount = displayOrder?.items.reduce((sum, i) => sum + i.scannedCount, 0) ?? 0;
   const hasNextUnshipped = orders.some((o, i) => i !== currentIndex && !o.barcodePrinted);
 
-  const showActions = isAssemblyReady && !isShipped && !autoMode;
+  const showActions = hasActiveOrders && isAssemblyReady && !isShipped && !autoMode && !isViewingArchive;
+
+  const handleSelectActive = (index: number) => {
+    setViewingShippedId(null);
+    setCurrentIndex(index);
+  };
+
+  const handleSelectArchive = (orderId: string) => {
+    setViewingShippedId(orderId);
+  };
 
   return (
     <div
@@ -284,22 +328,27 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
       </div>
 
       <div className="space-y-4 p-3 sm:p-6">
-          <OrderPicker
-            orders={orders}
-            currentIndex={currentIndex}
-            statuses={orderStatuses}
-            onSelect={setCurrentIndex}
-            locked={autoMode}
-          />
+          {hasActiveOrders && (
+            <OrderPicker
+              orders={orders}
+              currentIndex={currentIndex}
+              statuses={orderStatuses}
+              visibleIndices={activeIndices}
+              onSelect={handleSelectActive}
+              locked={autoMode}
+            />
+          )}
 
-          {!isAssemblyReady ? (
+          {!displayOrder ? (
+            <div className="py-6 text-center text-sm text-gray-500">Нет заказов на отправку</div>
+          ) : !isAssemblyReady && !isViewingArchive ? (
             <AssemblyLockedCard missing={assemblyStatus?.missing ?? []} />
           ) : isShipped && !autoMode ? (
             <ShippedOrderCard
-              orderNumber={currentOrder.orderNumber}
-              customerName={currentOrder.customerName}
-              hasNext={hasNextUnshipped}
-              onNext={handleNextOrder}
+              orderNumber={displayOrder.orderNumber}
+              customerName={displayOrder.customerName}
+              hasNext={hasNextUnshipped && !isViewingArchive}
+              onNext={isViewingArchive ? undefined : handleNextOrder}
             />
           ) : (
             <div className="space-y-4">
@@ -307,7 +356,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
-                      {formatOrderNumberShort(currentOrder.orderNumber)}
+                      {formatOrderNumberShort(displayOrder.orderNumber)}
                     </h2>
                     {urgency && (
                       <span className={`rounded-lg px-2 py-0.5 text-xs font-medium ${urgency.className}`}>
@@ -320,12 +369,12 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
                       </span>
                     )}
                   </div>
-                  <p className="mt-1 text-sm text-gray-600">{currentOrder.customerName}</p>
-                  <p className="text-xs text-gray-500">Срок: {currentOrder.deadline}</p>
+                  <p className="mt-1 text-sm text-gray-600">{displayOrder.customerName}</p>
+                  <p className="text-xs text-gray-500">Срок: {displayOrder.deadline}</p>
                 </div>
                 <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2 sm:block sm:bg-transparent sm:p-0 sm:text-right">
                   <p className="text-sm font-medium text-gray-700">
-                    {currentIndex + 1} / {orders.length}
+                    {activeIndices.indexOf(currentIndex) + 1 || 1} / {activeIndices.length || 1}
                   </p>
                   <p className="text-xs tabular-nums text-gray-500">
                     Сканировано: {scannedCount} / {totalUnits}
@@ -334,7 +383,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
               </div>
 
               <div className="space-y-2">
-                {currentOrder.items.map((item) => (
+                {displayOrder.items.map((item) => (
                   <OrderItemRow
                     key={item.id}
                     item={item}
@@ -415,6 +464,12 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
               </div>
             </div>
           )}
+
+          <ShippedArchive
+            orders={shippedOrders}
+            selectedId={viewingShippedId}
+            onSelect={handleSelectArchive}
+          />
       </div>
 
       {scannerOpen && (
@@ -431,7 +486,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
         />
       )}
 
-      {printModalOpen && (
+      {printModalOpen && currentOrder && (
         <BarcodePrintModal
           orderNumber={currentOrder.orderNumber}
           barcodeUrl={currentOrder.barcodeUrl}
