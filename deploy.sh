@@ -63,7 +63,10 @@ reset_mock_workspace
 
 if ! command -v lp &>/dev/null; then
   echo "==> Устанавливаю CUPS для печати..."
-  as_root apt-get install -y cups cups-client
+  as_root apt-get install -y cups cups-client poppler-utils
+elif ! command -v pdftoppm &>/dev/null; then
+  echo "==> Устанавливаю poppler-utils для PDF-этикеток..."
+  as_root apt-get install -y poppler-utils
 fi
 as_root systemctl enable cups 2>/dev/null || true
 as_root systemctl start cups 2>/dev/null || true

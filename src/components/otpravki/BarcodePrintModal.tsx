@@ -5,6 +5,7 @@ import { printOrderBarcode } from "@/lib/print-barcode";
 
 interface BarcodePrintModalProps {
   orderNumber: string;
+  orderId: string;
   barcodeUrl?: string;
   onClose: () => void;
   onPrinted: () => void;
@@ -12,6 +13,7 @@ interface BarcodePrintModalProps {
 
 export function BarcodePrintModal({
   orderNumber,
+  orderId,
   barcodeUrl,
   onClose,
   onPrinted,
@@ -22,7 +24,7 @@ export function BarcodePrintModal({
   const handlePrint = async () => {
     setPrinting(true);
     setError(null);
-    const result = await printOrderBarcode(orderNumber, { barcodeUrl });
+    const result = await printOrderBarcode(orderNumber, { orderId, barcodeUrl });
     setPrinting(false);
     if (!result.ok) {
       setError(result.message ?? "Не удалось напечатать");

@@ -20,6 +20,7 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as {
       orderNumber?: string;
+      orderId?: string;
       barcodeData?: string;
       barcodeUrl?: string;
     };
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
     }
 
     const result = await printToBarcodePrinter(body.orderNumber, {
+      orderId: body.orderId,
       barcodeUrl: body.barcodeUrl,
       barcodeData: body.barcodeData,
     });

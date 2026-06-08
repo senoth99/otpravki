@@ -5,6 +5,7 @@ export interface PrintResult {
 }
 
 export interface PrintOrderOptions {
+  orderId?: string;
   barcodeUrl?: string;
   barcodeData?: string;
 }
@@ -20,8 +21,9 @@ export async function printOrderBarcode(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         orderNumber,
+        orderId: options.orderId,
         barcodeUrl: options.barcodeUrl,
-        barcodeData: options.barcodeData ?? orderNumber,
+        barcodeData: options.barcodeUrl ? undefined : (options.barcodeData ?? orderNumber),
       }),
     });
 

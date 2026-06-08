@@ -1,7 +1,19 @@
 import type { ApiUnshippedOrder } from "@/types/orders-api";
 import { ORDERS_API_BASE, casherAuthHeaders, getCasherApiKey } from "@/lib/server/casher-api";
+import { assertPdfBuffer } from "@/lib/server/pdf-label-printer";
 
 const UNSHIPPED_PATH = "/orders/admin/unshipped-with-stock";
+
+export function buildBarcodePdfUrl(orderId: string | number): string {
+  return `${ORDERS_API_BASE}/orders/admin/order/${orderId}/cdek-barcode-pdf`;
+}
+
+export function resolveBarcodeUrl(orderId?: string, barcodeUrl?: string): string | null {
+  const trimmed = barcodeUrl?.trim();
+  if (trimmed) return trimmed;
+  if (orderId) return buildBarcodePdfUrl(orderId);
+  return null;
+}
 
 export async function fetchUnshippedOrders(): Promise<ApiUnshippedOrder[]> {
   const key = getCasherApiKey();
@@ -37,7 +49,10 @@ export async function downloadBarcodePdf(barcodeUrl: string): Promise<Buffer> {
   }
 
   const res = await fetch(barcodeUrl, {
-    headers: casherAuthHeaders(),
+    headers: {
+      ...casherAuthHeaders(),
+      Accept: "application/pdf",
+    },
     cache: "no-store",
   });
 
@@ -45,6 +60,7 @@ export async function downloadBarcodePdf(barcodeUrl: string): Promise<Buffer> {
     throw new Error(`Не удалось скачать этикетку: HTTP ${res.status}`);
   }
 
-  const data = await res.arrayBuffer();
-  return Buffer.from(data);
+  const data = Buffer.from(await res.arrayBuffer());
+  assertPdfBuffer(data);
+  return data;
 }
