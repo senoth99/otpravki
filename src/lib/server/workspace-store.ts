@@ -129,8 +129,8 @@ export async function resetSharedWorkspace(
   };
 
   memoryState = state;
-  broadcast(state);
   await writeToDisk(state);
+  broadcast(state);
   return state;
 }
 
@@ -157,8 +157,8 @@ export async function syncWorkspaceFromApi(fresh: WorkspaceData): Promise<Shared
   );
 
   memoryState = next;
-  broadcast(next);
   await writeToDisk(next);
+  broadcast(next);
   return next;
 }
 
@@ -181,16 +181,22 @@ async function applyWorkspaceUpdateInner(
 ): Promise<SharedWorkspaceState> {
   const current = await getSharedWorkspace();
 
-  const mergedBase = current
-    ? mergeWorkspaces(current, incoming)
-    : {
-        version: 1 as const,
-        assemblyItems: incoming.assemblyItems,
-        orders: incoming.orders,
-        shippedArchive: mergeShippedArchives(incoming.shippedArchive ?? [], incoming.orders),
-        apiOrderIds: incoming.apiOrderIds,
-        updatedAt: incoming.updatedAt,
-      };
+  const mergedBase =
+    !current || incoming.updatedAt >= current.updatedAt
+      ? {
+          version: 1 as const,
+          assemblyItems: incoming.assemblyItems,
+          orders: incoming.orders,
+          shippedArchive: mergeShippedArchives(
+            incoming.shippedArchive ?? [],
+            incoming.orders,
+            current?.shippedArchive ?? [],
+            current?.orders ?? [],
+          ),
+          apiOrderIds: incoming.apiOrderIds ?? current?.apiOrderIds,
+          updatedAt: incoming.updatedAt,
+        }
+      : mergeWorkspaces(current, incoming);
 
   const next: SharedWorkspaceState = normalizeWorkspaceState({
     ...mergedBase,
@@ -200,8 +206,8 @@ async function applyWorkspaceUpdateInner(
   });
 
   memoryState = next;
-  broadcast(next);
   await writeToDisk(next);
+  broadcast(next);
 
   void logSync("workspace.update", {
     revision: next.revision,

@@ -15,20 +15,26 @@ function pickByTimestamp<T extends number>(
 }
 
 function mergeAssemblyItem(a: AssemblyItem, b: AssemblyItem): AssemblyItem {
-  const [first] = (a.collectedAt ?? 0) >= (b.collectedAt ?? 0) ? [a, b] : [b, a];
+  const aTime = a.collectedAt ?? 0;
+  const bTime = b.collectedAt ?? 0;
+  const winner = aTime >= bTime ? a : b;
   return {
-    ...first,
-    collectedCount: Math.max(a.collectedCount, b.collectedCount),
-    collectedAt: Math.max(a.collectedAt ?? 0, b.collectedAt ?? 0) || undefined,
+    ...winner,
+    quantity: Math.max(a.quantity, b.quantity),
+    collectedCount:
+      aTime === bTime ? Math.max(a.collectedCount, b.collectedCount) : winner.collectedCount,
+    collectedAt: Math.max(aTime, bTime) || undefined,
   };
 }
 
 function mergeOrderItem(a: ShippingOrderItem, b: ShippingOrderItem): ShippingOrderItem {
-  const [first] = (a.scannedAt ?? 0) >= (b.scannedAt ?? 0) ? [a, b] : [b, a];
+  const aTime = a.scannedAt ?? 0;
+  const bTime = b.scannedAt ?? 0;
+  const winner = aTime >= bTime ? a : b;
   return {
-    ...first,
-    scannedCount: Math.max(a.scannedCount, b.scannedCount),
-    scannedAt: Math.max(a.scannedAt ?? 0, b.scannedAt ?? 0) || undefined,
+    ...winner,
+    scannedCount: aTime === bTime ? Math.max(a.scannedCount, b.scannedCount) : winner.scannedCount,
+    scannedAt: Math.max(aTime, bTime) || undefined,
   };
 }
 

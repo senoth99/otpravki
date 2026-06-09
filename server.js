@@ -14,13 +14,23 @@ function getDataDir() {
   return process.env.DATA_DIR || path.join(process.cwd(), "data");
 }
 
-async function readWorkspaceFromDisk() {
-  const stateFile = path.join(getDataDir(), "workspace", "state.json");
+async function readWorkspaceState() {
   try {
-    const raw = await fsp.readFile(stateFile, "utf8");
-    return JSON.parse(raw);
+    const host = hostname === "0.0.0.0" ? "127.0.0.1" : hostname;
+    const res = await fetch(`http://${host}:${port}/api/workspace`, {
+      headers: { "Cache-Control": "no-store" },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.workspace ?? null;
   } catch {
-    return null;
+    const stateFile = path.join(getDataDir(), "workspace", "state.json");
+    try {
+      const raw = await fsp.readFile(stateFile, "utf8");
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -34,7 +44,7 @@ function attachWorkspaceSocket(httpServer) {
   global.__workspaceIo = io;
 
   io.on("connection", async (socket) => {
-    const workspace = await readWorkspaceFromDisk();
+    const workspace = await readWorkspaceState();
     void logSync("socket.connect", {
       socketId: socket.id,
       clients: io.engine.clientsCount,
