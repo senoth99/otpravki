@@ -325,7 +325,7 @@ export function subscribeWorkspaceStream({
 
   const socket = io({
     path: "/socket.io",
-    transports: ["websocket", "polling"],
+    transports: ["polling", "websocket"],
     reconnection: true,
     reconnectionDelay: SOCKET_RECONNECT_MS,
     reconnectionAttempts: Infinity,
