@@ -151,6 +151,7 @@ cp -r public .next/standalone/
 mkdir -p .next/standalone/.next
 cp -r .next/static .next/standalone/.next/static
 cp "$APP_DIR/server.js" .next/standalone/server.js
+cp "$APP_DIR/sync-log.js" .next/standalone/sync-log.js
 echo "==> Socket.IO для realtime..."
 npm install --prefix .next/standalone --omit=dev socket.io@^4.8.1
 
@@ -255,6 +256,7 @@ echo ""
 echo "  Кэш товаров:    $DATA_DIR/cache"
 echo "  Картинки:       $DATA_DIR/cache/images"
 echo "  Лог синхронизации: $DATA_DIR/sync/events.jsonl"
+echo "  Вытянуть логи:     curl http://127.0.0.1:${PORT}/api/sync/log?lines=200"
 echo ""
 if command -v lpstat &>/dev/null; then
   echo "  Принтер (авто):"

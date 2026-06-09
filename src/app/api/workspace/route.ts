@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logSync } from "@/lib/server/sync-log";
 import { applyWorkspaceUpdate, getSharedWorkspace } from "@/lib/server/workspace-store";
 import type { WorkspaceState } from "@/types/workspace";
 
@@ -23,10 +24,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Invalid workspace" }, { status: 400 });
     }
 
-    const workspace = await applyWorkspaceUpdate(
-      body.workspace,
-      body.clientId ?? "unknown",
-    );
+    const clientId = body.clientId ?? "unknown";
+    void logSync("api.workspace.post", {
+      clientId,
+      orders: body.workspace.orders.length,
+      updatedAt: body.workspace.updatedAt,
+    });
+
+    const workspace = await applyWorkspaceUpdate(body.workspace, clientId);
 
     return NextResponse.json({ ok: true, workspace }, { headers: NO_CACHE });
   } catch (error) {

@@ -33,7 +33,7 @@ interface UseWorkspaceOptions {
   initialShippedArchive?: ShippingOrder[];
 }
 
-const REVISION_POLL_MS = 5_000;
+const REVISION_POLL_MS = 500;
 
 export function useWorkspace({
   initialAssembly,
@@ -90,22 +90,11 @@ export function useWorkspace({
 
   const applyFromServer = useCallback(
     (remote: SharedWorkspaceState) => {
-      if (remote.revision === revisionRef.current) return;
+      // Сервер — источник правды: как в inventory, remote всегда перезаписывает UI.
+      if (remote.revision <= revisionRef.current) return;
 
-      const next = dirtyRef.current
-        ? normalizeWorkspaceState(
-            applySharedWorkspace(
-              createWorkspace(
-                assemblyRef.current,
-                ordersRef.current,
-                shippedArchiveRef.current,
-              ),
-              remote,
-            ),
-          )
-        : normalizeWorkspaceState(remote);
-
-      applyWorkspaceState(next);
+      applyWorkspaceState(normalizeWorkspaceState(remote));
+      dirtyRef.current = false;
     },
     [applyWorkspaceState],
   );

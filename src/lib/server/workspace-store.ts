@@ -6,6 +6,7 @@ import { mergeShippedArchives, normalizeWorkspaceState } from "@/lib/shipped-arc
 import { mergeFreshOrdersData } from "@/lib/workspace-api-merge";
 import { mergeWorkspaces } from "@/lib/workspace-merge";
 import type { WorkspaceData } from "@/lib/build-workspace";
+import { logSync } from "@/lib/server/sync-log";
 import { appendSyncEvent, forwardToRemote } from "@/lib/server/sync-store";
 
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
@@ -41,10 +42,24 @@ function broadcast(state: SharedWorkspaceState) {
     }
   }
 
-  const io = (globalThis as { __workspaceIo?: { emit: (event: string, data: unknown) => void } })
-    .__workspaceIo;
+  const io =
+    (global as { __workspaceIo?: { emit: (event: string, data: unknown) => void } }).__workspaceIo ??
+    (globalThis as { __workspaceIo?: { emit: (event: string, data: unknown) => void } })
+      .__workspaceIo;
   if (io) {
     io.emit("workspace:update", state);
+    void logSync("broadcast.socket", {
+      revision: state.revision,
+      updatedBy: state.updatedBy,
+      orders: state.orders.length,
+    });
+  } else {
+    void logSync("broadcast.no-socket", {
+      revision: state.revision,
+      updatedBy: state.updatedBy,
+      orders: state.orders.length,
+      hint: "Запускай через npm run dev / node server.js, не next dev",
+    });
   }
 }
 
@@ -188,6 +203,12 @@ async function applyWorkspaceUpdateInner(
   broadcast(next);
   await writeToDisk(next);
 
+  void logSync("workspace.update", {
+    revision: next.revision,
+    updatedBy: clientId,
+    orders: next.orders.length,
+    assembly: next.assemblyItems.length,
+  });
   void appendSyncEvent(next).then(() => forwardToRemote(next));
 
   return next;

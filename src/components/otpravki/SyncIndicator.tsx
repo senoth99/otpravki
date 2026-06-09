@@ -69,7 +69,7 @@ export function SyncIndicator({
                 ? "Получение изменений…"
                 : isStreamConnected
                   ? "Синхронизировано"
-                  : "Подключение…"
+                  : "Нет realtime — нужен npm run dev (не next dev)"
         }
       />
       {serverRevision > 0 && (

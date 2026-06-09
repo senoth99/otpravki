@@ -3,6 +3,7 @@ const http = require("http");
 const fs = require("fs");
 const fsp = require("fs/promises");
 const { parse } = require("url");
+const { logSync } = require("./sync-log.js");
 
 const dir = path.join(__dirname);
 const hostname = process.env.HOSTNAME || "0.0.0.0";
@@ -34,12 +35,38 @@ function attachWorkspaceSocket(httpServer) {
 
   io.on("connection", async (socket) => {
     const workspace = await readWorkspaceFromDisk();
+    void logSync("socket.connect", {
+      socketId: socket.id,
+      clients: io.engine.clientsCount,
+      revision: workspace?.revision ?? null,
+    });
+
     if (workspace) {
       socket.emit("workspace:sync", workspace);
+      void logSync("socket.sync", {
+        socketId: socket.id,
+        revision: workspace.revision ?? null,
+        orders: workspace.orders?.length ?? 0,
+      });
     }
+
+    socket.on("disconnect", (reason) => {
+      void logSync("socket.disconnect", {
+        socketId: socket.id,
+        reason,
+        clients: io.engine.clientsCount,
+      });
+    });
 
     socket.on("workspace:set", async (data) => {
       if (!data?.workspace) return;
+
+      void logSync("socket.set", {
+        socketId: socket.id,
+        clientId: data.clientId ?? "unknown",
+        orders: data.workspace.orders?.length ?? 0,
+        updatedAt: data.workspace.updatedAt ?? null,
+      });
 
       try {
         const host = hostname === "0.0.0.0" ? "127.0.0.1" : hostname;
@@ -49,9 +76,21 @@ function attachWorkspaceSocket(httpServer) {
           body: JSON.stringify(data),
         });
         if (!res.ok) {
+          void logSync("socket.set.error", { socketId: socket.id, status: res.status });
           console.error("workspace:set API error", res.status);
+          return;
+        }
+
+        const body = await res.json();
+        if (body.workspace) {
+          io.emit("workspace:update", body.workspace);
+          void logSync("socket.emit", {
+            revision: body.workspace.revision,
+            source: "workspace:set",
+          });
         }
       } catch (err) {
+        void logSync("socket.set.error", { socketId: socket.id, error: err.message });
         console.error("workspace:set failed", err.message);
       }
     });

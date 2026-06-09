@@ -149,12 +149,24 @@ export async function fetchSharedWorkspace(): Promise<SharedWorkspaceState | nul
 
 let activeSocket: Socket | null = null;
 
-function pushWorkspaceViaSocket(data: { workspace: WorkspaceState; clientId: string }): boolean {
-  if (activeSocket?.connected) {
-    activeSocket.emit("workspace:set", data);
-    return true;
-  }
-  return false;
+function logClientSync(
+  type: string,
+  data: { message?: string; revision?: number; meta?: Record<string, unknown> } = {},
+) {
+  void fetch("/api/sync/log", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      type,
+      clientId: getClientId(),
+      message: data.message,
+      revision: data.revision,
+      meta: data.meta,
+    }),
+    keepalive: true,
+  }).catch(() => {
+    // logging must not break sync
+  });
 }
 
 export async function pushWorkspace(workspace: WorkspaceState): Promise<{
@@ -165,10 +177,6 @@ export async function pushWorkspace(workspace: WorkspaceState): Promise<{
     workspace,
     clientId: getClientId(),
   };
-
-  if (pushWorkspaceViaSocket(payload)) {
-    return { ok: true };
-  }
 
   try {
     const res = await fetch("/api/workspace", {
@@ -185,13 +193,20 @@ export async function pushWorkspace(workspace: WorkspaceState): Promise<{
     };
 
     if (!res.ok) {
+      logClientSync("push.http.error", { meta: { status: res.status } });
       enqueueSync(workspace);
       return { ok: false };
     }
 
-    if (data.ok) clearSyncQueue();
+    if (data.ok) {
+      logClientSync("push.http.ok", { revision: data.workspace?.revision });
+      clearSyncQueue();
+    }
     return data;
-  } catch {
+  } catch (err) {
+    logClientSync("push.http.fail", {
+      message: err instanceof Error ? err.message : "fetch failed",
+    });
     enqueueSync(workspace);
     return { ok: false };
   }
@@ -311,12 +326,20 @@ export function subscribeWorkspaceStream({
   });
   activeSocket = socket;
 
-  socket.on("connect", () => setConnected(true));
-  socket.on("disconnect", () => setConnected(false));
+  socket.on("connect", () => {
+    setConnected(true);
+    logClientSync("socket.connect", { meta: { transport: socket.io.engine.transport.name } });
+  });
+  socket.on("disconnect", (reason) => {
+    setConnected(false);
+    logClientSync("socket.disconnect", { message: reason });
+  });
   socket.on("workspace:sync", (workspace: SharedWorkspaceState) => {
+    logClientSync("recv.sync", { revision: workspace?.revision });
     applyWorkspaceEvent(workspace, onWorkspace, onRevisionPing);
   });
   socket.on("workspace:update", (workspace: SharedWorkspaceState) => {
+    logClientSync("recv.update", { revision: workspace?.revision });
     applyWorkspaceEvent(workspace, onWorkspace, onRevisionPing);
   });
 
