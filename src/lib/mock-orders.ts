@@ -5,6 +5,7 @@ import type {
   ShippingOrder,
   ShippingOrderItem,
 } from "@/types/shipping";
+import { moscowDaysFromNow } from "@/lib/format";
 import { URGENCY_WEIGHT } from "@/lib/urgency";
 
 const URGENCIES: OrderUrgency[] = ["critical", "high", "normal", "low"];
@@ -22,12 +23,6 @@ const CUSTOMER_NAMES = [
 
 function randomFrom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
-}
-
-function daysFromNow(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
 }
 
 function toOrderItem(item: AssemblyItem, quantity: number): ShippingOrderItem {
@@ -87,8 +82,8 @@ export function generateOrdersFromAssembly(assemblyItems: AssemblyItem[], count 
         urgency === "critical"
           ? "Сегодня"
           : urgency === "high"
-            ? daysFromNow(1)
-            : daysFromNow(2 + i),
+            ? moscowDaysFromNow(1)
+            : moscowDaysFromNow(2 + i),
       items,
       barcodePrinted: false,
     });

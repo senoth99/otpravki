@@ -1,4 +1,8 @@
-import { getSharedWorkspace, subscribeWorkspace } from "@/lib/server/workspace-store";
+import {
+  getSharedWorkspace,
+  getWorkspaceRevision,
+  subscribeWorkspace,
+} from "@/lib/server/workspace-store";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +25,10 @@ export async function GET(request: Request) {
       });
 
       const heartbeat = setInterval(() => {
-        controller.enqueue(encoder.encode(": ping\n\n"));
-      }, 15_000);
+        void getWorkspaceRevision().then((revision) => {
+          send({ type: "ping", revision });
+        });
+      }, 5_000);
 
       request.signal.addEventListener("abort", () => {
         clearInterval(heartbeat);

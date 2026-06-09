@@ -130,6 +130,7 @@ export async function pushWorkspace(workspace: WorkspaceState): Promise<{
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ workspace, clientId: getClientId() }),
+    cache: "no-store",
   });
 
   if (!res.ok) {
@@ -143,7 +144,6 @@ export async function pushWorkspace(workspace: WorkspaceState): Promise<{
 }
 
 export async function flushSyncQueue(): Promise<{ synced: number; failed: number }> {
-
   try {
     const raw = localStorage.getItem(SYNC_QUEUE_KEY);
     if (!raw) return { synced: 0, failed: 0 };
@@ -201,7 +201,8 @@ export interface WorkspaceStreamOptions {
   onConnectionChange?: (connected: boolean) => void;
 }
 
-const STREAM_RECONNECT_MS = 500;
+const STREAM_RECONNECT_MS = 300;
+const STREAM_STALE_MS = 10_000;
 
 export function subscribeWorkspaceStream({
   onWorkspace,
@@ -209,8 +210,10 @@ export function subscribeWorkspaceStream({
 }: WorkspaceStreamOptions): () => void {
   let source: EventSource | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let staleTimer: ReturnType<typeof setInterval> | null = null;
   let connected = false;
   let closed = false;
+  let lastMessageAt = Date.now();
 
   const setConnected = (next: boolean) => {
     if (connected === next) return;
@@ -222,6 +225,27 @@ export function subscribeWorkspaceStream({
     void fetchSharedWorkspace().then((workspace) => {
       if (workspace) onWorkspace(workspace);
     });
+  };
+
+  const clearStaleTimer = () => {
+    if (staleTimer) {
+      clearInterval(staleTimer);
+      staleTimer = null;
+    }
+  };
+
+  const startStaleTimer = () => {
+    clearStaleTimer();
+    staleTimer = setInterval(() => {
+      if (closed || !connected) return;
+      if (Date.now() - lastMessageAt > STREAM_STALE_MS) {
+        source?.close();
+        source = null;
+        setConnected(false);
+        refreshFromServer();
+        scheduleReconnect();
+      }
+    }, 2_000);
   };
 
   const scheduleReconnect = () => {
@@ -239,14 +263,17 @@ export function subscribeWorkspaceStream({
     source = new EventSource("/api/workspace/stream");
 
     source.onopen = () => {
+      lastMessageAt = Date.now();
       setConnected(true);
+      startStaleTimer();
     };
 
     source.onmessage = (event) => {
+      lastMessageAt = Date.now();
       try {
         const data = JSON.parse(event.data) as {
           type: string;
-          workspace: SharedWorkspaceState;
+          workspace?: SharedWorkspaceState;
         };
         if (data.type === "workspace" && data.workspace) {
           onWorkspace(data.workspace);
@@ -259,6 +286,7 @@ export function subscribeWorkspaceStream({
     source.onerror = () => {
       source?.close();
       source = null;
+      clearStaleTimer();
       setConnected(false);
       if (closed) return;
       refreshFromServer();
@@ -272,8 +300,8 @@ export function subscribeWorkspaceStream({
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
+    refreshFromServer();
     if (!connected) connect();
-    else refreshFromServer();
   };
 
   connect();
@@ -288,6 +316,7 @@ export function subscribeWorkspaceStream({
   return () => {
     closed = true;
     if (reconnectTimer) clearTimeout(reconnectTimer);
+    clearStaleTimer();
     source?.close();
     setConnected(false);
     window.removeEventListener("focus", reconnectNow);

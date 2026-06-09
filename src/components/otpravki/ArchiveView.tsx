@@ -6,7 +6,7 @@ import {
   ARCHIVE_STATUS_LABEL,
   getArchiveDeliveryStatus,
 } from "@/lib/archive-status";
-import { formatOrderNumberShort } from "@/lib/format";
+import { formatMoscowDateTime, formatOrderNumberShort } from "@/lib/format";
 import { mergeShippedArchives } from "@/lib/shipped-archive";
 import type { ShippingOrder } from "@/types/shipping";
 
@@ -28,16 +28,6 @@ const STATUS_STYLES = {
     dot: "bg-gray-400",
   },
 } as const;
-
-function formatShippedAt(timestamp?: number): string {
-  if (!timestamp) return "—";
-  return new Date(timestamp).toLocaleString("ru-RU", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 export function ArchiveView({ orders, shippedArchive, apiOrderIds }: ArchiveViewProps) {
   const apiSet = useMemo(() => new Set(apiOrderIds), [apiOrderIds]);
@@ -106,7 +96,9 @@ export function ArchiveView({ orders, shippedArchive, apiOrderIds }: ArchiveView
                     Отправлен
                   </p>
                   <p className="mt-0.5 text-xs tabular-nums text-gray-600">
-                    {formatShippedAt(order.barcodePrintedAt)}
+                    {order.barcodePrintedAt
+                      ? formatMoscowDateTime(order.barcodePrintedAt)
+                      : "—"}
                   </p>
                 </div>
               </div>

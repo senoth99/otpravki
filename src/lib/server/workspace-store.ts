@@ -43,6 +43,11 @@ export function subscribeWorkspace(listener: WorkspaceListener): () => void {
   return () => listeners.delete(listener);
 }
 
+export async function getWorkspaceRevision(): Promise<number> {
+  const state = await getSharedWorkspace();
+  return state?.revision ?? 0;
+}
+
 export async function getSharedWorkspace(): Promise<SharedWorkspaceState | null> {
   if (memoryState) return memoryState;
 

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { formatMoscowIso } from "@/lib/format";
 import { detectBarcodePrinter } from "@/lib/server/barcode-printer";
 
 export async function GET() {
@@ -8,6 +9,7 @@ export async function GET() {
     service: "otpravki",
     syncApi: Boolean(process.env.SYNC_API_URL),
     printer: printer ?? null,
-    time: new Date().toISOString(),
+    time: formatMoscowIso(),
+    timezone: "Europe/Moscow",
   });
 }

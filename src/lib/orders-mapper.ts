@@ -1,6 +1,6 @@
 import { sortAssemblyItemsByUrgency } from "@/lib/assembly-sort";
 import { getImageUrl } from "@/lib/api";
-import { formatSize } from "@/lib/format";
+import { addMoscowCalendarDays, formatMoscowDate, formatSize, isMoscowToday } from "@/lib/format";
 import { URGENCY_WEIGHT } from "@/lib/urgency";
 import type { ApiUnshippedOrder } from "@/types/orders-api";
 import type {
@@ -26,10 +26,9 @@ function deriveUrgency(createdAt: string, allInStock: boolean): OrderUrgency {
 }
 
 function formatDeadline(createdAt: string): string {
-  const created = new Date(createdAt);
-  const shipBy = new Date(created);
-  shipBy.setDate(shipBy.getDate() + 3);
-  return shipBy.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+  const shipBy = addMoscowCalendarDays(createdAt, 3);
+  if (isMoscowToday(shipBy)) return "Сегодня";
+  return formatMoscowDate(shipBy);
 }
 
 function resolveSizeId(product: ApiProduct | undefined, size: string, lineId: number): number {
