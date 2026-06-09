@@ -74,7 +74,7 @@ export function getPendingSyncCount(): number {
   }
 }
 
-function clearSyncQueue() {
+export function clearSyncQueue() {
   localStorage.removeItem(SYNC_QUEUE_KEY);
 }
 
@@ -117,7 +117,9 @@ export async function refreshWorkspaceFromApi(): Promise<{
 
 export async function fetchSharedWorkspace(): Promise<SharedWorkspaceState | null> {
   const res = await fetch("/api/workspace", { cache: "no-store" });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    throw new Error(`workspace fetch failed: ${res.status}`);
+  }
   const data = (await res.json()) as { workspace: SharedWorkspaceState | null };
   return data.workspace;
 }
@@ -126,24 +128,33 @@ export async function pushWorkspace(workspace: WorkspaceState): Promise<{
   ok: boolean;
   workspace?: SharedWorkspaceState;
 }> {
-  const res = await fetch("/api/workspace", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ workspace, clientId: getClientId() }),
-    cache: "no-store",
-  });
+  try {
+    const res = await fetch("/api/workspace", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspace, clientId: getClientId() }),
+      cache: "no-store",
+    });
 
-  if (!res.ok) {
+    if (!res.ok) {
+      enqueueSync(workspace);
+      return { ok: false };
+    }
+
+    const data = (await res.json()) as { ok: boolean; workspace?: SharedWorkspaceState };
+    if (data.ok) clearSyncQueue();
+    return data;
+  } catch {
     enqueueSync(workspace);
     return { ok: false };
   }
-
-  const data = (await res.json()) as { ok: boolean; workspace?: SharedWorkspaceState };
-  if (data.ok) clearSyncQueue();
-  return data;
 }
 
-export async function flushSyncQueue(): Promise<{ synced: number; failed: number }> {
+export async function flushSyncQueue(): Promise<{
+  synced: number;
+  failed: number;
+  workspace?: SharedWorkspaceState;
+}> {
   try {
     const raw = localStorage.getItem(SYNC_QUEUE_KEY);
     if (!raw) return { synced: 0, failed: 0 };
@@ -151,11 +162,17 @@ export async function flushSyncQueue(): Promise<{ synced: number; failed: number
     const queue = JSON.parse(raw) as { workspace: WorkspaceState }[];
     if (queue.length === 0) return { synced: 0, failed: 0 };
 
-    const latest = queue[queue.length - 1].workspace;
-    const result = await pushWorkspace(latest);
+    const local = loadWorkspace();
+    const queued = queue[queue.length - 1].workspace;
+    const toPush =
+      local && local.updatedAt > queued.updatedAt
+        ? local
+        : queued;
+
+    const result = await pushWorkspace(toPush);
     if (result.ok) {
       clearSyncQueue();
-      return { synced: 1, failed: 0 };
+      return { synced: 1, failed: 0, workspace: result.workspace };
     }
     return { synced: 0, failed: 1 };
   } catch {
@@ -222,9 +239,13 @@ export function subscribeWorkspaceStream({
   };
 
   const refreshFromServer = () => {
-    void fetchSharedWorkspace().then((workspace) => {
-      if (workspace) onWorkspace(workspace);
-    });
+    void fetchSharedWorkspace()
+      .then((workspace) => {
+        if (workspace) onWorkspace(workspace);
+      })
+      .catch(() => {
+        // retry on next reconnect or poll
+      });
   };
 
   const clearStaleTimer = () => {

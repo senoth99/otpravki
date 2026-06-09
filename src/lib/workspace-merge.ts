@@ -32,7 +32,7 @@ function mergeOrderItem(a: ShippingOrderItem, b: ShippingOrderItem): ShippingOrd
   };
 }
 
-function mergeOrder(a: ShippingOrder, b: ShippingOrder): ShippingOrder {
+export function mergeOrder(a: ShippingOrder, b: ShippingOrder): ShippingOrder {
   const itemsById = new Map<string, ShippingOrderItem>();
   for (const item of [...a.items, ...b.items]) {
     const existing = itemsById.get(item.id);

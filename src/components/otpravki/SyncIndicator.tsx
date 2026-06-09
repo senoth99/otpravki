@@ -18,7 +18,7 @@ const DOT_STYLES: Record<DotColor, string> = {
 function StatusDot({ color, label }: { color: DotColor; label: string }) {
   return (
     <span
-      className={`h-1.5 w-1.5 rounded-full opacity-50 ${DOT_STYLES[color]}`}
+      className={`h-2 w-2 rounded-full sm:h-1.5 sm:w-1.5 sm:opacity-50 ${DOT_STYLES[color]}`}
       title={label}
       aria-label={label}
     />
@@ -41,7 +41,7 @@ export function SyncIndicator({
         : "yellow";
 
   return (
-    <div className="fixed top-1.5 right-3 z-50 hidden items-center gap-1 sm:flex">
+    <div className="fixed top-1.5 right-3 z-50 flex items-center gap-1.5">
       <StatusDot
         color={serverColor}
         label={isServerReachable ? "Сервер в сети" : "Сервер недоступен"}

@@ -45,6 +45,7 @@ export function ShippingPanel({
     isSyncing,
     isRefreshing,
     pendingSync,
+    syncReady,
     refreshFromApi,
   } = useWorkspace({
     initialAssembly,
@@ -92,6 +93,13 @@ export function ShippingPanel({
         isSyncing={isSyncing}
         pendingSync={pendingSync}
       />
+      {!syncReady && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-50/80 backdrop-blur-[1px]">
+          <p className="rounded-xl bg-white px-4 py-3 text-sm text-gray-600 shadow-sm">
+            Подключение к серверу…
+          </p>
+        </div>
+      )}
       <div className="mx-auto w-full max-w-3xl space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-3">

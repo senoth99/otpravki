@@ -10,15 +10,17 @@ export async function GET(request: Request) {
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
-    async start(controller) {
-      const send = (data: unknown) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-      };
+    start(controller) {
+      let closed = false;
 
-      const workspace = await getSharedWorkspace();
-      if (workspace) {
-        send({ type: "workspace", workspace });
-      }
+      const send = (data: unknown) => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+        } catch {
+          closed = true;
+        }
+      };
 
       const unsubscribe = subscribeWorkspace((state) => {
         send({ type: "workspace", workspace: state });
@@ -31,9 +33,20 @@ export async function GET(request: Request) {
       }, 5_000);
 
       request.signal.addEventListener("abort", () => {
+        closed = true;
         clearInterval(heartbeat);
         unsubscribe();
-        controller.close();
+        try {
+          controller.close();
+        } catch {
+          // already closed
+        }
+      });
+
+      void getSharedWorkspace().then((workspace) => {
+        if (workspace) {
+          send({ type: "workspace", workspace });
+        }
       });
     },
   });

@@ -12,10 +12,10 @@ import {
 import { checkServerReachable, subscribeServerReachability } from "@/lib/server-reachability";
 import {
   applySharedWorkspace,
+  clearSyncQueue,
   createWorkspace,
   fetchSharedWorkspace,
   flushSyncQueue,
-  getClientId,
   getPendingSyncCount,
   loadWorkspace,
   pushWorkspace,
@@ -40,7 +40,6 @@ export function useWorkspace({
   initialApiOrderIds = [],
   initialShippedArchive = [],
 }: UseWorkspaceOptions) {
-  const hydrated = useRef(false);
   const revisionRef = useRef(0);
   const applyingRemote = useRef(false);
   const assemblyRef = useRef(initialAssembly);
@@ -48,6 +47,10 @@ export function useWorkspace({
   const shippedArchiveRef = useRef(collectShippedArchive(initialOrders, initialShippedArchive));
   const serverReachableRef = useRef(true);
   const pushChainRef = useRef(Promise.resolve());
+  const pendingPersistRef = useRef<{
+    assembly: AssemblyItem[];
+    orders: ShippingOrder[];
+  } | null>(null);
 
   const [assemblyItems, setAssemblyItems] = useState(initialAssembly);
   const [orders, setOrders] = useState(initialOrders);
@@ -68,6 +71,19 @@ export function useWorkspace({
   ordersRef.current = orders;
   serverReachableRef.current = isServerReachable;
 
+  const flushPendingPersist = useCallback(() => {
+    const pending = pendingPersistRef.current;
+    if (!pending) return;
+    pendingPersistRef.current = null;
+    const workspace = normalizeWorkspaceState(
+      createWorkspace(pending.assembly, pending.orders, shippedArchiveRef.current),
+    );
+    shippedArchiveRef.current = workspace.shippedArchive ?? [];
+    setShippedArchive(workspace.shippedArchive ?? []);
+    saveWorkspace(workspace);
+    void pushToServerRef.current(workspace);
+  }, []);
+
   const applyWorkspaceState = useCallback((workspace: SharedWorkspaceState) => {
     shippedArchiveRef.current = workspace.shippedArchive ?? [];
     setAssemblyItems(workspace.assemblyItems);
@@ -79,47 +95,48 @@ export function useWorkspace({
     setPendingSync(getPendingSyncCount());
   }, []);
 
-  const applyRemote = useCallback((remote: SharedWorkspaceState) => {
-    if (remote.revision <= revisionRef.current) return;
-    if (remote.updatedBy === getClientId()) return;
+  const applyRemote = useCallback(
+    (remote: SharedWorkspaceState) => {
+      if (remote.revision <= revisionRef.current) return;
 
-    applyingRemote.current = true;
-    revisionRef.current = remote.revision;
+      applyingRemote.current = true;
 
-    const hasPending = getPendingSyncCount() > 0;
-    const next = hasPending
-      ? normalizeWorkspaceState(
-          applySharedWorkspace(
-            createWorkspace(
-              assemblyRef.current,
-              ordersRef.current,
-              shippedArchiveRef.current,
-            ),
-            remote,
-          ),
-        )
-      : normalizeWorkspaceState(remote);
+      const local = createWorkspace(
+        assemblyRef.current,
+        ordersRef.current,
+        shippedArchiveRef.current,
+      );
+      const next = normalizeWorkspaceState(applySharedWorkspace(local, remote));
 
-    applyWorkspaceState(next);
+      applyWorkspaceState(next);
+      revisionRef.current = remote.revision;
 
-    queueMicrotask(() => {
-      applyingRemote.current = false;
-    });
-  }, [applyWorkspaceState]);
+      queueMicrotask(() => {
+        applyingRemote.current = false;
+        flushPendingPersist();
+      });
+    },
+    [applyWorkspaceState, flushPendingPersist],
+  );
 
   const applyOwnPush = useCallback(
     (remote: SharedWorkspaceState) => {
       if (remote.revision <= revisionRef.current) return;
 
       applyingRemote.current = true;
-      revisionRef.current = remote.revision;
       applyWorkspaceState(normalizeWorkspaceState(remote));
+      revisionRef.current = remote.revision;
 
       queueMicrotask(() => {
         applyingRemote.current = false;
+        flushPendingPersist();
       });
     },
-    [applyWorkspaceState],
+    [applyWorkspaceState, flushPendingPersist],
+  );
+
+  const pushToServerRef = useRef(
+    (_workspace: ReturnType<typeof createWorkspace>) => Promise.resolve(),
   );
 
   const pushToServer = useCallback(
@@ -150,26 +167,33 @@ export function useWorkspace({
     [applyOwnPush],
   );
 
+  pushToServerRef.current = pushToServer;
+
   const replaceWorkspace = useCallback(
     (remote: SharedWorkspaceState, options?: { push?: boolean }) => {
       applyingRemote.current = true;
       const normalized = normalizeWorkspaceState(remote);
-      revisionRef.current = normalized.revision;
       applyWorkspaceState(normalized);
+      revisionRef.current = normalized.revision;
 
       queueMicrotask(() => {
         applyingRemote.current = false;
         if (options?.push) {
           void pushToServer(normalized);
+        } else {
+          flushPendingPersist();
         }
       });
     },
-    [applyWorkspaceState, pushToServer],
+    [applyWorkspaceState, flushPendingPersist, pushToServer],
   );
 
   const persist = useCallback(
     (assembly: AssemblyItem[], ords: ShippingOrder[]) => {
-      if (applyingRemote.current) return;
+      if (applyingRemote.current) {
+        pendingPersistRef.current = { assembly, orders: ords };
+        return;
+      }
 
       const workspace = normalizeWorkspaceState(
         createWorkspace(assembly, ords, shippedArchiveRef.current),
@@ -187,12 +211,16 @@ export function useWorkspace({
     try {
       const result = await flushSyncQueue();
       setPendingSync(getPendingSyncCount());
-      if (result.synced > 0) setLastSyncAt(Date.now());
+      if (result.workspace) {
+        applyOwnPush(result.workspace);
+      } else if (result.synced > 0) {
+        setLastSyncAt(Date.now());
+      }
       return result;
     } finally {
       setIsSyncing(false);
     }
-  }, []);
+  }, [applyOwnPush]);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -200,16 +228,23 @@ export function useWorkspace({
       setIsServerReachable(reachable);
       serverReachableRef.current = reachable;
 
-      const remote = await fetchSharedWorkspace();
+      let remote: SharedWorkspaceState | null = null;
+      let fetchFailed = false;
+
+      try {
+        remote = await fetchSharedWorkspace();
+      } catch {
+        fetchFailed = true;
+      }
+
       if (remote?.resetToken) {
         syncResetToken(remote.resetToken);
       }
 
       if (remote && remote.revision < revisionRef.current) {
-        hydrated.current = true;
+        clearSyncQueue();
         setSyncReady(true);
         setPendingSync(getPendingSyncCount());
-        void runSync();
         return;
       }
 
@@ -223,7 +258,11 @@ export function useWorkspace({
           revisionRef.current = merged.revision;
           applyWorkspaceState(merged);
         }
-      } else if (local) {
+        clearSyncQueue();
+        if (local && merged.updatedAt > remote.updatedAt) {
+          void pushToServer(merged);
+        }
+      } else if (!fetchFailed && local) {
         const archive = collectShippedArchive(local.orders, local.shippedArchive);
         shippedArchiveRef.current = archive;
         setAssemblyItems(local.assemblyItems);
@@ -233,14 +272,16 @@ export function useWorkspace({
         void pushToServer({ ...local, shippedArchive: archive });
       }
 
-      hydrated.current = true;
       setSyncReady(true);
       setPendingSync(getPendingSyncCount());
-      void runSync();
+
+      if (!fetchFailed) {
+        await runSync();
+      }
     };
 
     void bootstrap();
-  }, [initialAssembly, initialOrders, applyWorkspaceState, pushToServer, runSync]);
+  }, [initialAssembly, initialOrders, applyOwnPush, applyWorkspaceState, pushToServer, runSync]);
 
   useEffect(() => {
     return subscribeWorkspaceStream({
@@ -252,9 +293,13 @@ export function useWorkspace({
   useEffect(() => {
     const poll = () => {
       if (applyingRemote.current) return;
-      void fetchSharedWorkspace().then((workspace) => {
-        if (workspace) applyRemote(workspace);
-      });
+      void fetchSharedWorkspace()
+        .then((workspace) => {
+          if (workspace) applyRemote(workspace);
+        })
+        .catch(() => {
+          // network blip — next poll retries
+        });
     };
 
     poll();
@@ -285,9 +330,9 @@ export function useWorkspace({
     (items: AssemblyItem[]) => {
       assemblyRef.current = items;
       setAssemblyItems(items);
-      if (hydrated.current) persist(items, ordersRef.current);
+      if (syncReady) persist(items, ordersRef.current);
     },
-    [persist],
+    [persist, syncReady],
   );
 
   const refreshFromApi = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
@@ -332,9 +377,9 @@ export function useWorkspace({
       assemblyRef.current = assembly;
       setOrders(resolved);
       setAssemblyItems(assembly);
-      if (hydrated.current) persist(assembly, resolved);
+      if (syncReady) persist(assembly, resolved);
     },
-    [persist],
+    [persist, syncReady],
   );
 
   return {

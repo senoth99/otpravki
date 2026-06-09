@@ -1,3 +1,4 @@
+import { mergeOrder } from "@/lib/workspace-merge";
 import type { ShippingOrder } from "@/types/shipping";
 import type { WorkspaceState } from "@/types/workspace";
 
@@ -9,9 +10,7 @@ export function mergeShippedArchives(...sources: ShippingOrder[][]): ShippingOrd
     for (const order of list) {
       if (!order.barcodePrinted) continue;
       const prev = byId.get(order.id);
-      if (!prev || (order.barcodePrintedAt ?? 0) >= (prev.barcodePrintedAt ?? 0)) {
-        byId.set(order.id, order);
-      }
+      byId.set(order.id, prev ? mergeOrder(prev, order) : order);
     }
   }
 

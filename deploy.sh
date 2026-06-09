@@ -35,6 +35,11 @@ install_node() {
 install_node
 cd "$APP_DIR"
 
+if git -C "$APP_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
+  echo "==> Обновляю код из git..."
+  git -C "$APP_DIR" pull --ff-only
+fi
+
 if [[ ! -f .env ]]; then
   echo "==> Создаю .env из .env.example"
   cp .env.example .env

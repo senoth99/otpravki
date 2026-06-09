@@ -34,8 +34,23 @@ async function writeToDisk(state: SharedWorkspaceState) {
 
 function broadcast(state: SharedWorkspaceState) {
   for (const listener of listeners) {
-    listener(state);
+    try {
+      listener(state);
+    } catch {
+      // dead SSE connection — removed on abort
+    }
   }
+}
+
+let updateChain = Promise.resolve();
+
+function enqueueWorkspaceUpdate<T>(task: () => Promise<T>): Promise<T> {
+  const run = updateChain.then(task, task);
+  updateChain = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
 }
 
 export function subscribeWorkspace(listener: WorkspaceListener): () => void {
@@ -139,7 +154,7 @@ export async function initSharedWorkspace(
   return resetSharedWorkspace(assemblyItems, orders, resetToken);
 }
 
-export async function applyWorkspaceUpdate(
+async function applyWorkspaceUpdateInner(
   incoming: SharedWorkspaceState | Omit<SharedWorkspaceState, "revision">,
   clientId: string,
 ): Promise<SharedWorkspaceState> {
@@ -170,4 +185,11 @@ export async function applyWorkspaceUpdate(
   void appendSyncEvent(next).then(() => forwardToRemote(next));
 
   return next;
+}
+
+export function applyWorkspaceUpdate(
+  incoming: SharedWorkspaceState | Omit<SharedWorkspaceState, "revision">,
+  clientId: string,
+): Promise<SharedWorkspaceState> {
+  return enqueueWorkspaceUpdate(() => applyWorkspaceUpdateInner(incoming, clientId));
 }
