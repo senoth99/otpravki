@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import { toLocalImageUrl } from "@/lib/image-url";
 
 interface ProductImageProps {
   src: string;
@@ -12,8 +13,9 @@ interface ProductImageProps {
 
 export function ProductImage({ src, alt, className, sizes }: ProductImageProps) {
   const [failed, setFailed] = useState(false);
+  const imageSrc = toLocalImageUrl(src);
 
-  if (!src || failed) {
+  if (!imageSrc || failed) {
     return (
       <div className={`flex items-center justify-center bg-gray-200 text-gray-400 ${className ?? ""}`}>
         <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -29,7 +31,7 @@ export function ProductImage({ src, alt, className, sizes }: ProductImageProps) 
 
   return (
     <Image
-      src={src}
+      src={imageSrc}
       alt={alt}
       fill
       unoptimized

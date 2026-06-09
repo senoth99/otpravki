@@ -112,7 +112,7 @@ setup_printer
 echo "==> Устанавливаю зависимости..."
 npm ci
 
-mkdir -p "$DATA_DIR/cache"
+mkdir -p "$DATA_DIR/cache" "$DATA_DIR/cache/images"
 API_URL="${PRODUCTS_API_URL:-https://api.cashercollection.com}"
 echo "==> Кэширую товары (если есть интернет)..."
 PRODUCTS_TMP="$(mktemp)"
@@ -133,6 +133,9 @@ else
   rm -f "$PRODUCTS_TMP"
   echo "    нет сети — сборка продолжится без кэша"
 fi
+
+echo "==> Синхронизирую картинки товаров на сервер..."
+node "$APP_DIR/scripts/sync-product-images.mjs" "$DATA_DIR" "$API_URL" || echo "    часть картинок не скачалась — докачается при следующем деплое"
 
 echo "==> Собираю приложение..."
 npm run build
@@ -242,6 +245,7 @@ echo "    sudo systemctl restart $SERVICE_NAME"
 echo "    sudo journalctl -u $SERVICE_NAME -f"
 echo ""
 echo "  Кэш товаров:    $DATA_DIR/cache"
+echo "  Картинки:       $DATA_DIR/cache/images"
 echo "  Лог синхронизации: $DATA_DIR/sync/events.jsonl"
 echo ""
 if command -v lpstat &>/dev/null; then

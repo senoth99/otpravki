@@ -3,6 +3,7 @@ import { USE_MOCK_ORDERS } from "@/lib/app-config";
 import { mapUnshippedOrdersToWorkspace } from "@/lib/orders-mapper";
 import { formatApiFetchError } from "@/lib/server/api-fetch-error";
 import { fetchUnshippedOrders } from "@/lib/server/orders-api";
+import { syncProductImages } from "@/lib/server/image-cache";
 import {
   getStaleProductsFromCache,
   refreshProductsCache,
@@ -30,6 +31,7 @@ export async function POST() {
       products = await getStaleProductsFromCache();
       if (products.length === 0) throw new Error("Нет кэша товаров и нет сети до API");
       productsNote = "Товары из кэша (API недоступен)";
+      await syncProductImages(products);
     }
 
     const apiOrders = await fetchUnshippedOrders();
