@@ -83,27 +83,34 @@ export async function refreshWorkspaceFromApi(): Promise<{
   error?: string;
   ordersCount?: number;
 }> {
-  const res = await fetch("/api/workspace/refresh", {
-    method: "POST",
-    cache: "no-store",
-  });
+  try {
+    const res = await fetch("/api/workspace/refresh", {
+      method: "POST",
+      cache: "no-store",
+    });
 
-  const data = (await res.json()) as {
-    ok: boolean;
-    workspace?: SharedWorkspaceState;
-    error?: string;
-    ordersCount?: number;
-  };
+    const data = (await res.json()) as {
+      ok: boolean;
+      workspace?: SharedWorkspaceState;
+      error?: string;
+      ordersCount?: number;
+    };
 
-  if (!res.ok || !data.ok) {
-    return { ok: false, error: data.error ?? "Не удалось обновить данные" };
+    if (!res.ok || !data.ok) {
+      return { ok: false, error: data.error ?? "Не удалось обновить данные" };
+    }
+
+    return {
+      ok: true,
+      workspace: data.workspace,
+      ordersCount: data.ordersCount,
+    };
+  } catch {
+    return {
+      ok: false,
+      error: "Не удалось связаться с сервером. Проверь Wi‑Fi и что otpravki запущен.",
+    };
   }
-
-  return {
-    ok: true,
-    workspace: data.workspace,
-    ordersCount: data.ordersCount,
-  };
 }
 
 export async function fetchSharedWorkspace(): Promise<SharedWorkspaceState | null> {

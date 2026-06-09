@@ -172,6 +172,7 @@ Environment=DATA_DIR=${DATA_DIR}
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=USE_MOCK_ORDERS=${USE_MOCK_ORDERS_VALUE}
 Environment=ORDERS_API_URL=${ORDERS_API_URL_VALUE}
+Environment=PRODUCTS_API_URL=${PRODUCTS_API_URL:-https://api.cashercollection.com}
 Environment=CASHER_API_KEY=${CASHER_API_KEY_VALUE}
 Environment=BARCODE_LABEL_WIDTH_MM=${BARCODE_LABEL_WIDTH_MM:-100}
 Environment=BARCODE_LABEL_HEIGHT_MM=${BARCODE_LABEL_HEIGHT_MM:-150}

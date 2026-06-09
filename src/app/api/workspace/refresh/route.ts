@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { USE_MOCK_ORDERS } from "@/lib/app-config";
 import { buildWorkspaceFromApi } from "@/lib/build-workspace";
+import { formatApiFetchError } from "@/lib/server/api-fetch-error";
 import { refreshProductsCache } from "@/lib/server/product-cache";
 import { syncWorkspaceFromApi } from "@/lib/server/workspace-store";
 
@@ -34,7 +35,9 @@ export async function POST() {
       assemblyCount: fresh.assemblyItems.length,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Ошибка обновления";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: formatApiFetchError(error) },
+      { status: 500 },
+    );
   }
 }
