@@ -21,9 +21,14 @@ import {
 interface UseWorkspaceOptions {
   initialAssembly: AssemblyItem[];
   initialOrders: ShippingOrder[];
+  initialApiOrderIds?: string[];
 }
 
-export function useWorkspace({ initialAssembly, initialOrders }: UseWorkspaceOptions) {
+export function useWorkspace({
+  initialAssembly,
+  initialOrders,
+  initialApiOrderIds = [],
+}: UseWorkspaceOptions) {
   const hydrated = useRef(false);
   const revisionRef = useRef(0);
   const applyingRemote = useRef(false);
@@ -32,6 +37,7 @@ export function useWorkspace({ initialAssembly, initialOrders }: UseWorkspaceOpt
 
   const [assemblyItems, setAssemblyItems] = useState(initialAssembly);
   const [orders, setOrders] = useState(initialOrders);
+  const [apiOrderIds, setApiOrderIds] = useState(initialApiOrderIds);
   const [isOnline, setIsOnline] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -46,6 +52,7 @@ export function useWorkspace({ initialAssembly, initialOrders }: UseWorkspaceOpt
     revisionRef.current = remote.revision;
     setAssemblyItems(remote.assemblyItems);
     setOrders(remote.orders);
+    setApiOrderIds(remote.apiOrderIds ?? []);
     saveWorkspace(remote);
 
     queueMicrotask(() => {
@@ -66,6 +73,7 @@ export function useWorkspace({ initialAssembly, initialOrders }: UseWorkspaceOpt
 
     setAssemblyItems(merged.assemblyItems);
     setOrders(merged.orders);
+    setApiOrderIds(merged.apiOrderIds ?? []);
     saveWorkspace(merged);
 
     queueMicrotask(() => {
@@ -132,10 +140,12 @@ export function useWorkspace({ initialAssembly, initialOrders }: UseWorkspaceOpt
         revisionRef.current = merged.revision;
         setAssemblyItems(merged.assemblyItems);
         setOrders(merged.orders);
+        setApiOrderIds(merged.apiOrderIds ?? []);
         saveWorkspace(merged);
       } else if (local) {
         setAssemblyItems(local.assemblyItems);
         setOrders(local.orders);
+        setApiOrderIds(local.apiOrderIds ?? []);
         void pushToServer(local);
       }
 
@@ -216,6 +226,7 @@ export function useWorkspace({ initialAssembly, initialOrders }: UseWorkspaceOpt
   return {
     assemblyItems,
     orders,
+    apiOrderIds,
     updateAssembly,
     updateOrders,
     isOnline,

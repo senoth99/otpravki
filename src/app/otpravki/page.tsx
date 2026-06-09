@@ -40,6 +40,7 @@ export default async function OtpravkiPage() {
         <ShippingPanel
           assemblyItems={existing.assemblyItems}
           orders={existing.orders}
+          apiOrderIds={existing.apiOrderIds}
           enableApiRefresh={false}
         />
       </div>
@@ -92,6 +93,7 @@ export default async function OtpravkiPage() {
       <ShippingPanel
         assemblyItems={shared.assemblyItems}
         orders={shared.orders}
+        apiOrderIds={shared.apiOrderIds}
         enableApiRefresh={!USE_MOCK_ORDERS}
       />
     </div>

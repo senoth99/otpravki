@@ -16,7 +16,6 @@ import { BarcodeScanner } from "./BarcodeScanner";
 import { OrderItemRow } from "./OrderItemRow";
 import { OrderPicker } from "./OrderPicker";
 import { ScanErrorPopup } from "./ScanErrorPopup";
-import { ShippedArchive } from "./ShippedArchive";
 import { ShippedOrderCard } from "./ShippedOrderCard";
 
 const URGENCY_LABELS: Record<string, { label: string; className: string }> = {
@@ -356,10 +355,6 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     setCurrentIndex(index);
   };
 
-  const handleSelectArchive = (orderId: string) => {
-    setViewingShippedId(orderId);
-  };
-
   return (
     <div
       className={`overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm ${
@@ -517,11 +512,6 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
             </div>
           )}
 
-          <ShippedArchive
-            orders={shippedOrders}
-            selectedId={viewingShippedId}
-            onSelect={handleSelectArchive}
-          />
       </div>
 
       {scannerOpen && (

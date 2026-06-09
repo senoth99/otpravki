@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { getAssemblyViewSections } from "@/lib/assembly-demand";
+import { computeCompletedAssemblyIds, getAssemblyViewSections } from "@/lib/assembly-demand";
 import type { AssemblyItem, ShippingOrder, ShippingTab } from "@/types/shipping";
+import { ArchiveView } from "./ArchiveView";
 import { AssemblyView } from "./AssemblyView";
 import { RefreshButton } from "./RefreshButton";
 import { ShippingView } from "./ShippingView";
@@ -13,20 +14,26 @@ import { TabSwitcher } from "./TabSwitcher";
 interface ShippingPanelProps {
   assemblyItems: AssemblyItem[];
   orders: ShippingOrder[];
+  apiOrderIds?: string[];
   enableApiRefresh?: boolean;
 }
 
 export function ShippingPanel({
   assemblyItems: initialAssembly,
   orders: initialOrders,
+  apiOrderIds: initialApiOrderIds = [],
   enableApiRefresh = true,
 }: ShippingPanelProps) {
   const [tab, setTab] = useState<ShippingTab>("assembly");
   const [assemblySettled, setAssemblySettled] = useState(false);
+  const [pinnedCompletedIds, setPinnedCompletedIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const {
     assemblyItems,
     orders,
+    apiOrderIds,
     updateAssembly,
     updateOrders,
     isOnline,
@@ -34,16 +41,29 @@ export function ShippingPanel({
     isRefreshing,
     pendingSync,
     refreshFromApi,
-  } = useWorkspace({ initialAssembly, initialOrders });
+  } = useWorkspace({
+    initialAssembly,
+    initialOrders,
+    initialApiOrderIds,
+  });
 
   const assemblySections = useMemo(
-    () => getAssemblyViewSections(assemblyItems, orders, assemblySettled),
-    [assemblyItems, orders, assemblySettled],
+    () =>
+      getAssemblyViewSections(
+        assemblyItems,
+        orders,
+        assemblySettled,
+        assemblySettled ? pinnedCompletedIds : undefined,
+      ),
+    [assemblyItems, orders, assemblySettled, pinnedCompletedIds],
   );
 
   const handleTabChange = (next: ShippingTab) => {
     if (tab === "assembly" && next !== "assembly") {
       setAssemblySettled(true);
+    }
+    if (next === "assembly" && assemblySettled) {
+      setPinnedCompletedIds(new Set(computeCompletedAssemblyIds(assemblyItems, orders)));
     }
     setTab(next);
   };
@@ -53,6 +73,8 @@ export function ShippingPanel({
     const result = await refreshFromApi();
     if (!result.ok) {
       setRefreshError(result.error ?? "Ошибка обновления");
+    } else if (assemblySettled) {
+      setPinnedCompletedIds(new Set());
     }
   };
 
@@ -90,12 +112,16 @@ export function ShippingPanel({
             onItemsChange={updateAssembly}
           />
         </div>
-      ) : (
+      ) : tab === "shipping" ? (
         <ShippingView
           orders={orders}
           assemblyItems={assemblyItems}
           onOrdersChange={updateOrders}
         />
+      ) : (
+        <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-6">
+          <ArchiveView orders={orders} apiOrderIds={apiOrderIds} />
+        </div>
       )}
     </div>
     </>

@@ -39,14 +39,25 @@ export interface AssemblyViewSections {
   completed: AssemblyItem[];
 }
 
+export function computeCompletedAssemblyIds(
+  items: AssemblyItem[],
+  orders: ShippingOrder[],
+): string[] {
+  return enrichAssemblyItems(items, orders)
+    .filter((item) => item.collectedCount >= item.quantity)
+    .map((item) => item.id);
+}
+
 /**
  * settled=false — все позиции в одном списке (собранные остаются на месте).
- * settled=true — после ухода с вкладки: несобранные сверху, собранные снизу.
+ * settled=true — несобранные сверху, собранные снизу.
+ * pinnedCompletedIds — секции не пересчитываются при +/- до следующего входа на вкладку.
  */
 export function getAssemblyViewSections(
   items: AssemblyItem[],
   orders: ShippingOrder[],
   settled: boolean,
+  pinnedCompletedIds?: ReadonlySet<string>,
 ): AssemblyViewSections {
   const activeOrders = orders.filter((order) => !order.barcodePrinted);
   const enriched = enrichAssemblyItems(items, orders);
@@ -55,6 +66,16 @@ export function getAssemblyViewSections(
     return {
       pending: sortAssemblyItemsByUrgency(enriched, activeOrders),
       completed: [],
+    };
+  }
+
+  if (pinnedCompletedIds) {
+    const completed = enriched.filter((item) => pinnedCompletedIds.has(item.id));
+    const pending = enriched.filter((item) => !pinnedCompletedIds.has(item.id));
+
+    return {
+      pending: sortAssemblyItemsByUrgency(pending, activeOrders),
+      completed: sortAssemblyItemsByUrgency(completed, activeOrders),
     };
   }
 

@@ -61,4 +61,4 @@ export interface ShippingOrder {
   trackingNumber?: string;
 }
 
-export type ShippingTab = "assembly" | "shipping";
+export type ShippingTab = "assembly" | "shipping" | "archive";

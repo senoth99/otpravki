@@ -164,6 +164,7 @@ export function applySharedWorkspace(
     ...merged,
     revision: remote.revision,
     updatedBy: remote.updatedBy,
+    apiOrderIds: remote.apiOrderIds ?? merged.apiOrderIds,
   };
 }
 

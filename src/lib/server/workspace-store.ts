@@ -91,6 +91,7 @@ export async function syncWorkspaceFromApi(fresh: WorkspaceData): Promise<Shared
         revision: 1,
         assemblyItems: fresh.assemblyItems,
         orders: fresh.orders,
+        apiOrderIds: fresh.orders.map((order) => order.id),
         updatedAt: Date.now(),
         updatedBy: "server",
       };

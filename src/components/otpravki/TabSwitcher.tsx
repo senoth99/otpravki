@@ -10,6 +10,7 @@ interface TabSwitcherProps {
 const TABS: { id: ShippingTab; label: string }[] = [
   { id: "assembly", label: "Сборка" },
   { id: "shipping", label: "Отправка" },
+  { id: "archive", label: "Архив" },
 ];
 
 export function TabSwitcher({ active, onChange }: TabSwitcherProps) {
@@ -20,7 +21,7 @@ export function TabSwitcher({ active, onChange }: TabSwitcherProps) {
           key={tab.id}
           type="button"
           onClick={() => onChange(tab.id)}
-          className={`flex-1 rounded-xl px-4 py-3 text-sm font-medium transition-colors sm:flex-none sm:px-6 sm:py-2.5 ${
+          className={`flex-1 rounded-xl px-3 py-3 text-sm font-medium transition-colors sm:flex-none sm:px-5 sm:py-2.5 ${
             active === tab.id
               ? "bg-gray-900 text-white shadow-sm"
               : "text-gray-600 active:bg-gray-50"

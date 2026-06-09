@@ -76,10 +76,13 @@ export function mergeWorkspaces(a: WorkspaceState, b: WorkspaceState): Workspace
     orderById.set(order.id, existing ? mergeOrder(existing, order) : order);
   }
 
+  const newer = a.updatedAt >= b.updatedAt ? a : b;
+
   return {
     version: 1,
     assemblyItems: [...assemblyById.values()],
     orders: [...orderById.values()],
+    apiOrderIds: newer.apiOrderIds ?? a.apiOrderIds ?? b.apiOrderIds,
     updatedAt: Math.max(a.updatedAt, b.updatedAt),
   };
 }
