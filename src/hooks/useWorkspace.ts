@@ -7,6 +7,7 @@ import { reconcileAssemblyOnShip } from "@/lib/assembly-demand";
 import {
   collectShippedArchive,
   mergeWorkspaceWithLocalArchive,
+  normalizeWorkspaceState,
 } from "@/lib/shipped-archive";
 import {
   applySharedWorkspace,
@@ -51,27 +52,10 @@ export function useWorkspace({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pendingSync, setPendingSync] = useState(0);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
+  const [syncReady, setSyncReady] = useState(false);
 
   assemblyRef.current = assemblyItems;
   ordersRef.current = orders;
-
-  const replaceWorkspace = useCallback((remote: SharedWorkspaceState) => {
-    applyingRemote.current = true;
-    revisionRef.current = remote.revision;
-    const archive = collectShippedArchive(remote.orders, remote.shippedArchive);
-    shippedArchiveRef.current = archive;
-    setAssemblyItems(remote.assemblyItems);
-    setOrders(remote.orders);
-    setShippedArchive(archive);
-    setApiOrderIds(remote.apiOrderIds ?? []);
-    saveWorkspace({ ...remote, shippedArchive: archive });
-
-    queueMicrotask(() => {
-      applyingRemote.current = false;
-    });
-    setLastSyncAt(Date.now());
-    setPendingSync(getPendingSyncCount());
-  }, []);
 
   const applyRemote = useCallback((remote: SharedWorkspaceState) => {
     if (remote.revision <= revisionRef.current) return;
@@ -84,15 +68,15 @@ export function useWorkspace({
       ordersRef.current,
       shippedArchiveRef.current,
     );
-    const merged = applySharedWorkspace(local, remote);
-
-    const archive = collectShippedArchive(merged.orders, merged.shippedArchive);
-    shippedArchiveRef.current = archive;
+    const merged = normalizeWorkspaceState(
+      applySharedWorkspace(local, remote),
+    );
+    shippedArchiveRef.current = merged.shippedArchive ?? [];
     setAssemblyItems(merged.assemblyItems);
     setOrders(merged.orders);
-    setShippedArchive(archive);
+    setShippedArchive(merged.shippedArchive ?? []);
     setApiOrderIds(merged.apiOrderIds ?? []);
-    saveWorkspace({ ...merged, shippedArchive: archive });
+    saveWorkspace(merged);
 
     queueMicrotask(() => {
       applyingRemote.current = false;
@@ -119,14 +103,39 @@ export function useWorkspace({
     }
   }, [applyRemote]);
 
+  const replaceWorkspace = useCallback(
+    (remote: SharedWorkspaceState, options?: { push?: boolean }) => {
+      applyingRemote.current = true;
+      const normalized = normalizeWorkspaceState(remote);
+      revisionRef.current = normalized.revision;
+      shippedArchiveRef.current = normalized.shippedArchive ?? [];
+      setAssemblyItems(normalized.assemblyItems);
+      setOrders(normalized.orders);
+      setShippedArchive(normalized.shippedArchive ?? []);
+      setApiOrderIds(normalized.apiOrderIds ?? []);
+      saveWorkspace(normalized);
+
+      queueMicrotask(() => {
+        applyingRemote.current = false;
+        if (options?.push) {
+          void pushToServer(normalized);
+        }
+      });
+      setLastSyncAt(Date.now());
+      setPendingSync(getPendingSyncCount());
+    },
+    [pushToServer],
+  );
+
   const persist = useCallback(
     (assembly: AssemblyItem[], ords: ShippingOrder[]) => {
       if (applyingRemote.current) return;
 
-      const archive = collectShippedArchive(ords, shippedArchiveRef.current);
-      shippedArchiveRef.current = archive;
-      setShippedArchive(archive);
-      const workspace = createWorkspace(assembly, ords, archive);
+      const workspace = normalizeWorkspaceState(
+        createWorkspace(assembly, ords, shippedArchiveRef.current),
+      );
+      shippedArchiveRef.current = workspace.shippedArchive ?? [];
+      setShippedArchive(workspace.shippedArchive ?? []);
       saveWorkspace(workspace);
       void pushToServer(workspace);
     },
@@ -158,10 +167,12 @@ export function useWorkspace({
       if (remote) {
         const base =
           local ?? createWorkspace(initialAssembly, initialOrders, initialShippedArchive);
-        const merged = applySharedWorkspace(base, remote);
+        const merged = normalizeWorkspaceState(applySharedWorkspace(base, remote));
         revisionRef.current = merged.revision;
+        shippedArchiveRef.current = merged.shippedArchive ?? [];
         setAssemblyItems(merged.assemblyItems);
         setOrders(merged.orders);
+        setShippedArchive(merged.shippedArchive ?? []);
         setApiOrderIds(merged.apiOrderIds ?? []);
         saveWorkspace(merged);
       } else if (local) {
@@ -175,6 +186,7 @@ export function useWorkspace({
       }
 
       hydrated.current = true;
+      setSyncReady(true);
       setPendingSync(getPendingSyncCount());
       setIsOnline(navigator.onLine);
       void runSync();
@@ -188,6 +200,20 @@ export function useWorkspace({
       applyRemote(workspace);
     });
   }, [applyRemote]);
+
+  useEffect(() => {
+    if (!syncReady) return;
+
+    const poll = () => {
+      if (!navigator.onLine || applyingRemote.current) return;
+      void fetchSharedWorkspace().then((workspace) => {
+        if (workspace) applyRemote(workspace);
+      });
+    };
+
+    const interval = setInterval(poll, 4000);
+    return () => clearInterval(interval);
+  }, [syncReady, applyRemote]);
 
   useEffect(() => {
     const onOnline = () => {
@@ -229,11 +255,14 @@ export function useWorkspace({
             ordersRef.current,
             shippedArchiveRef.current,
           );
-        replaceWorkspace({
-          ...result.workspace,
-          orders: mergedOrders,
-          shippedArchive: mergedArchive,
-        });
+        replaceWorkspace(
+          {
+            ...result.workspace,
+            orders: mergedOrders,
+            shippedArchive: mergedArchive,
+          },
+          { push: true },
+        );
       }
       return result.ok
         ? { ok: true }

@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import { USE_MOCK_ORDERS } from "@/lib/app-config";
-import { buildWorkspaceFromApi } from "@/lib/build-workspace";
+import { mapUnshippedOrdersToWorkspace } from "@/lib/orders-mapper";
 import { formatApiFetchError } from "@/lib/server/api-fetch-error";
-import { getProductsWithCache, refreshProductsCache } from "@/lib/server/product-cache";
+import { fetchUnshippedOrders } from "@/lib/server/orders-api";
+import {
+  getStaleProductsFromCache,
+  refreshProductsCache,
+} from "@/lib/server/product-cache";
 import { syncWorkspaceFromApi } from "@/lib/server/workspace-store";
+import type { ApiProduct } from "@/types/shipping";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function POST() {
   if (USE_MOCK_ORDERS) {
@@ -17,15 +23,20 @@ export async function POST() {
 
   try {
     let productsNote: string | undefined;
+    let products: ApiProduct[];
     try {
-      await refreshProductsCache();
+      products = await refreshProductsCache();
     } catch {
-      const cached = await getProductsWithCache();
-      if (cached.products.length === 0) throw new Error("Нет кэша товаров и нет сети до API");
+      products = await getStaleProductsFromCache();
+      if (products.length === 0) throw new Error("Нет кэша товаров и нет сети до API");
       productsNote = "Товары из кэша (API недоступен)";
     }
 
-    const fresh = await buildWorkspaceFromApi();
+    const apiOrders = await fetchUnshippedOrders();
+    const fresh =
+      apiOrders.length === 0
+        ? { assemblyItems: [], orders: [] }
+        : mapUnshippedOrdersToWorkspace(apiOrders, products);
 
     if (!fresh) {
       return NextResponse.json(

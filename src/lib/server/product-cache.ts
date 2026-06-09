@@ -46,6 +46,12 @@ export async function refreshProductsCache(): Promise<ApiProduct[]> {
   return products;
 }
 
+/** Только диск — без повторного запроса в сеть */
+export async function getStaleProductsFromCache(): Promise<ApiProduct[]> {
+  const cached = await readCache();
+  return cached?.data ?? [];
+}
+
 export async function getProductsWithCache(): Promise<{
   products: ApiProduct[];
   source: "network" | "cache" | "stale-cache" | "empty";

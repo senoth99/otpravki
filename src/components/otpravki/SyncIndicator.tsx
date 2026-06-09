@@ -33,7 +33,7 @@ export function SyncIndicator({ isOnline, isSyncing, pendingSync }: SyncIndicato
       : "green";
 
   return (
-    <div className="fixed top-1.5 right-3 z-50 flex items-center gap-1">
+    <div className="fixed top-1.5 right-3 z-50 hidden items-center gap-1 sm:flex">
       <StatusDot color={networkColor} label={isOnline ? "Интернет" : "Нет интернета"} />
       <StatusDot
         color={syncColor}

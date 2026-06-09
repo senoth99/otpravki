@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
-import { mergeShippedArchives } from "@/lib/shipped-archive";
+import { mergeShippedArchives, normalizeWorkspaceState } from "@/lib/shipped-archive";
 import { mergeFreshOrdersData } from "@/lib/workspace-api-merge";
 import { mergeWorkspaces } from "@/lib/workspace-merge";
 import type { WorkspaceData } from "@/lib/build-workspace";
@@ -45,7 +45,20 @@ export function subscribeWorkspace(listener: WorkspaceListener): () => void {
 
 export async function getSharedWorkspace(): Promise<SharedWorkspaceState | null> {
   if (memoryState) return memoryState;
-  memoryState = await readFromDisk();
+
+  const disk = await readFromDisk();
+  if (!disk) return null;
+
+  const normalized = normalizeWorkspaceState(disk);
+  memoryState = normalized;
+
+  if (
+    disk.orders.length !== normalized.orders.length ||
+    (disk.shippedArchive?.length ?? 0) !== (normalized.shippedArchive?.length ?? 0)
+  ) {
+    await writeToDisk(normalized);
+  }
+
   return memoryState;
 }
 
@@ -83,21 +96,24 @@ export async function resetSharedWorkspace(
 export async function syncWorkspaceFromApi(fresh: WorkspaceData): Promise<SharedWorkspaceState> {
   const existing = await getSharedWorkspace();
 
-  const next: SharedWorkspaceState = existing
-    ? {
-        ...mergeFreshOrdersData(existing, fresh),
-        revision: existing.revision + 1,
-        updatedBy: "api-sync",
-      }
-    : {
-        version: 1,
-        revision: 1,
-        assemblyItems: fresh.assemblyItems,
-        orders: fresh.orders,
-        apiOrderIds: fresh.orders.map((order) => order.id),
-        updatedAt: Date.now(),
-        updatedBy: "server",
-      };
+  const next: SharedWorkspaceState = normalizeWorkspaceState(
+    existing
+      ? {
+          ...mergeFreshOrdersData(existing, fresh),
+          revision: existing.revision + 1,
+          updatedBy: "api-sync",
+        }
+      : {
+          version: 1,
+          revision: 1,
+          assemblyItems: fresh.assemblyItems,
+          orders: fresh.orders,
+          shippedArchive: [],
+          apiOrderIds: fresh.orders.map((order) => order.id),
+          updatedAt: Date.now(),
+          updatedBy: "server",
+        },
+  );
 
   memoryState = next;
   await writeToDisk(next);
@@ -130,15 +146,17 @@ export async function applyWorkspaceUpdate(
         version: 1 as const,
         assemblyItems: incoming.assemblyItems,
         orders: incoming.orders,
+        shippedArchive: mergeShippedArchives(incoming.shippedArchive ?? [], incoming.orders),
+        apiOrderIds: incoming.apiOrderIds,
         updatedAt: incoming.updatedAt,
       };
 
-  const next: SharedWorkspaceState = {
+  const next: SharedWorkspaceState = normalizeWorkspaceState({
     ...mergedBase,
     revision: (current?.revision ?? 0) + 1,
     updatedAt: Date.now(),
     updatedBy: clientId,
-  };
+  });
 
   memoryState = next;
   await writeToDisk(next);

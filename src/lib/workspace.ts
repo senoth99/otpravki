@@ -88,6 +88,7 @@ export async function refreshWorkspaceFromApi(): Promise<{
     const res = await fetch("/api/workspace/refresh", {
       method: "POST",
       cache: "no-store",
+      signal: AbortSignal.timeout(45_000),
     });
 
     const data = (await res.json()) as {
