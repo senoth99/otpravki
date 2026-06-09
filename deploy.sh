@@ -125,7 +125,7 @@ if curl -fsS --max-time 30 "${API_URL}/products" -o "$PRODUCTS_TMP" 2>/dev/null;
   node -e "
     const fs = require('fs');
     const products = JSON.parse(fs.readFileSync(process.argv[1], 'utf8')).filter(
-      (p) => !p.isDeleted && p.inStock && p.images?.length,
+      (p) => p.images?.length,
     );
     fs.writeFileSync(
       process.argv[2],

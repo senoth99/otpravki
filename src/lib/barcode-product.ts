@@ -1,32 +1,41 @@
 import type { ApiProduct, ShippingOrder, ShippingOrderItem } from "@/types/shipping";
 
-/** Баркод: «партия - цвет артикул» → берём часть после разделителя */
-export function parseBarcodeProductKey(raw: string): string {
+/** Баркод «партия-артикул» → код после разделителя (например 5iuw8-1445 → 1445) */
+export function parseBarcodeArticleCode(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) return "";
 
   const spaced = trimmed.split(/\s+-\s+/);
   if (spaced.length >= 2) {
-    return normalizeBarcodeKey(spaced.slice(1).join("-"));
+    return spaced.slice(1).join("-").trim();
   }
 
-  const dash = trimmed.indexOf("-");
+  const dash = trimmed.lastIndexOf("-");
   if (dash >= 0) {
-    return normalizeBarcodeKey(trimmed.slice(dash + 1));
+    return trimmed.slice(dash + 1).trim();
   }
 
-  return normalizeBarcodeKey(trimmed);
+  return trimmed;
 }
 
-function normalizeBarcodeKey(value: string): string {
-  return value.trim().toLowerCase();
+/** @deprecated Используй parseBarcodeArticleCode; оставлено для slug-фолбэка */
+export function parseBarcodeProductKey(raw: string): string {
+  const article = parseBarcodeArticleCode(raw);
+  if (/^\d+$/.test(article)) return article;
+  return article.trim().toLowerCase().replace(/\s+/g, "-");
+}
+
+function itemMatchesArticle(item: ShippingOrderItem, articleCode: string): boolean {
+  const code = articleCode.trim();
+  if (!code) return false;
+  return String(item.sizeId) === code || item.barcodeId === code;
 }
 
 export function findProductByBarcodeKey(
   products: ApiProduct[],
   key: string,
 ): ApiProduct | null {
-  const k = normalizeBarcodeKey(key);
+  const k = key.trim().toLowerCase().replace(/\s+/g, "-");
   if (!k) return null;
 
   const exact = products.find((p) => p.slug.toLowerCase() === k);
@@ -53,6 +62,30 @@ export type OrderItemMatchResult =
   | { ok: true; item: ShippingOrderItem }
   | { ok: false; reason: "not-in-order" | "already-scanned" | "ambiguous" };
 
+export function findScannableOrderItemByArticle(
+  order: ShippingOrder,
+  articleCode: string,
+): OrderItemMatchResult {
+  const pending = order.items.filter(
+    (item) => itemMatchesArticle(item, articleCode) && item.scannedCount < item.quantity,
+  );
+
+  if (pending.length === 1) {
+    return { ok: true, item: pending[0] };
+  }
+
+  if (pending.length > 1) {
+    return { ok: false, reason: "ambiguous" };
+  }
+
+  const inOrder = order.items.some((item) => itemMatchesArticle(item, articleCode));
+  if (inOrder) {
+    return { ok: false, reason: "already-scanned" };
+  }
+
+  return { ok: false, reason: "not-in-order" };
+}
+
 export function findScannableOrderItem(
   order: ShippingOrder,
   productSlug: string,
@@ -78,6 +111,30 @@ export function findScannableOrderItem(
   return { ok: false, reason: "not-in-order" };
 }
 
+function productFromItem(item: ShippingOrderItem, products: ApiProduct[]): ApiProduct {
+  return (
+    products.find((p) => p.slug === item.productId) ?? {
+      id: item.productId,
+      slug: item.productId,
+      name: item.productName,
+      images: item.imageUrl ? [item.imageUrl] : [],
+      brand: item.brand,
+      sizes: [{ id: item.sizeId, size: item.size, quantity: 0, isVisible: true }],
+      inStock: true,
+      isDeleted: false,
+    }
+  );
+}
+
+function findProductBySizeId(products: ApiProduct[], sizeId: string): ApiProduct | null {
+  for (const product of products) {
+    if (product.sizes.some((size) => String(size.id) === sizeId)) {
+      return product;
+    }
+  }
+  return null;
+}
+
 export function resolveScanFromBarcode(
   products: ApiProduct[],
   order: ShippingOrder,
@@ -85,29 +142,41 @@ export function resolveScanFromBarcode(
 ):
   | { ok: true; item: ShippingOrderItem; product: ApiProduct }
   | { ok: false; message: string } {
-  const key = parseBarcodeProductKey(rawCode);
-  if (!key) {
+  const articleCode = parseBarcodeArticleCode(rawCode);
+  if (!articleCode) {
     return { ok: false, message: "Пустой штрихкод" };
   }
 
-  const product = findProductByBarcodeKey(products, key);
-  if (!product) {
-    return { ok: false, message: `Товар «${key}» не найден в каталоге` };
-  }
-
-  const match = findScannableOrderItem(order, product.slug);
-  if (!match.ok) {
-    if (match.reason === "not-in-order") {
-      return { ok: false, message: `${product.name} — нет в этом заказе` };
-    }
-    if (match.reason === "already-scanned") {
-      return { ok: false, message: `${product.name} — уже отсканировано` };
-    }
+  const byArticle = findScannableOrderItemByArticle(order, articleCode);
+  if (byArticle.ok) {
     return {
-      ok: false,
-      message: `${product.name} — несколько размеров, отметь вручную`,
+      ok: true,
+      item: byArticle.item,
+      product: productFromItem(byArticle.item, products),
     };
   }
 
-  return { ok: true, item: match.item, product };
+  if (byArticle.reason === "already-scanned") {
+    const item = order.items.find((line) => itemMatchesArticle(line, articleCode));
+    const name = item?.productName ?? `артикул ${articleCode}`;
+    return { ok: false, message: `${name} — уже отсканировано` };
+  }
+
+  if (byArticle.reason === "ambiguous") {
+    return { ok: false, message: `Артикул ${articleCode} — несколько позиций, отметь вручную` };
+  }
+
+  const catalogProduct = /^\d+$/.test(articleCode)
+    ? findProductBySizeId(products, articleCode)
+    : findProductByBarcodeKey(products, parseBarcodeProductKey(rawCode));
+
+  if (catalogProduct) {
+    return { ok: false, message: `${catalogProduct.name} — нет в этом заказе` };
+  }
+
+  if (/^\d+$/.test(articleCode)) {
+    return { ok: false, message: `Артикул ${articleCode} не найден` };
+  }
+
+  return { ok: false, message: `Товар «${articleCode}» не найден в каталоге` };
 }

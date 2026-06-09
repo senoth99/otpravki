@@ -31,7 +31,8 @@ async function writeCache(data: ApiProduct[]) {
 }
 
 function filterProducts(products: ApiProduct[]) {
-  return products.filter((p) => !p.isDeleted && p.inStock && p.images.length > 0);
+  // Удалённые и out-of-stock оставляем — по ним могут быть заказы и штрихкоды (sizeId)
+  return products.filter((p) => p.images.length > 0);
 }
 
 async function fetchRemote(): Promise<ApiProduct[]> {
