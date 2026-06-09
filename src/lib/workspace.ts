@@ -115,6 +115,15 @@ export async function refreshWorkspaceFromApi(): Promise<{
   }
 }
 
+export async function fetchWorkspaceRevision(): Promise<number> {
+  const res = await fetch("/api/workspace/revision", { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`revision fetch failed: ${res.status}`);
+  }
+  const data = (await res.json()) as { revision: number };
+  return data.revision;
+}
+
 export async function fetchSharedWorkspace(): Promise<SharedWorkspaceState | null> {
   const res = await fetch("/api/workspace", { cache: "no-store" });
   if (!res.ok) {
@@ -124,24 +133,41 @@ export async function fetchSharedWorkspace(): Promise<SharedWorkspaceState | nul
   return data.workspace;
 }
 
-export async function pushWorkspace(workspace: WorkspaceState): Promise<{
+export async function pushWorkspace(
+  workspace: WorkspaceState,
+  expectedRevision?: number,
+): Promise<{
   ok: boolean;
+  conflict?: boolean;
   workspace?: SharedWorkspaceState;
 }> {
   try {
     const res = await fetch("/api/workspace", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ workspace, clientId: getClientId() }),
+      body: JSON.stringify({
+        workspace,
+        clientId: getClientId(),
+        expectedRevision,
+      }),
       cache: "no-store",
     });
+
+    const data = (await res.json()) as {
+      ok: boolean;
+      conflict?: boolean;
+      workspace?: SharedWorkspaceState;
+    };
+
+    if (res.status === 409 && data.workspace) {
+      return { ok: false, conflict: true, workspace: data.workspace };
+    }
 
     if (!res.ok) {
       enqueueSync(workspace);
       return { ok: false };
     }
 
-    const data = (await res.json()) as { ok: boolean; workspace?: SharedWorkspaceState };
     if (data.ok) clearSyncQueue();
     return data;
   } catch {
@@ -150,7 +176,7 @@ export async function pushWorkspace(workspace: WorkspaceState): Promise<{
   }
 }
 
-export async function flushSyncQueue(): Promise<{
+export async function flushSyncQueue(expectedRevision?: number): Promise<{
   synced: number;
   failed: number;
   workspace?: SharedWorkspaceState;
@@ -169,7 +195,7 @@ export async function flushSyncQueue(): Promise<{
         ? local
         : queued;
 
-    const result = await pushWorkspace(toPush);
+    const result = await pushWorkspace(toPush, expectedRevision);
     if (result.ok) {
       clearSyncQueue();
       return { synced: 1, failed: 0, workspace: result.workspace };
@@ -216,6 +242,7 @@ export function createWorkspace(
 export interface WorkspaceStreamOptions {
   onWorkspace: (workspace: SharedWorkspaceState) => void;
   onConnectionChange?: (connected: boolean) => void;
+  onRevisionPing?: (revision: number) => void;
 }
 
 const STREAM_RECONNECT_MS = 300;
@@ -224,6 +251,7 @@ const STREAM_STALE_MS = 10_000;
 export function subscribeWorkspaceStream({
   onWorkspace,
   onConnectionChange,
+  onRevisionPing,
 }: WorkspaceStreamOptions): () => void {
   let source: EventSource | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -295,9 +323,12 @@ export function subscribeWorkspaceStream({
         const data = JSON.parse(event.data) as {
           type: string;
           workspace?: SharedWorkspaceState;
+          revision?: number;
         };
         if (data.type === "workspace" && data.workspace) {
           onWorkspace(data.workspace);
+        } else if (data.type === "ping" && typeof data.revision === "number") {
+          onRevisionPing?.(data.revision);
         }
       } catch {
         // ignore malformed events

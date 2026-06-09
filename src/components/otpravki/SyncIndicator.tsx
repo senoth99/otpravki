@@ -5,6 +5,7 @@ interface SyncIndicatorProps {
   isStreamConnected: boolean;
   isSyncing: boolean;
   pendingSync: number;
+  serverRevision: number;
 }
 
 type DotColor = "red" | "yellow" | "green";
@@ -30,6 +31,7 @@ export function SyncIndicator({
   isStreamConnected,
   isSyncing,
   pendingSync,
+  serverRevision,
 }: SyncIndicatorProps) {
   const serverColor: DotColor = isServerReachable ? "green" : "red";
   const syncColor: DotColor = !isServerReachable
@@ -41,7 +43,10 @@ export function SyncIndicator({
         : "yellow";
 
   return (
-    <div className="fixed top-1.5 right-3 z-50 flex items-center gap-1.5">
+    <div
+      className="fixed top-1.5 right-3 z-50 flex items-center gap-1.5"
+      title={`Ревизия ${serverRevision}`}
+    >
       <StatusDot
         color={serverColor}
         label={isServerReachable ? "Сервер в сети" : "Сервер недоступен"}
@@ -58,6 +63,9 @@ export function SyncIndicator({
                 : "Подключение…"
         }
       />
+      {serverRevision > 0 && (
+        <span className="text-[10px] tabular-nums text-gray-400">#{serverRevision}</span>
+      )}
     </div>
   );
 }

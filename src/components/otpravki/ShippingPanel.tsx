@@ -45,6 +45,7 @@ export function ShippingPanel({
     isSyncing,
     isRefreshing,
     pendingSync,
+    serverRevision,
     syncReady,
     refreshFromApi,
   } = useWorkspace({
@@ -92,6 +93,7 @@ export function ShippingPanel({
         isStreamConnected={isStreamConnected}
         isSyncing={isSyncing}
         pendingSync={pendingSync}
+        serverRevision={serverRevision}
       />
       {!syncReady && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-50/80 backdrop-blur-[1px]">
