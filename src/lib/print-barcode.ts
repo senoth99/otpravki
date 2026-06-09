@@ -27,7 +27,7 @@ export async function printOrderBarcode(
       }),
     });
 
-    const data = (await res.json()) as {
+    const data = (await res.json().catch(() => ({}))) as {
       ok?: boolean;
       message?: string;
       printer?: string | null;
@@ -36,7 +36,11 @@ export async function printOrderBarcode(
     if (!res.ok || !data.ok) {
       return {
         ok: false,
-        message: data.message ?? "Принтер не ответил — проверь USB и CUPS на сервере",
+        message:
+          data.message ??
+          (res.status === 500
+            ? "Ошибка печати на сервере"
+            : "Принтер не ответил — проверь USB и CUPS на сервере"),
         printer: data.printer,
       };
     }

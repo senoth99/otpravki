@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
+import { mergeShippedArchives } from "@/lib/shipped-archive";
 import { mergeFreshOrdersData } from "@/lib/workspace-api-merge";
 import { mergeWorkspaces } from "@/lib/workspace-merge";
 import type { WorkspaceData } from "@/lib/build-workspace";
@@ -66,6 +67,7 @@ export async function resetSharedWorkspace(
     revision: 1,
     assemblyItems,
     orders,
+    shippedArchive: mergeShippedArchives(orders),
     apiOrderIds: orders.filter((order) => !order.barcodePrinted).map((order) => order.id),
     updatedAt: Date.now(),
     updatedBy: "server",

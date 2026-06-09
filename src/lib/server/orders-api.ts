@@ -1,9 +1,33 @@
+import { mkdir, readFile, writeFile } from "fs/promises";
+import path from "path";
 import type { ApiUnshippedOrder } from "@/types/orders-api";
+import { formatApiFetchError } from "@/lib/server/api-fetch-error";
 import { ORDERS_API_BASE, casherAuthHeaders, getCasherApiKey } from "@/lib/server/casher-api";
 import { externalFetch } from "@/lib/server/external-fetch";
 import { assertPdfBuffer } from "@/lib/server/pdf-label-printer";
 
 const UNSHIPPED_PATH = "/orders/admin/unshipped-with-stock";
+const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
+const PDF_CACHE_DIR = path.join(DATA_DIR, "print", "pdfs");
+
+function barcodePdfCachePath(orderId: string): string {
+  return path.join(PDF_CACHE_DIR, `${orderId}.pdf`);
+}
+
+async function readCachedBarcodePdf(orderId: string): Promise<Buffer | null> {
+  try {
+    const data = await readFile(barcodePdfCachePath(orderId));
+    assertPdfBuffer(data);
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+async function cacheBarcodePdf(orderId: string, pdf: Buffer): Promise<void> {
+  await mkdir(PDF_CACHE_DIR, { recursive: true });
+  await writeFile(barcodePdfCachePath(orderId), pdf);
+}
 
 export function buildBarcodePdfUrl(orderId: string | number): string {
   return `${ORDERS_API_BASE}/orders/admin/order/${orderId}/cdek-barcode-pdf`;
@@ -43,25 +67,37 @@ export async function fetchUnshippedOrders(): Promise<ApiUnshippedOrder[]> {
   return (await res.json()) as ApiUnshippedOrder[];
 }
 
-export async function downloadBarcodePdf(barcodeUrl: string): Promise<Buffer> {
+export async function downloadBarcodePdf(
+  barcodeUrl: string,
+  orderId?: string,
+): Promise<Buffer> {
   const key = getCasherApiKey();
   if (!key) {
     throw new Error("Не задан API-ключ для скачивания этикетки");
   }
 
-  const res = await externalFetch(barcodeUrl, {
-    headers: {
-      ...casherAuthHeaders(),
-      Accept: "application/pdf",
-    },
-    timeoutMs: 30_000,
-  });
+  try {
+    const res = await externalFetch(barcodeUrl, {
+      headers: {
+        ...casherAuthHeaders(),
+        Accept: "application/pdf",
+      },
+      timeoutMs: 30_000,
+    });
 
-  if (!res.ok) {
-    throw new Error(`Не удалось скачать этикетку: HTTP ${res.status}`);
+    if (!res.ok) {
+      throw new Error(`Не удалось скачать этикетку: HTTP ${res.status}`);
+    }
+
+    const data = Buffer.from(await res.arrayBuffer());
+    assertPdfBuffer(data);
+    if (orderId) await cacheBarcodePdf(orderId, data);
+    return data;
+  } catch (error) {
+    if (orderId) {
+      const cached = await readCachedBarcodePdf(orderId);
+      if (cached) return cached;
+    }
+    throw new Error(formatApiFetchError(error, barcodeUrl, "print"));
   }
-
-  const data = Buffer.from(await res.arrayBuffer());
-  assertPdfBuffer(data);
-  return data;
 }

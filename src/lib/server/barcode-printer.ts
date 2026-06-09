@@ -192,7 +192,7 @@ export async function printToBarcodePrinter(
 
   if (labelUrl) {
     try {
-      const pdf = await downloadBarcodePdf(labelUrl);
+      const pdf = await downloadBarcodePdf(labelUrl, options.orderId);
       const stamp = `${Date.now()}`;
       const format = await printPdfLabel(printer, pdf, PRINT_DIR, stamp);
       await logPrint(`OK ${format} url=${labelUrl} printer=${printer} order=${orderNumber}`);

@@ -25,11 +25,13 @@ function OtpravkiShell({
   assemblyItems,
   orders,
   apiOrderIds,
+  shippedArchive,
   enableApiRefresh,
 }: {
   assemblyItems: Parameters<typeof ShippingPanel>[0]["assemblyItems"];
   orders: Parameters<typeof ShippingPanel>[0]["orders"];
   apiOrderIds?: string[];
+  shippedArchive?: Parameters<typeof ShippingPanel>[0]["shippedArchive"];
   enableApiRefresh: boolean;
 }) {
   return (
@@ -38,6 +40,7 @@ function OtpravkiShell({
         assemblyItems={assemblyItems}
         orders={orders}
         apiOrderIds={apiOrderIds}
+        shippedArchive={shippedArchive}
         enableApiRefresh={enableApiRefresh}
       />
     </div>
@@ -60,6 +63,7 @@ export default async function OtpravkiPage() {
         assemblyItems={existing.assemblyItems}
         orders={existing.orders}
         apiOrderIds={existing.apiOrderIds}
+        shippedArchive={existing.shippedArchive}
         enableApiRefresh={!USE_MOCK_ORDERS}
       />
     );
@@ -98,6 +102,7 @@ export default async function OtpravkiPage() {
       assemblyItems={shared.assemblyItems}
       orders={shared.orders}
       apiOrderIds={shared.apiOrderIds}
+      shippedArchive={shared.shippedArchive}
       enableApiRefresh={!USE_MOCK_ORDERS}
     />
   );

@@ -15,6 +15,7 @@ interface ShippingPanelProps {
   assemblyItems: AssemblyItem[];
   orders: ShippingOrder[];
   apiOrderIds?: string[];
+  shippedArchive?: ShippingOrder[];
   enableApiRefresh?: boolean;
 }
 
@@ -22,6 +23,7 @@ export function ShippingPanel({
   assemblyItems: initialAssembly,
   orders: initialOrders,
   apiOrderIds: initialApiOrderIds = [],
+  shippedArchive: initialShippedArchive = [],
   enableApiRefresh = true,
 }: ShippingPanelProps) {
   const [tab, setTab] = useState<ShippingTab>("assembly");
@@ -34,6 +36,7 @@ export function ShippingPanel({
     assemblyItems,
     orders,
     apiOrderIds,
+    shippedArchive,
     updateAssembly,
     updateOrders,
     isOnline,
@@ -45,6 +48,7 @@ export function ShippingPanel({
     initialAssembly,
     initialOrders,
     initialApiOrderIds,
+    initialShippedArchive,
   });
 
   const assemblySections = useMemo(
@@ -120,7 +124,11 @@ export function ShippingPanel({
         />
       ) : (
         <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-6">
-          <ArchiveView orders={orders} apiOrderIds={apiOrderIds} />
+          <ArchiveView
+            orders={orders}
+            shippedArchive={shippedArchive}
+            apiOrderIds={apiOrderIds}
+          />
         </div>
       )}
     </div>

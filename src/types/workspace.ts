@@ -4,6 +4,8 @@ export interface WorkspaceState {
   version: 1;
   assemblyItems: AssemblyItem[];
   orders: ShippingOrder[];
+  /** Отправленные заказы — не удаляются при обновлении с API */
+  shippedArchive?: ShippingOrder[];
   /** ID заказов из последнего ответа API (unshipped-with-stock) */
   apiOrderIds?: string[];
   updatedAt: number;

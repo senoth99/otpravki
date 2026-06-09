@@ -7,10 +7,12 @@ import {
   getArchiveDeliveryStatus,
 } from "@/lib/archive-status";
 import { formatOrderNumberShort } from "@/lib/format";
+import { mergeShippedArchives } from "@/lib/shipped-archive";
 import type { ShippingOrder } from "@/types/shipping";
 
 interface ArchiveViewProps {
   orders: ShippingOrder[];
+  shippedArchive?: ShippingOrder[];
   apiOrderIds: string[];
 }
 
@@ -37,15 +39,12 @@ function formatShippedAt(timestamp?: number): string {
   });
 }
 
-export function ArchiveView({ orders, apiOrderIds }: ArchiveViewProps) {
+export function ArchiveView({ orders, shippedArchive, apiOrderIds }: ArchiveViewProps) {
   const apiSet = useMemo(() => new Set(apiOrderIds), [apiOrderIds]);
 
   const shippedOrders = useMemo(
-    () =>
-      orders
-        .filter((order) => order.barcodePrinted)
-        .sort((a, b) => (b.barcodePrintedAt ?? 0) - (a.barcodePrintedAt ?? 0)),
-    [orders],
+    () => mergeShippedArchives(shippedArchive ?? [], orders),
+    [orders, shippedArchive],
   );
 
   const inTransitCount = shippedOrders.filter(

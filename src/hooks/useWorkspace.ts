@@ -5,6 +5,10 @@ import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
 import { reconcileAssemblyOnShip } from "@/lib/assembly-demand";
 import {
+  collectShippedArchive,
+  mergeWorkspaceWithLocalArchive,
+} from "@/lib/shipped-archive";
+import {
   applySharedWorkspace,
   createWorkspace,
   fetchSharedWorkspace,
@@ -22,21 +26,25 @@ interface UseWorkspaceOptions {
   initialAssembly: AssemblyItem[];
   initialOrders: ShippingOrder[];
   initialApiOrderIds?: string[];
+  initialShippedArchive?: ShippingOrder[];
 }
 
 export function useWorkspace({
   initialAssembly,
   initialOrders,
   initialApiOrderIds = [],
+  initialShippedArchive = [],
 }: UseWorkspaceOptions) {
   const hydrated = useRef(false);
   const revisionRef = useRef(0);
   const applyingRemote = useRef(false);
   const assemblyRef = useRef(initialAssembly);
   const ordersRef = useRef(initialOrders);
+  const shippedArchiveRef = useRef(collectShippedArchive(initialOrders, initialShippedArchive));
 
   const [assemblyItems, setAssemblyItems] = useState(initialAssembly);
   const [orders, setOrders] = useState(initialOrders);
+  const [shippedArchive, setShippedArchive] = useState(shippedArchiveRef.current);
   const [apiOrderIds, setApiOrderIds] = useState(initialApiOrderIds);
   const [isOnline, setIsOnline] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -50,10 +58,13 @@ export function useWorkspace({
   const replaceWorkspace = useCallback((remote: SharedWorkspaceState) => {
     applyingRemote.current = true;
     revisionRef.current = remote.revision;
+    const archive = collectShippedArchive(remote.orders, remote.shippedArchive);
+    shippedArchiveRef.current = archive;
     setAssemblyItems(remote.assemblyItems);
     setOrders(remote.orders);
+    setShippedArchive(archive);
     setApiOrderIds(remote.apiOrderIds ?? []);
-    saveWorkspace(remote);
+    saveWorkspace({ ...remote, shippedArchive: archive });
 
     queueMicrotask(() => {
       applyingRemote.current = false;
@@ -68,13 +79,20 @@ export function useWorkspace({
     applyingRemote.current = true;
     revisionRef.current = remote.revision;
 
-    const local = createWorkspace(assemblyRef.current, ordersRef.current);
+    const local = createWorkspace(
+      assemblyRef.current,
+      ordersRef.current,
+      shippedArchiveRef.current,
+    );
     const merged = applySharedWorkspace(local, remote);
 
+    const archive = collectShippedArchive(merged.orders, merged.shippedArchive);
+    shippedArchiveRef.current = archive;
     setAssemblyItems(merged.assemblyItems);
     setOrders(merged.orders);
+    setShippedArchive(archive);
     setApiOrderIds(merged.apiOrderIds ?? []);
-    saveWorkspace(merged);
+    saveWorkspace({ ...merged, shippedArchive: archive });
 
     queueMicrotask(() => {
       applyingRemote.current = false;
@@ -105,7 +123,10 @@ export function useWorkspace({
     (assembly: AssemblyItem[], ords: ShippingOrder[]) => {
       if (applyingRemote.current) return;
 
-      const workspace = createWorkspace(assembly, ords);
+      const archive = collectShippedArchive(ords, shippedArchiveRef.current);
+      shippedArchiveRef.current = archive;
+      setShippedArchive(archive);
+      const workspace = createWorkspace(assembly, ords, archive);
       saveWorkspace(workspace);
       void pushToServer(workspace);
     },
@@ -135,7 +156,8 @@ export function useWorkspace({
       const local = loadWorkspace();
 
       if (remote) {
-        const base = local ?? createWorkspace(initialAssembly, initialOrders);
+        const base =
+          local ?? createWorkspace(initialAssembly, initialOrders, initialShippedArchive);
         const merged = applySharedWorkspace(base, remote);
         revisionRef.current = merged.revision;
         setAssemblyItems(merged.assemblyItems);
@@ -143,10 +165,13 @@ export function useWorkspace({
         setApiOrderIds(merged.apiOrderIds ?? []);
         saveWorkspace(merged);
       } else if (local) {
+        const archive = collectShippedArchive(local.orders, local.shippedArchive);
+        shippedArchiveRef.current = archive;
         setAssemblyItems(local.assemblyItems);
         setOrders(local.orders);
+        setShippedArchive(archive);
         setApiOrderIds(local.apiOrderIds ?? []);
-        void pushToServer(local);
+        void pushToServer({ ...local, shippedArchive: archive });
       }
 
       hydrated.current = true;
@@ -198,7 +223,17 @@ export function useWorkspace({
     try {
       const result = await refreshWorkspaceFromApi();
       if (result.workspace) {
-        replaceWorkspace(result.workspace);
+        const { orders: mergedOrders, shippedArchive: mergedArchive } =
+          mergeWorkspaceWithLocalArchive(
+            result.workspace,
+            ordersRef.current,
+            shippedArchiveRef.current,
+          );
+        replaceWorkspace({
+          ...result.workspace,
+          orders: mergedOrders,
+          shippedArchive: mergedArchive,
+        });
       }
       return result.ok
         ? { ok: true }
@@ -226,6 +261,7 @@ export function useWorkspace({
   return {
     assemblyItems,
     orders,
+    shippedArchive,
     apiOrderIds,
     updateAssembly,
     updateOrders,

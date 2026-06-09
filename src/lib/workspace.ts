@@ -1,5 +1,6 @@
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState, WorkspaceState } from "@/types/workspace";
+import { mergeShippedArchives } from "@/lib/shipped-archive";
 import { mergeWorkspaces } from "@/lib/workspace-merge";
 
 const WORKSPACE_KEY = "otpravki-workspace-v1";
@@ -172,17 +173,25 @@ export function applySharedWorkspace(
     revision: remote.revision,
     updatedBy: remote.updatedBy,
     apiOrderIds: remote.apiOrderIds ?? merged.apiOrderIds,
+    shippedArchive: mergeShippedArchives(
+      merged.shippedArchive ?? [],
+      remote.shippedArchive ?? [],
+      merged.orders,
+      remote.orders,
+    ),
   };
 }
 
 export function createWorkspace(
   assemblyItems: AssemblyItem[],
   orders: ShippingOrder[],
+  shippedArchive?: ShippingOrder[],
 ): WorkspaceState {
   return {
     version: 1,
     assemblyItems,
     orders,
+    shippedArchive: mergeShippedArchives(shippedArchive ?? [], orders),
     updatedAt: Date.now(),
   };
 }

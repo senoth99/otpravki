@@ -1,3 +1,4 @@
+import { mergeShippedArchives } from "@/lib/shipped-archive";
 import type { AssemblyItem, ShippingOrder, ShippingOrderItem } from "@/types/shipping";
 import type { WorkspaceState } from "@/types/workspace";
 
@@ -82,6 +83,7 @@ export function mergeWorkspaces(a: WorkspaceState, b: WorkspaceState): Workspace
     version: 1,
     assemblyItems: [...assemblyById.values()],
     orders: [...orderById.values()],
+    shippedArchive: mergeShippedArchives(a.shippedArchive ?? [], a.orders, b.shippedArchive ?? [], b.orders),
     apiOrderIds: newer.apiOrderIds ?? a.apiOrderIds ?? b.apiOrderIds,
     updatedAt: Math.max(a.updatedAt, b.updatedAt),
   };
