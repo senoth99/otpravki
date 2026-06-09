@@ -88,8 +88,8 @@ export async function resetSharedWorkspace(
   };
 
   memoryState = state;
-  await writeToDisk(state);
   broadcast(state);
+  await writeToDisk(state);
   return state;
 }
 
@@ -116,8 +116,8 @@ export async function syncWorkspaceFromApi(fresh: WorkspaceData): Promise<Shared
   );
 
   memoryState = next;
-  await writeToDisk(next);
   broadcast(next);
+  await writeToDisk(next);
   return next;
 }
 
@@ -159,8 +159,8 @@ export async function applyWorkspaceUpdate(
   });
 
   memoryState = next;
-  await writeToDisk(next);
   broadcast(next);
+  await writeToDisk(next);
 
   void appendSyncEvent(next).then(() => forwardToRemote(next));
 

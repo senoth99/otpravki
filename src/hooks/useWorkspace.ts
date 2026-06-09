@@ -9,6 +9,7 @@ import {
   mergeWorkspaceWithLocalArchive,
   normalizeWorkspaceState,
 } from "@/lib/shipped-archive";
+import { checkServerReachable, subscribeServerReachability } from "@/lib/server-reachability";
 import {
   applySharedWorkspace,
   createWorkspace,
@@ -30,6 +31,9 @@ interface UseWorkspaceOptions {
   initialShippedArchive?: ShippingOrder[];
 }
 
+const POLL_CONNECTED_MS = 15_000;
+const POLL_DISCONNECTED_MS = 500;
+
 export function useWorkspace({
   initialAssembly,
   initialOrders,
@@ -42,12 +46,18 @@ export function useWorkspace({
   const assemblyRef = useRef(initialAssembly);
   const ordersRef = useRef(initialOrders);
   const shippedArchiveRef = useRef(collectShippedArchive(initialOrders, initialShippedArchive));
+  const serverReachableRef = useRef(true);
+  const streamConnectedRef = useRef(false);
 
   const [assemblyItems, setAssemblyItems] = useState(initialAssembly);
   const [orders, setOrders] = useState(initialOrders);
   const [shippedArchive, setShippedArchive] = useState(shippedArchiveRef.current);
   const [apiOrderIds, setApiOrderIds] = useState(initialApiOrderIds);
-  const [isOnline, setIsOnline] = useState(true);
+  const [isServerReachable, setIsServerReachable] = useState(true);
+  const [isInternetOnline, setIsInternetOnline] = useState(
+    () => typeof navigator !== "undefined" && navigator.onLine,
+  );
+  const [isStreamConnected, setIsStreamConnected] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pendingSync, setPendingSync] = useState(0);
@@ -56,6 +66,8 @@ export function useWorkspace({
 
   assemblyRef.current = assemblyItems;
   ordersRef.current = orders;
+  serverReachableRef.current = isServerReachable;
+  streamConnectedRef.current = isStreamConnected;
 
   const applyRemote = useCallback((remote: SharedWorkspaceState) => {
     if (remote.revision <= revisionRef.current) return;
@@ -86,7 +98,7 @@ export function useWorkspace({
   }, []);
 
   const pushToServer = useCallback(async (workspace: ReturnType<typeof createWorkspace>) => {
-    if (!navigator.onLine) {
+    if (!serverReachableRef.current) {
       setPendingSync(getPendingSyncCount());
       return;
     }
@@ -143,7 +155,7 @@ export function useWorkspace({
   );
 
   const runSync = useCallback(async () => {
-    if (!navigator.onLine) return { synced: 0, failed: 0 };
+    if (!serverReachableRef.current) return { synced: 0, failed: 0 };
     setIsSyncing(true);
     try {
       const result = await flushSyncQueue();
@@ -157,6 +169,10 @@ export function useWorkspace({
 
   useEffect(() => {
     const bootstrap = async () => {
+      const reachable = await checkServerReachable();
+      setIsServerReachable(reachable);
+      serverReachableRef.current = reachable;
+
       const remote = await fetchSharedWorkspace();
       if (remote?.resetToken) {
         syncResetToken(remote.resetToken);
@@ -188,7 +204,6 @@ export function useWorkspace({
       hydrated.current = true;
       setSyncReady(true);
       setPendingSync(getPendingSyncCount());
-      setIsOnline(navigator.onLine);
       void runSync();
     };
 
@@ -196,40 +211,57 @@ export function useWorkspace({
   }, [initialAssembly, initialOrders, pushToServer, runSync]);
 
   useEffect(() => {
-    return subscribeWorkspaceStream((workspace) => {
-      applyRemote(workspace);
+    return subscribeWorkspaceStream({
+      onWorkspace: applyRemote,
+      onConnectionChange: setIsStreamConnected,
     });
   }, [applyRemote]);
 
   useEffect(() => {
     if (!syncReady) return;
 
+    let interval: ReturnType<typeof setInterval> | null = null;
+
     const poll = () => {
-      if (!navigator.onLine || applyingRemote.current) return;
+      if (!serverReachableRef.current || applyingRemote.current) return;
       void fetchSharedWorkspace().then((workspace) => {
         if (workspace) applyRemote(workspace);
       });
     };
 
-    const interval = setInterval(poll, 4000);
-    return () => clearInterval(interval);
-  }, [syncReady, applyRemote]);
+    const schedulePoll = () => {
+      if (interval) clearInterval(interval);
+      const ms = streamConnectedRef.current ? POLL_CONNECTED_MS : POLL_DISCONNECTED_MS;
+      interval = setInterval(poll, ms);
+    };
+
+    schedulePoll();
+    const pollReschedule = setInterval(schedulePoll, 2_000);
+
+    return () => {
+      if (interval) clearInterval(interval);
+      clearInterval(pollReschedule);
+    };
+  }, [syncReady, applyRemote, isStreamConnected]);
 
   useEffect(() => {
-    const onOnline = () => {
-      setIsOnline(true);
-      void runSync();
-    };
-    const onOffline = () => setIsOnline(false);
+    return subscribeServerReachability((reachable) => {
+      setIsServerReachable(reachable);
+      serverReachableRef.current = reachable;
+      if (reachable) void runSync();
+    });
+  }, [runSync]);
 
+  useEffect(() => {
+    const onOnline = () => setIsInternetOnline(true);
+    const onOffline = () => setIsInternetOnline(false);
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
-
     return () => {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
     };
-  }, [runSync]);
+  }, []);
 
   const updateAssembly = useCallback(
     (items: AssemblyItem[]) => {
@@ -294,7 +326,9 @@ export function useWorkspace({
     apiOrderIds,
     updateAssembly,
     updateOrders,
-    isOnline,
+    isServerReachable,
+    isInternetOnline,
+    isStreamConnected,
     isSyncing,
     isRefreshing,
     pendingSync,

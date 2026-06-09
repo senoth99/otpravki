@@ -22,7 +22,7 @@ export async function GET(request: Request) {
 
       const heartbeat = setInterval(() => {
         controller.enqueue(encoder.encode(": ping\n\n"));
-      }, 25_000);
+      }, 15_000);
 
       request.signal.addEventListener("abort", () => {
         clearInterval(heartbeat);
@@ -37,6 +37,7 @@ export async function GET(request: Request) {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
     },
   });
 }

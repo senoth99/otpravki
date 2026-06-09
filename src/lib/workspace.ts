@@ -143,7 +143,6 @@ export async function pushWorkspace(workspace: WorkspaceState): Promise<{
 }
 
 export async function flushSyncQueue(): Promise<{ synced: number; failed: number }> {
-  if (!navigator.onLine) return { synced: 0, failed: 0 };
 
   try {
     const raw = localStorage.getItem(SYNC_QUEUE_KEY);
@@ -197,12 +196,27 @@ export function createWorkspace(
   };
 }
 
-export function subscribeWorkspaceStream(
-  onWorkspace: (workspace: SharedWorkspaceState) => void,
-): () => void {
+export interface WorkspaceStreamOptions {
+  onWorkspace: (workspace: SharedWorkspaceState) => void;
+  onConnectionChange?: (connected: boolean) => void;
+}
+
+const STREAM_RECONNECT_MS = 500;
+
+export function subscribeWorkspaceStream({
+  onWorkspace,
+  onConnectionChange,
+}: WorkspaceStreamOptions): () => void {
   let source: EventSource | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let connected = false;
   let closed = false;
+
+  const setConnected = (next: boolean) => {
+    if (connected === next) return;
+    connected = next;
+    onConnectionChange?.(next);
+  };
 
   const refreshFromServer = () => {
     void fetchSharedWorkspace().then((workspace) => {
@@ -210,11 +224,23 @@ export function subscribeWorkspaceStream(
     });
   };
 
+  const scheduleReconnect = () => {
+    if (closed || reconnectTimer) return;
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      connect();
+    }, STREAM_RECONNECT_MS);
+  };
+
   const connect = () => {
     if (closed) return;
 
     source?.close();
     source = new EventSource("/api/workspace/stream");
+
+    source.onopen = () => {
+      setConnected(true);
+    };
 
     source.onmessage = (event) => {
       try {
@@ -233,17 +259,38 @@ export function subscribeWorkspaceStream(
     source.onerror = () => {
       source?.close();
       source = null;
+      setConnected(false);
       if (closed) return;
       refreshFromServer();
-      reconnectTimer = setTimeout(connect, 2000);
+      scheduleReconnect();
     };
   };
 
+  const reconnectNow = () => {
+    if (closed) return;
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    if (!connected) connect();
+    else refreshFromServer();
+  };
+
   connect();
+
+  const onVisible = () => {
+    if (document.visibilityState === "visible") reconnectNow();
+  };
+
+  window.addEventListener("focus", reconnectNow);
+  document.addEventListener("visibilitychange", onVisible);
 
   return () => {
     closed = true;
     if (reconnectTimer) clearTimeout(reconnectTimer);
     source?.close();
+    setConnected(false);
+    window.removeEventListener("focus", reconnectNow);
+    document.removeEventListener("visibilitychange", onVisible);
   };
 }

@@ -39,7 +39,9 @@ export function ShippingPanel({
     shippedArchive,
     updateAssembly,
     updateOrders,
-    isOnline,
+    isServerReachable,
+    isInternetOnline,
+    isStreamConnected,
     isSyncing,
     isRefreshing,
     pendingSync,
@@ -84,7 +86,12 @@ export function ShippingPanel({
 
   return (
     <>
-      <SyncIndicator isOnline={isOnline} isSyncing={isSyncing} pendingSync={pendingSync} />
+      <SyncIndicator
+        isServerReachable={isServerReachable}
+        isStreamConnected={isStreamConnected}
+        isSyncing={isSyncing}
+        pendingSync={pendingSync}
+      />
       <div className="mx-auto w-full max-w-3xl space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-3">
@@ -96,7 +103,7 @@ export function ShippingPanel({
             <RefreshButton
               onClick={() => void handleRefresh()}
               loading={isRefreshing}
-              disabled={!isOnline || isSyncing}
+              disabled={!isInternetOnline || isSyncing}
             />
           )}
         </div>

@@ -18,12 +18,7 @@ function mergeAssemblyItem(a: AssemblyItem, b: AssemblyItem): AssemblyItem {
   const [first] = (a.collectedAt ?? 0) >= (b.collectedAt ?? 0) ? [a, b] : [b, a];
   return {
     ...first,
-    collectedCount: pickByTimestamp(
-      a.collectedCount,
-      a.collectedAt,
-      b.collectedCount,
-      b.collectedAt,
-    ),
+    collectedCount: Math.max(a.collectedCount, b.collectedCount),
     collectedAt: Math.max(a.collectedAt ?? 0, b.collectedAt ?? 0) || undefined,
   };
 }
@@ -32,7 +27,7 @@ function mergeOrderItem(a: ShippingOrderItem, b: ShippingOrderItem): ShippingOrd
   const [first] = (a.scannedAt ?? 0) >= (b.scannedAt ?? 0) ? [a, b] : [b, a];
   return {
     ...first,
-    scannedCount: pickByTimestamp(a.scannedCount, a.scannedAt, b.scannedCount, b.scannedAt),
+    scannedCount: Math.max(a.scannedCount, b.scannedCount),
     scannedAt: Math.max(a.scannedAt ?? 0, b.scannedAt ?? 0) || undefined,
   };
 }

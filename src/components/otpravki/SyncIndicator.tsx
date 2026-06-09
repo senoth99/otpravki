@@ -1,7 +1,8 @@
 "use client";
 
 interface SyncIndicatorProps {
-  isOnline: boolean;
+  isServerReachable: boolean;
+  isStreamConnected: boolean;
   isSyncing: boolean;
   pendingSync: number;
 }
@@ -24,25 +25,37 @@ function StatusDot({ color, label }: { color: DotColor; label: string }) {
   );
 }
 
-export function SyncIndicator({ isOnline, isSyncing, pendingSync }: SyncIndicatorProps) {
-  const networkColor: DotColor = isOnline ? "green" : "red";
-  const syncColor: DotColor = !isOnline
+export function SyncIndicator({
+  isServerReachable,
+  isStreamConnected,
+  isSyncing,
+  pendingSync,
+}: SyncIndicatorProps) {
+  const serverColor: DotColor = isServerReachable ? "green" : "red";
+  const syncColor: DotColor = !isServerReachable
     ? "red"
     : isSyncing || pendingSync > 0
       ? "yellow"
-      : "green";
+      : isStreamConnected
+        ? "green"
+        : "yellow";
 
   return (
     <div className="fixed top-1.5 right-3 z-50 hidden items-center gap-1 sm:flex">
-      <StatusDot color={networkColor} label={isOnline ? "Интернет" : "Нет интернета"} />
+      <StatusDot
+        color={serverColor}
+        label={isServerReachable ? "Сервер в сети" : "Сервер недоступен"}
+      />
       <StatusDot
         color={syncColor}
         label={
-          !isOnline
+          !isServerReachable
             ? "Синхронизация недоступна"
             : isSyncing || pendingSync > 0
-              ? "Синхронизация"
-              : "Синхронизировано"
+              ? "Отправка изменений"
+              : isStreamConnected
+                ? "Реальное время"
+                : "Подключение…"
         }
       />
     </div>
