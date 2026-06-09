@@ -149,7 +149,7 @@ export async function fetchSharedWorkspace(): Promise<SharedWorkspaceState | nul
 
 let activeSocket: Socket | null = null;
 
-function logClientSync(
+export function logClientSync(
   type: string,
   data: { message?: string; revision?: number; meta?: Record<string, unknown> } = {},
 ) {

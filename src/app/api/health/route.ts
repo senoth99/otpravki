@@ -15,6 +15,7 @@ export async function GET() {
     revision,
     syncLog: getSyncLogPath(),
     syncLogApi: "/api/sync/log",
+    buildId: process.env.BUILD_ID ?? "dev",
     printer: printer ?? null,
     time: formatMoscowIso(),
     timezone: "Europe/Moscow",

@@ -72,13 +72,9 @@ export function SyncIndicator({
                   : "Нет realtime — нужен npm run dev (не next dev)"
         }
       />
-      {serverRevision > 0 && (
-        <span
-          className={`text-[10px] tabular-nums ${behind ? "text-amber-600" : "text-gray-400"}`}
-        >
-          {clientRevision}/{serverRevision}
-        </span>
-      )}
+      <span className="text-[10px] tabular-nums text-gray-400">
+        {serverRevision > 0 ? `${clientRevision}/${serverRevision}` : null}
+      </span>
     </div>
   );
 }

@@ -142,7 +142,9 @@ fi
 echo "==> Синхронизирую картинки товаров на сервер..."
 node "$APP_DIR/scripts/sync-product-images.mjs" "$DATA_DIR" "$API_URL" || echo "    часть картинок не скачалась — докачается при следующем деплое"
 
-echo "==> Собираю приложение..."
+BUILD_ID="$(git -C "$APP_DIR" rev-parse --short HEAD 2>/dev/null || date +%s)"
+export BUILD_ID
+echo "==> Собираю приложение (build ${BUILD_ID})..."
 npm run build
 
 echo "==> Готовлю standalone..."
@@ -182,6 +184,7 @@ Environment=NODE_OPTIONS=--dns-result-order=ipv4first
 Environment=PORT=${PORT}
 Environment=HOSTNAME=0.0.0.0
 Environment=DATA_DIR=${DATA_DIR}
+Environment=BUILD_ID=${BUILD_ID}
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=USE_MOCK_ORDERS=${USE_MOCK_ORDERS_VALUE}
 Environment=ORDERS_API_URL=${ORDERS_API_URL_VALUE}

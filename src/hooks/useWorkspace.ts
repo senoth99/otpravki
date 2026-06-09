@@ -12,6 +12,7 @@ import {
 import { checkServerReachable, subscribeServerReachability } from "@/lib/server-reachability";
 import {
   createWorkspace,
+  logClientSync,
   fetchSharedWorkspace,
   fetchWorkspaceRevision,
   flushSyncQueue,
@@ -269,8 +270,19 @@ export function useWorkspace({
 
   const updateAssembly = useCallback(
     (items: AssemblyItem[]) => {
+      const changed = items.find((item) => {
+        const prev = assemblyRef.current.find((p) => p.id === item.id);
+        return prev && prev.collectedCount !== item.collectedCount;
+      });
       assemblyRef.current = items;
       setAssemblyItems(items);
+      logClientSync("assembly.change", {
+        meta: {
+          itemId: changed?.id,
+          collectedCount: changed?.collectedCount,
+          total: items.length,
+        },
+      });
       persist(items, ordersRef.current);
     },
     [persist],
