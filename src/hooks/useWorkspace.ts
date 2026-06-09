@@ -44,12 +44,13 @@ export function useWorkspace({
   const revisionRef = useRef(0);
   const dirtyRef = useRef(false);
   const bootstrappedRef = useRef(false);
+  const pullingRef = useRef(false);
   const assemblyRef = useRef(initialAssembly);
   const ordersRef = useRef(initialOrders);
   const shippedArchiveRef = useRef(collectShippedArchive(initialOrders, initialShippedArchive));
   const serverReachableRef = useRef(true);
   const pushChainRef = useRef(Promise.resolve());
-  const pullRemoteRef = useRef<(force?: boolean) => void>(() => {});
+  const pullRemoteRef = useRef<() => void>(() => {});
 
   const [assemblyItems, setAssemblyItems] = useState(initialAssembly);
   const [orders, setOrders] = useState(initialOrders);
@@ -61,27 +62,27 @@ export function useWorkspace({
   );
   const [isStreamConnected, setIsStreamConnected] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isPulling, setIsPulling] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pendingSync, setPendingSync] = useState(0);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
   const [syncReady, setSyncReady] = useState(false);
   const [serverRevision, setServerRevision] = useState(0);
+  const [clientRevision, setClientRevision] = useState(0);
 
   assemblyRef.current = assemblyItems;
   ordersRef.current = orders;
   serverReachableRef.current = isServerReachable;
 
-  const hasLocalEdits = useCallback(() => {
-    return dirtyRef.current || getPendingSyncCount() > 0;
-  }, []);
-
   const applyWorkspaceState = useCallback((workspace: SharedWorkspaceState) => {
     shippedArchiveRef.current = workspace.shippedArchive ?? [];
-    setAssemblyItems(workspace.assemblyItems);
-    setOrders(workspace.orders);
+    setAssemblyItems([...workspace.assemblyItems]);
+    setOrders([...workspace.orders]);
     setShippedArchive(workspace.shippedArchive ?? []);
     setApiOrderIds(workspace.apiOrderIds ?? []);
     setServerRevision(workspace.revision);
+    setClientRevision(workspace.revision);
+    revisionRef.current = workspace.revision;
     saveWorkspace(workspace);
     setLastSyncAt(Date.now());
     setPendingSync(getPendingSyncCount());
@@ -89,9 +90,9 @@ export function useWorkspace({
 
   const applyFromServer = useCallback(
     (remote: SharedWorkspaceState) => {
-      if (remote.revision <= revisionRef.current) return;
+      if (remote.revision === revisionRef.current) return;
 
-      const next = hasLocalEdits()
+      const next = dirtyRef.current
         ? normalizeWorkspaceState(
             applySharedWorkspace(
               createWorkspace(
@@ -105,51 +106,25 @@ export function useWorkspace({
         : normalizeWorkspaceState(remote);
 
       applyWorkspaceState(next);
-      revisionRef.current = remote.revision;
     },
-    [applyWorkspaceState, hasLocalEdits],
-  );
-
-  const pushToServerRef = useRef(
-    (_workspace: ReturnType<typeof createWorkspace>) => Promise.resolve(),
+    [applyWorkspaceState],
   );
 
   const pushToServer = useCallback(
     (workspace: ReturnType<typeof createWorkspace>) => {
-      const expectedRevision = revisionRef.current;
       pushChainRef.current = pushChainRef.current
         .then(async () => {
           setIsSyncing(true);
           try {
-            const result = await pushWorkspace(workspace, expectedRevision);
-
-            if (result.conflict && result.workspace) {
-              applyFromServer(result.workspace);
-              dirtyRef.current = true;
-              const retry = normalizeWorkspaceState(
-                applySharedWorkspace(
-                  createWorkspace(
-                    assemblyRef.current,
-                    ordersRef.current,
-                    shippedArchiveRef.current,
-                  ),
-                  result.workspace,
-                ),
-              );
-              const retryResult = await pushWorkspace(retry, result.workspace.revision);
-              if (retryResult.workspace) {
-                applyFromServer(retryResult.workspace);
-                dirtyRef.current = false;
-              }
-            } else if (result.workspace) {
+            const result = await pushWorkspace(workspace);
+            if (result.workspace) {
               applyFromServer(result.workspace);
               dirtyRef.current = false;
-            } else if (!result.ok) {
+            } else {
               dirtyRef.current = true;
               serverReachableRef.current = await checkServerReachable();
               setIsServerReachable(serverReachableRef.current);
             }
-
             setPendingSync(getPendingSyncCount());
           } finally {
             setIsSyncing(false);
@@ -158,6 +133,7 @@ export function useWorkspace({
         .catch(() => {
           dirtyRef.current = true;
           setIsSyncing(false);
+          setPendingSync(getPendingSyncCount());
         });
 
       return pushChainRef.current;
@@ -165,29 +141,29 @@ export function useWorkspace({
     [applyFromServer],
   );
 
-  pushToServerRef.current = pushToServer;
+  const pullRemote = useCallback(() => {
+    if (pullingRef.current) return;
+    pullingRef.current = true;
+    setIsPulling(true);
 
-  const pullRemote = useCallback(
-    (force = false) => {
-      void fetchSharedWorkspace()
-        .then((workspace) => {
-          if (workspace && (force || workspace.revision > revisionRef.current)) {
-            applyFromServer(workspace);
-          }
-        })
-        .catch(() => {
-          // next poll retries
-        });
-    },
-    [applyFromServer],
-  );
+    void fetchSharedWorkspace()
+      .then((workspace) => {
+        if (workspace) applyFromServer(workspace);
+      })
+      .catch(() => {
+        // next poll retries
+      })
+      .finally(() => {
+        pullingRef.current = false;
+        setIsPulling(false);
+      });
+  }, [applyFromServer]);
 
   pullRemoteRef.current = pullRemote;
 
   const replaceWorkspace = useCallback(
     (remote: SharedWorkspaceState, options?: { push?: boolean }) => {
       applyWorkspaceState(normalizeWorkspaceState(remote));
-      revisionRef.current = remote.revision;
       dirtyRef.current = false;
 
       if (options?.push) {
@@ -216,7 +192,7 @@ export function useWorkspace({
   const runSync = useCallback(async () => {
     setIsSyncing(true);
     try {
-      const result = await flushSyncQueue(revisionRef.current);
+      const result = await flushSyncQueue();
       setPendingSync(getPendingSyncCount());
       if (result.workspace) {
         applyFromServer(result.workspace);
@@ -254,18 +230,17 @@ export function useWorkspace({
 
       const local = loadWorkspace();
 
-      if (remote && remote.revision >= revisionRef.current) {
+      if (remote) {
         const base =
           local ?? createWorkspace(initialAssembly, initialOrders, initialShippedArchive);
         const merged = normalizeWorkspaceState(applySharedWorkspace(base, remote));
-        revisionRef.current = merged.revision;
         applyWorkspaceState(merged);
         clearSyncQueue();
-      } else if (!fetchFailed && !remote && local) {
+      } else if (!fetchFailed && local) {
         const archive = collectShippedArchive(local.orders, local.shippedArchive);
         shippedArchiveRef.current = archive;
-        setAssemblyItems(local.assemblyItems);
-        setOrders(local.orders);
+        setAssemblyItems([...local.assemblyItems]);
+        setOrders([...local.orders]);
         setShippedArchive(archive);
         setApiOrderIds(local.apiOrderIds ?? []);
         dirtyRef.current = true;
@@ -288,8 +263,9 @@ export function useWorkspace({
       onWorkspace: applyFromServer,
       onConnectionChange: setIsStreamConnected,
       onRevisionPing: (revision) => {
-        if (revision > revisionRef.current) {
-          pullRemoteRef.current(true);
+        setServerRevision(revision);
+        if (revision !== revisionRef.current) {
+          pullRemoteRef.current();
         }
       },
     });
@@ -300,8 +276,8 @@ export function useWorkspace({
       void fetchWorkspaceRevision()
         .then((revision) => {
           setServerRevision(revision);
-          if (revision > revisionRef.current) {
-            pullRemoteRef.current(true);
+          if (revision !== revisionRef.current) {
+            pullRemoteRef.current();
           }
         })
         .catch(() => {
@@ -319,7 +295,7 @@ export function useWorkspace({
       setIsServerReachable(reachable);
       serverReachableRef.current = reachable;
       if (reachable) {
-        pullRemoteRef.current(true);
+        pullRemoteRef.current();
         void runSync();
       }
     });
@@ -403,10 +379,12 @@ export function useWorkspace({
     isInternetOnline,
     isStreamConnected,
     isSyncing,
+    isPulling,
     isRefreshing,
     pendingSync,
     lastSyncAt,
     serverRevision,
+    clientRevision,
     syncReady,
     syncNow: runSync,
     refreshFromApi,

@@ -17,23 +17,10 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       workspace: WorkspaceState;
       clientId?: string;
-      expectedRevision?: number;
     };
 
     if (!body.workspace?.assemblyItems || !body.workspace?.orders) {
       return NextResponse.json({ ok: false, error: "Invalid workspace" }, { status: 400 });
-    }
-
-    const current = await getSharedWorkspace();
-    if (
-      body.expectedRevision !== undefined &&
-      current &&
-      current.revision !== body.expectedRevision
-    ) {
-      return NextResponse.json(
-        { ok: false, conflict: true, workspace: current },
-        { status: 409, headers: NO_CACHE },
-      );
     }
 
     const workspace = await applyWorkspaceUpdate(

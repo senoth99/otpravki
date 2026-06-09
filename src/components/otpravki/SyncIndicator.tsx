@@ -4,8 +4,10 @@ interface SyncIndicatorProps {
   isServerReachable: boolean;
   isStreamConnected: boolean;
   isSyncing: boolean;
+  isPulling: boolean;
   pendingSync: number;
   serverRevision: number;
+  clientRevision: number;
 }
 
 type DotColor = "red" | "yellow" | "green";
@@ -30,22 +32,27 @@ export function SyncIndicator({
   isServerReachable,
   isStreamConnected,
   isSyncing,
+  isPulling,
   pendingSync,
   serverRevision,
+  clientRevision,
 }: SyncIndicatorProps) {
+  const behind = serverRevision > clientRevision;
   const serverColor: DotColor = isServerReachable ? "green" : "red";
   const syncColor: DotColor = !isServerReachable
     ? "red"
     : isSyncing || pendingSync > 0
       ? "yellow"
-      : isStreamConnected
-        ? "green"
-        : "yellow";
+      : isPulling || behind
+        ? "yellow"
+        : isStreamConnected
+          ? "green"
+          : "yellow";
 
   return (
     <div
       className="fixed top-1.5 right-3 z-50 flex items-center gap-1.5"
-      title={`Ревизия ${serverRevision}`}
+      title={`Клиент #${clientRevision}, сервер #${serverRevision}`}
     >
       <StatusDot
         color={serverColor}
@@ -57,14 +64,20 @@ export function SyncIndicator({
           !isServerReachable
             ? "Синхронизация недоступна"
             : isSyncing || pendingSync > 0
-              ? "Отправка изменений"
-              : isStreamConnected
-                ? "Реальное время"
-                : "Подключение…"
+              ? "Отправка на сервер…"
+              : isPulling || behind
+                ? "Получение изменений…"
+                : isStreamConnected
+                  ? "Синхронизировано"
+                  : "Подключение…"
         }
       />
       {serverRevision > 0 && (
-        <span className="text-[10px] tabular-nums text-gray-400">#{serverRevision}</span>
+        <span
+          className={`text-[10px] tabular-nums ${behind ? "text-amber-600" : "text-gray-400"}`}
+        >
+          {clientRevision}/{serverRevision}
+        </span>
       )}
     </div>
   );

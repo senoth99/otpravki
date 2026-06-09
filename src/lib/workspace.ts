@@ -115,8 +115,18 @@ export async function refreshWorkspaceFromApi(): Promise<{
   }
 }
 
+const SYNC_TIMEOUT_MS = 20_000;
+
+function cacheBust(url: string): string {
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}_=${Date.now()}`;
+}
+
 export async function fetchWorkspaceRevision(): Promise<number> {
-  const res = await fetch("/api/workspace/revision", { cache: "no-store" });
+  const res = await fetch(cacheBust("/api/workspace/revision"), {
+    cache: "no-store",
+    signal: AbortSignal.timeout(SYNC_TIMEOUT_MS),
+  });
   if (!res.ok) {
     throw new Error(`revision fetch failed: ${res.status}`);
   }
@@ -125,7 +135,10 @@ export async function fetchWorkspaceRevision(): Promise<number> {
 }
 
 export async function fetchSharedWorkspace(): Promise<SharedWorkspaceState | null> {
-  const res = await fetch("/api/workspace", { cache: "no-store" });
+  const res = await fetch(cacheBust("/api/workspace"), {
+    cache: "no-store",
+    signal: AbortSignal.timeout(SYNC_TIMEOUT_MS),
+  });
   if (!res.ok) {
     throw new Error(`workspace fetch failed: ${res.status}`);
   }
@@ -133,12 +146,8 @@ export async function fetchSharedWorkspace(): Promise<SharedWorkspaceState | nul
   return data.workspace;
 }
 
-export async function pushWorkspace(
-  workspace: WorkspaceState,
-  expectedRevision?: number,
-): Promise<{
+export async function pushWorkspace(workspace: WorkspaceState): Promise<{
   ok: boolean;
-  conflict?: boolean;
   workspace?: SharedWorkspaceState;
 }> {
   try {
@@ -148,20 +157,15 @@ export async function pushWorkspace(
       body: JSON.stringify({
         workspace,
         clientId: getClientId(),
-        expectedRevision,
       }),
       cache: "no-store",
+      signal: AbortSignal.timeout(SYNC_TIMEOUT_MS),
     });
 
     const data = (await res.json()) as {
       ok: boolean;
-      conflict?: boolean;
       workspace?: SharedWorkspaceState;
     };
-
-    if (res.status === 409 && data.workspace) {
-      return { ok: false, conflict: true, workspace: data.workspace };
-    }
 
     if (!res.ok) {
       enqueueSync(workspace);
@@ -176,7 +180,7 @@ export async function pushWorkspace(
   }
 }
 
-export async function flushSyncQueue(expectedRevision?: number): Promise<{
+export async function flushSyncQueue(): Promise<{
   synced: number;
   failed: number;
   workspace?: SharedWorkspaceState;
@@ -195,7 +199,7 @@ export async function flushSyncQueue(expectedRevision?: number): Promise<{
         ? local
         : queued;
 
-    const result = await pushWorkspace(toPush, expectedRevision);
+    const result = await pushWorkspace(toPush);
     if (result.ok) {
       clearSyncQueue();
       return { synced: 1, failed: 0, workspace: result.workspace };
