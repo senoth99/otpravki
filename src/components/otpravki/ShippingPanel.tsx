@@ -39,6 +39,7 @@ export function ShippingPanel({
     shippedArchive,
     updateAssembly,
     updateOrders,
+    unshipFromArchive,
     isServerReachable,
     isInternetOnline,
     isStreamConnected,
@@ -141,6 +142,7 @@ export function ShippingPanel({
             orders={orders}
             shippedArchive={shippedArchive}
             apiOrderIds={apiOrderIds}
+            onUnship={unshipFromArchive}
           />
         </div>
       )}

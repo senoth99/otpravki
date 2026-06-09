@@ -16,3 +16,10 @@ export function getArchiveDeliveryStatus(
 ): ArchiveDeliveryStatus {
   return apiOrderIds.has(orderId) ? "in-transit" : "delivered";
 }
+
+export function canUnshipFromArchive(
+  orderId: string,
+  apiOrderIds: ReadonlySet<string>,
+): boolean {
+  return getArchiveDeliveryStatus(orderId, apiOrderIds) === "in-transit";
+}

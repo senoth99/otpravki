@@ -8,13 +8,14 @@ export function mergeShippedArchives(...sources: ShippingOrder[][]): ShippingOrd
 
   for (const list of sources) {
     for (const order of list) {
-      if (!order.barcodePrinted) continue;
       const prev = byId.get(order.id);
       byId.set(order.id, prev ? mergeOrder(prev, order) : order);
     }
   }
 
-  return [...byId.values()].sort(
+  return [...byId.values()]
+    .filter((order) => order.barcodePrinted)
+    .sort(
     (a, b) => (b.barcodePrintedAt ?? 0) - (a.barcodePrintedAt ?? 0),
   );
 }

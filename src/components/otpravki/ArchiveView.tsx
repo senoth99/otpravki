@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   ARCHIVE_STATUS_HINT,
   ARCHIVE_STATUS_LABEL,
+  canUnshipFromArchive,
   getArchiveDeliveryStatus,
 } from "@/lib/archive-status";
 import { formatMoscowDateTime, formatOrderNumberShort } from "@/lib/format";
@@ -14,6 +15,7 @@ interface ArchiveViewProps {
   orders: ShippingOrder[];
   shippedArchive?: ShippingOrder[];
   apiOrderIds: string[];
+  onUnship?: (orderId: string) => { ok: true } | { ok: false; error: string };
 }
 
 const STATUS_STYLES = {
@@ -29,7 +31,9 @@ const STATUS_STYLES = {
   },
 } as const;
 
-export function ArchiveView({ orders, shippedArchive, apiOrderIds }: ArchiveViewProps) {
+export function ArchiveView({ orders, shippedArchive, apiOrderIds, onUnship }: ArchiveViewProps) {
+  const [unshipError, setUnshipError] = useState<string | null>(null);
+  const [unshippingId, setUnshippingId] = useState<string | null>(null);
   const apiSet = useMemo(() => new Set(apiOrderIds), [apiOrderIds]);
 
   const shippedOrders = useMemo(
@@ -50,8 +54,35 @@ export function ArchiveView({ orders, shippedArchive, apiOrderIds }: ArchiveView
     );
   }
 
+  const handleUnship = (order: ShippingOrder) => {
+    if (!onUnship) return;
+
+    const label = formatOrderNumberShort(order.orderNumber);
+    if (
+      !window.confirm(
+        `Отменить отправку заказа ${label}? Он вернётся как новый — без сборки и без сканов.`,
+      )
+    ) {
+      return;
+    }
+
+    setUnshipError(null);
+    setUnshippingId(order.id);
+    const result = onUnship(order.id);
+    setUnshippingId(null);
+
+    if (!result.ok) {
+      setUnshipError(result.error);
+    }
+  };
+
   return (
     <div className="space-y-4">
+      {unshipError && (
+        <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 sm:text-sm">
+          {unshipError}
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2 px-0.5 text-xs text-gray-500">
         <span>{shippedOrders.length} отправлено</span>
         {inTransitCount > 0 && (
@@ -107,7 +138,7 @@ export function ArchiveView({ orders, shippedArchive, apiOrderIds }: ArchiveView
                 {ARCHIVE_STATUS_HINT[status]}
               </p>
 
-              <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-500">
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500">
                 <span className="rounded-lg bg-white/70 px-2 py-1">
                   {itemCount} {itemCount === 1 ? "позиция" : "позиций"}
                 </span>
@@ -115,6 +146,16 @@ export function ArchiveView({ orders, shippedArchive, apiOrderIds }: ArchiveView
                   <span className="rounded-lg bg-white/70 px-2 py-1 font-mono">
                     {order.trackingNumber}
                   </span>
+                )}
+                {onUnship && canUnshipFromArchive(order.id, apiSet) && (
+                  <button
+                    type="button"
+                    onClick={() => handleUnship(order)}
+                    disabled={unshippingId === order.id}
+                    className="ml-auto rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-50 disabled:opacity-50"
+                  >
+                    {unshippingId === order.id ? "Отмена…" : "Отменить отправку"}
+                  </button>
                 )}
               </div>
             </div>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
+import { canUnshipFromArchive } from "@/lib/archive-status";
 import { reconcileAssemblyOnShip } from "@/lib/assembly-demand";
 import {
   collectShippedArchive,
@@ -335,6 +336,49 @@ export function useWorkspace({
     [persist],
   );
 
+  const unshipFromArchive = useCallback(
+    (orderId: string): { ok: true } | { ok: false; error: string } => {
+      const apiSet = new Set(apiOrderIds);
+      if (!canUnshipFromArchive(orderId, apiSet)) {
+        return { ok: false, error: "Заказ уже уехал в СДЭК — отменить нельзя" };
+      }
+
+      const archived =
+        shippedArchiveRef.current.find((order) => order.id === orderId) ??
+        ordersRef.current.find((order) => order.id === orderId && order.barcodePrinted);
+
+      if (!archived) {
+        return { ok: false, error: "Заказ не найден в архиве" };
+      }
+
+      const unshipped: ShippingOrder = {
+        ...archived,
+        barcodePrinted: false,
+        barcodePrintedAt: Date.now(),
+        items: archived.items.map((item) => ({
+          ...item,
+          scannedCount: 0,
+          scannedAt: undefined,
+        })),
+      };
+
+      shippedArchiveRef.current = shippedArchiveRef.current.filter((order) => order.id !== orderId);
+      setShippedArchive([...shippedArchiveRef.current]);
+
+      const nextOrders = [
+        ...ordersRef.current.filter((order) => order.id !== orderId),
+        unshipped,
+      ];
+
+      ordersRef.current = nextOrders;
+      setOrders(nextOrders);
+      persist(assemblyRef.current, nextOrders);
+
+      return { ok: true };
+    },
+    [apiOrderIds, persist],
+  );
+
   return {
     assemblyItems,
     orders,
@@ -342,6 +386,7 @@ export function useWorkspace({
     apiOrderIds,
     updateAssembly,
     updateOrders,
+    unshipFromArchive,
     isServerReachable,
     isInternetOnline,
     isStreamConnected,
