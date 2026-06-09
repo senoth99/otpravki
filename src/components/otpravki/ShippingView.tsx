@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHardwareScanner } from "@/hooks/useHardwareScanner";
-import { getOrderAssemblyStatus } from "@/lib/assembly-status";
+import { buildAssemblyAllocation, getOrderAssemblyStatus } from "@/lib/assembly-status";
 import { formatOrderNumberShort } from "@/lib/format";
 import { getOrderDisplayStatus } from "@/lib/order-status";
 import { findFirstAutoOrderIndex } from "@/lib/order-sort";
@@ -61,19 +61,32 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
   const [countdown, setCountdown] = useState<CountdownState | null>(null);
   const autoHandledRef = useRef<string | null>(null);
 
-  const orderStatuses = useMemo(
-    () => orders.map((order) => getOrderDisplayStatus(order, assemblyItems)),
+  const assemblyAllocation = useMemo(
+    () => buildAssemblyAllocation(orders, assemblyItems),
     [orders, assemblyItems],
   );
 
+  const orderStatuses = useMemo(
+    () => orders.map((order) => getOrderDisplayStatus(order, assemblyItems, assemblyAllocation)),
+    [orders, assemblyItems, assemblyAllocation],
+  );
+
   const assemblyStatuses = useMemo(
-    () => orders.map((order) => getOrderAssemblyStatus(order, assemblyItems)),
-    [orders, assemblyItems],
+    () => orders.map((order) => getOrderAssemblyStatus(order, assemblyItems, assemblyAllocation)),
+    [orders, assemblyItems, assemblyAllocation],
   );
 
   const activeIndices = useMemo(
     () => orders.map((_, index) => index).filter((index) => !orders[index].barcodePrinted),
     [orders],
+  );
+
+  const shippableIndices = useMemo(
+    () =>
+      activeIndices.filter(
+        (index) => assemblyAllocation.readyByOrderId.get(orders[index].id) === true,
+      ),
+    [activeIndices, assemblyAllocation, orders],
   );
 
   const shippedOrders = useMemo(
@@ -232,8 +245,9 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
         ? { ...order, barcodePrinted: true, barcodePrintedAt: shippedAt }
         : order,
     );
+    const nextAllocation = buildAssemblyAllocation(updatedOrders, assemblyItems);
     const nextStatuses = updatedOrders.map((order) =>
-      getOrderDisplayStatus(order, assemblyItems),
+      getOrderDisplayStatus(order, assemblyItems, nextAllocation),
     );
     const hasNext = findFirstAutoOrderIndex(updatedOrders, nextStatuses) !== null;
 
@@ -306,8 +320,17 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     }
   }, [orders, currentIndex, currentOrder, viewingShippedId]);
 
+  useEffect(() => {
+    if (viewingShippedId || shippableIndices.length === 0) return;
+    if (!shippableIndices.includes(currentIndex)) {
+      setCurrentIndex(shippableIndices[0]);
+    }
+  }, [currentIndex, shippableIndices, viewingShippedId]);
+
   const hasActiveOrders = activeIndices.length > 0;
+  const hasShippableOrders = shippableIndices.length > 0;
   const hasShippedOrders = shippedOrders.length > 0;
+  const awaitingAssemblyCount = activeIndices.length - shippableIndices.length;
 
   if (!hasActiveOrders && !hasShippedOrders) {
     return (
@@ -326,7 +349,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
   const scannedCount = displayOrder?.items.reduce((sum, i) => sum + i.scannedCount, 0) ?? 0;
   const hasNextUnshipped = orders.some((o, i) => i !== currentIndex && !o.barcodePrinted);
 
-  const showActions = hasActiveOrders && isAssemblyReady && !isShipped && !autoMode && !isViewingArchive;
+  const showActions = hasShippableOrders && isAssemblyReady && !isShipped && !autoMode && !isViewingArchive;
 
   const handleSelectActive = (index: number) => {
     setViewingShippedId(null);
@@ -348,18 +371,27 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
       </div>
 
       <div className="space-y-4 p-3 sm:p-6">
-          {hasActiveOrders && (
+          {hasShippableOrders && (
             <OrderPicker
               orders={orders}
               currentIndex={currentIndex}
               statuses={orderStatuses}
-              visibleIndices={activeIndices}
+              visibleIndices={shippableIndices}
               onSelect={handleSelectActive}
               locked={autoMode}
             />
           )}
 
-          {!displayOrder ? (
+          {hasActiveOrders && !hasShippableOrders && !isViewingArchive ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-5 text-center sm:px-6">
+              <p className="text-sm font-medium text-amber-900">Сначала соберите заказы</p>
+              <p className="mt-1 text-xs text-amber-800">
+                {awaitingAssemblyCount > 0
+                  ? `${awaitingAssemblyCount} заказ(ов) ждут сборки на вкладке «Сборка»`
+                  : "Отметьте все позиции на вкладке «Сборка»"}
+              </p>
+            </div>
+          ) : !displayOrder ? (
             <div className="py-6 text-center text-sm text-gray-500">Нет заказов на отправку</div>
           ) : !isAssemblyReady && !isViewingArchive ? (
             <AssemblyLockedCard missing={assemblyStatus?.missing ?? []} />
@@ -394,7 +426,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
                 </div>
                 <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2 sm:block sm:bg-transparent sm:p-0 sm:text-right">
                   <p className="text-sm font-medium text-gray-700">
-                    {activeIndices.indexOf(currentIndex) + 1 || 1} / {activeIndices.length || 1}
+                    {shippableIndices.indexOf(currentIndex) + 1 || 1} / {shippableIndices.length || 1}
                   </p>
                   <p className="text-xs tabular-nums text-gray-500">
                     Сканировано: {scannedCount} / {totalUnits}

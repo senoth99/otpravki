@@ -1,5 +1,6 @@
-import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
+import type { AssemblyAllocation } from "@/lib/assembly-status";
 import { getOrderAssemblyStatus } from "@/lib/assembly-status";
+import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 
 export type OrderDisplayStatus =
   | "awaiting-assembly"
@@ -17,8 +18,9 @@ export const ORDER_STATUS_LABEL: Record<OrderDisplayStatus, string> = {
 export function getOrderDisplayStatus(
   order: ShippingOrder,
   assemblyItems: AssemblyItem[],
+  allocation?: AssemblyAllocation,
 ): OrderDisplayStatus {
-  const { ready } = getOrderAssemblyStatus(order, assemblyItems);
+  const { ready } = getOrderAssemblyStatus(order, assemblyItems, allocation);
   if (!ready) return "awaiting-assembly";
   if (order.barcodePrinted) return "shipped";
 

@@ -20,24 +20,51 @@ export function computeAssemblyDemand(orders: ShippingOrder[]): Map<string, numb
   return demand;
 }
 
-/** Позиции, которые ещё нужно собрать перед отправкой */
-export function getPendingAssemblyItems(
-  items: AssemblyItem[],
-  orders: ShippingOrder[],
-): AssemblyItem[] {
+function enrichAssemblyItems(items: AssemblyItem[], orders: ShippingOrder[]): AssemblyItem[] {
   const activeOrders = orders.filter((order) => !order.barcodePrinted);
   const demand = computeAssemblyDemand(activeOrders);
 
-  const pending = items
+  return items
     .map((item) => {
       const key = assemblyItemKey(item.productId, item.sizeId);
       const needed = demand.get(key) ?? 0;
-      if (needed === 0 || item.collectedCount >= needed) return null;
+      if (needed === 0) return null;
       return { ...item, quantity: needed };
     })
     .filter((item): item is AssemblyItem => item !== null);
+}
 
-  return sortAssemblyItemsByUrgency(pending, activeOrders);
+export interface AssemblyViewSections {
+  pending: AssemblyItem[];
+  completed: AssemblyItem[];
+}
+
+/**
+ * settled=false — все позиции в одном списке (собранные остаются на месте).
+ * settled=true — после ухода с вкладки: несобранные сверху, собранные снизу.
+ */
+export function getAssemblyViewSections(
+  items: AssemblyItem[],
+  orders: ShippingOrder[],
+  settled: boolean,
+): AssemblyViewSections {
+  const activeOrders = orders.filter((order) => !order.barcodePrinted);
+  const enriched = enrichAssemblyItems(items, orders);
+
+  if (!settled) {
+    return {
+      pending: sortAssemblyItemsByUrgency(enriched, activeOrders),
+      completed: [],
+    };
+  }
+
+  const pending = enriched.filter((item) => item.collectedCount < item.quantity);
+  const completed = enriched.filter((item) => item.collectedCount >= item.quantity);
+
+  return {
+    pending: sortAssemblyItemsByUrgency(pending, activeOrders),
+    completed: sortAssemblyItemsByUrgency(completed, activeOrders),
+  };
 }
 
 /** Списывает собранные единицы после отправки заказа */
