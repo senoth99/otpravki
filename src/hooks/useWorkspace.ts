@@ -33,7 +33,7 @@ interface UseWorkspaceOptions {
   initialShippedArchive?: ShippingOrder[];
 }
 
-const REVISION_POLL_MS = 200;
+const REVISION_POLL_MS = 5_000;
 
 export function useWorkspace({
   initialAssembly,

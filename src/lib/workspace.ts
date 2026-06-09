@@ -1,3 +1,4 @@
+import { io, type Socket } from "socket.io-client";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState, WorkspaceState } from "@/types/workspace";
 import { mergeShippedArchives } from "@/lib/shipped-archive";
@@ -146,18 +147,34 @@ export async function fetchSharedWorkspace(): Promise<SharedWorkspaceState | nul
   return data.workspace;
 }
 
+let activeSocket: Socket | null = null;
+
+function pushWorkspaceViaSocket(data: { workspace: WorkspaceState; clientId: string }): boolean {
+  if (activeSocket?.connected) {
+    activeSocket.emit("workspace:set", data);
+    return true;
+  }
+  return false;
+}
+
 export async function pushWorkspace(workspace: WorkspaceState): Promise<{
   ok: boolean;
   workspace?: SharedWorkspaceState;
 }> {
+  const payload = {
+    workspace,
+    clientId: getClientId(),
+  };
+
+  if (pushWorkspaceViaSocket(payload)) {
+    return { ok: true };
+  }
+
   try {
     const res = await fetch("/api/workspace", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        workspace,
-        clientId: getClientId(),
-      }),
+      body: JSON.stringify(payload),
       cache: "no-store",
       signal: AbortSignal.timeout(SYNC_TIMEOUT_MS),
     });
@@ -249,20 +266,27 @@ export interface WorkspaceStreamOptions {
   onRevisionPing?: (revision: number) => void;
 }
 
-const STREAM_RECONNECT_MS = 300;
-const STREAM_STALE_MS = 10_000;
+const SOCKET_RECONNECT_MS = 300;
+
+function applyWorkspaceEvent(
+  workspace: SharedWorkspaceState | undefined,
+  onWorkspace: (workspace: SharedWorkspaceState) => void,
+  onRevisionPing?: (revision: number) => void,
+) {
+  if (!workspace) return;
+  onWorkspace(workspace);
+  if (typeof workspace.revision === "number") {
+    onRevisionPing?.(workspace.revision);
+  }
+}
 
 export function subscribeWorkspaceStream({
   onWorkspace,
   onConnectionChange,
   onRevisionPing,
 }: WorkspaceStreamOptions): () => void {
-  let source: EventSource | null = null;
-  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  let staleTimer: ReturnType<typeof setInterval> | null = null;
   let connected = false;
   let closed = false;
-  let lastMessageAt = Date.now();
 
   const setConnected = (next: boolean) => {
     if (connected === next) return;
@@ -276,91 +300,31 @@ export function subscribeWorkspaceStream({
         if (workspace) onWorkspace(workspace);
       })
       .catch(() => {
-        // retry on next reconnect or poll
+        // retry on next reconnect
       });
   };
 
-  const clearStaleTimer = () => {
-    if (staleTimer) {
-      clearInterval(staleTimer);
-      staleTimer = null;
-    }
-  };
+  const socket = io({
+    transports: ["websocket", "polling"],
+    reconnection: true,
+    reconnectionDelay: SOCKET_RECONNECT_MS,
+  });
+  activeSocket = socket;
 
-  const startStaleTimer = () => {
-    clearStaleTimer();
-    staleTimer = setInterval(() => {
-      if (closed || !connected) return;
-      if (Date.now() - lastMessageAt > STREAM_STALE_MS) {
-        source?.close();
-        source = null;
-        setConnected(false);
-        refreshFromServer();
-        scheduleReconnect();
-      }
-    }, 2_000);
-  };
-
-  const scheduleReconnect = () => {
-    if (closed || reconnectTimer) return;
-    reconnectTimer = setTimeout(() => {
-      reconnectTimer = null;
-      connect();
-    }, STREAM_RECONNECT_MS);
-  };
-
-  const connect = () => {
-    if (closed) return;
-
-    source?.close();
-    source = new EventSource("/api/workspace/stream");
-
-    source.onopen = () => {
-      lastMessageAt = Date.now();
-      setConnected(true);
-      startStaleTimer();
-    };
-
-    source.onmessage = (event) => {
-      lastMessageAt = Date.now();
-      try {
-        const data = JSON.parse(event.data) as {
-          type: string;
-          workspace?: SharedWorkspaceState;
-          revision?: number;
-        };
-        if (data.type === "workspace" && data.workspace) {
-          onWorkspace(data.workspace);
-        } else if (data.type === "ping" && typeof data.revision === "number") {
-          onRevisionPing?.(data.revision);
-        }
-      } catch {
-        // ignore malformed events
-      }
-    };
-
-    source.onerror = () => {
-      source?.close();
-      source = null;
-      clearStaleTimer();
-      setConnected(false);
-      if (closed) return;
-      refreshFromServer();
-      scheduleReconnect();
-    };
-  };
+  socket.on("connect", () => setConnected(true));
+  socket.on("disconnect", () => setConnected(false));
+  socket.on("workspace:sync", (workspace: SharedWorkspaceState) => {
+    applyWorkspaceEvent(workspace, onWorkspace, onRevisionPing);
+  });
+  socket.on("workspace:update", (workspace: SharedWorkspaceState) => {
+    applyWorkspaceEvent(workspace, onWorkspace, onRevisionPing);
+  });
 
   const reconnectNow = () => {
     if (closed) return;
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-    }
     refreshFromServer();
-    if (!connected) connect();
+    if (!socket.connected) socket.connect();
   };
-
-  connect();
 
   const onVisible = () => {
     if (document.visibilityState === "visible") reconnectNow();
@@ -371,9 +335,8 @@ export function subscribeWorkspaceStream({
 
   return () => {
     closed = true;
-    if (reconnectTimer) clearTimeout(reconnectTimer);
-    clearStaleTimer();
-    source?.close();
+    socket.disconnect();
+    if (activeSocket === socket) activeSocket = null;
     setConnected(false);
     window.removeEventListener("focus", reconnectNow);
     document.removeEventListener("visibilitychange", onVisible);

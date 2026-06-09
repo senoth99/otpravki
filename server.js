@@ -1,0 +1,176 @@
+const path = require("path");
+const http = require("http");
+const fs = require("fs");
+const fsp = require("fs/promises");
+const { parse } = require("url");
+
+const dir = path.join(__dirname);
+const hostname = process.env.HOSTNAME || "0.0.0.0";
+const port = parseInt(process.env.PORT, 10) || 3000;
+const dev = process.env.NODE_ENV !== "production";
+
+function getDataDir() {
+  return process.env.DATA_DIR || path.join(process.cwd(), "data");
+}
+
+async function readWorkspaceFromDisk() {
+  const stateFile = path.join(getDataDir(), "workspace", "state.json");
+  try {
+    const raw = await fsp.readFile(stateFile, "utf8");
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function attachWorkspaceSocket(httpServer) {
+  const { Server } = require("socket.io");
+  const io = new Server(httpServer, {
+    cors: { origin: "*" },
+    transports: ["websocket", "polling"],
+  });
+
+  global.__workspaceIo = io;
+
+  io.on("connection", async (socket) => {
+    const workspace = await readWorkspaceFromDisk();
+    if (workspace) {
+      socket.emit("workspace:sync", workspace);
+    }
+
+    socket.on("workspace:set", async (data) => {
+      if (!data?.workspace) return;
+
+      try {
+        const host = hostname === "0.0.0.0" ? "127.0.0.1" : hostname;
+        const res = await fetch(`http://${host}:${port}/api/workspace`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        if (!res.ok) {
+          console.error("workspace:set API error", res.status);
+        }
+      } catch (err) {
+        console.error("workspace:set failed", err.message);
+      }
+    });
+  });
+
+  return io;
+}
+
+async function startDev() {
+  const next = require("next");
+  const app = next({ dev: true, dir, hostname, port });
+  const handle = app.getRequestHandler();
+
+  await app.prepare();
+
+  const server = http.createServer((req, res) => {
+    handle(req, res, parse(req.url, true));
+  });
+
+  attachWorkspaceSocket(server);
+
+  server.listen(port, hostname, () => {
+    console.log(`> Otpravki dev http://${hostname}:${port}`);
+  });
+}
+
+async function startProd() {
+  process.env.NODE_ENV = "production";
+  process.chdir(__dirname);
+
+  const required = JSON.parse(
+    fs.readFileSync(path.join(dir, ".next", "required-server-files.json"), "utf8"),
+  );
+  process.env.__NEXT_PRIVATE_STANDALONE_CONFIG = JSON.stringify(required.config);
+
+  require("next");
+  const { getRequestHandlers } = require("next/dist/server/lib/start-server");
+
+  let keepAliveTimeout = parseInt(process.env.KEEP_ALIVE_TIMEOUT, 10);
+  if (Number.isNaN(keepAliveTimeout) || !Number.isFinite(keepAliveTimeout) || keepAliveTimeout < 0) {
+    keepAliveTimeout = undefined;
+  }
+
+  let handlersReady;
+  let handlersError;
+  const handlersPromise = new Promise((resolve, reject) => {
+    handlersReady = resolve;
+    handlersError = reject;
+  });
+
+  let requestHandler;
+  let upgradeHandler;
+
+  const server = http.createServer(async (req, res) => {
+    try {
+      await handlersPromise;
+      await requestHandler(req, res);
+    } catch (err) {
+      res.statusCode = 500;
+      res.end("Internal Server Error");
+      console.error(err);
+    }
+  });
+
+  server.on("upgrade", async (req, socket, head) => {
+    try {
+      await handlersPromise;
+      await upgradeHandler(req, socket, head);
+    } catch (err) {
+      socket.destroy();
+      console.error(err);
+    }
+  });
+
+  if (keepAliveTimeout) {
+    server.keepAliveTimeout = keepAliveTimeout;
+  }
+
+  attachWorkspaceSocket(server);
+
+  await new Promise((resolve, reject) => {
+    server.on("listening", async () => {
+      try {
+        const initResult = await getRequestHandlers({
+          dir,
+          port,
+          isDev: false,
+          server,
+          hostname,
+          keepAliveTimeout,
+        });
+        requestHandler = initResult.requestHandler;
+        upgradeHandler = initResult.upgradeHandler;
+        handlersReady();
+        console.log(`> Otpravki ready http://${hostname}:${port}`);
+        resolve();
+      } catch (err) {
+        handlersError(err);
+        reject(err);
+      }
+    });
+
+    server.on("error", (err) => {
+      console.error("Failed to start server", err);
+      process.exit(1);
+    });
+
+    server.listen(port, hostname);
+  });
+}
+
+if (dev) {
+  startDev().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+} else {
+  startProd().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

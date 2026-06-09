@@ -40,6 +40,12 @@ function broadcast(state: SharedWorkspaceState) {
       // dead SSE connection — removed on abort
     }
   }
+
+  const io = (globalThis as { __workspaceIo?: { emit: (event: string, data: unknown) => void } })
+    .__workspaceIo;
+  if (io) {
+    io.emit("workspace:update", state);
+  }
 }
 
 let updateChain = Promise.resolve();

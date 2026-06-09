@@ -150,6 +150,9 @@ mkdir -p "$DATA_DIR/cache" "$DATA_DIR/sync" "$DATA_DIR/workspace"
 cp -r public .next/standalone/
 mkdir -p .next/standalone/.next
 cp -r .next/static .next/standalone/.next/static
+cp "$APP_DIR/server.js" .next/standalone/server.js
+echo "==> Socket.IO для realtime..."
+npm install --prefix .next/standalone --omit=dev socket.io@^4.8.1
 
 UNIT_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 echo "==> Настраиваю systemd ($SERVICE_NAME)..."
