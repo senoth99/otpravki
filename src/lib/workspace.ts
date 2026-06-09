@@ -178,6 +178,10 @@ export async function pushWorkspace(workspace: WorkspaceState): Promise<{
     clientId: getClientId(),
   };
 
+  if (activeSocket?.connected) {
+    activeSocket.emit("workspace:set", payload);
+  }
+
   try {
     const res = await fetch("/api/workspace", {
       method: "POST",
@@ -320,9 +324,11 @@ export function subscribeWorkspaceStream({
   };
 
   const socket = io({
+    path: "/socket.io",
     transports: ["websocket", "polling"],
     reconnection: true,
     reconnectionDelay: SOCKET_RECONNECT_MS,
+    reconnectionAttempts: Infinity,
   });
   activeSocket = socket;
 
