@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHardwareScanner } from "@/hooks/useHardwareScanner";
 import { buildAssemblyAllocation, getOrderAssemblyStatus } from "@/lib/assembly-status";
+import { resolveScanFromBarcode } from "@/lib/barcode-product";
 import { formatOrderNumberShort } from "@/lib/format";
 import { getOrderDisplayStatus } from "@/lib/order-status";
 import { findFirstAutoOrderIndex } from "@/lib/order-sort";
 import { printOrderBarcode } from "@/lib/print-barcode";
-import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
+import type { ApiProduct, AssemblyItem, ShippingOrder } from "@/types/shipping";
 import { AssemblyLockedCard } from "./AssemblyLockedCard";
 import { AutoModeButton } from "./AutoModeButton";
 import { AutoModeCountdown } from "./AutoModeCountdown";
@@ -58,7 +59,19 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
   const [printError, setPrintError] = useState<string | null>(null);
   const [autoPrintRetry, setAutoPrintRetry] = useState(0);
   const [countdown, setCountdown] = useState<CountdownState | null>(null);
+  const [products, setProducts] = useState<ApiProduct[]>([]);
   const autoHandledRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    void fetch("/api/products", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { products?: ApiProduct[] } | null) => {
+        if (data?.products) setProducts(data.products);
+      })
+      .catch(() => {
+        // сканирование покажет ошибку каталога
+      });
+  }, []);
 
   const assemblyAllocation = useMemo(
     () => buildAssemblyAllocation(orders, assemblyItems),
@@ -130,15 +143,21 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
   }, [autoMode, exitAutoMode, orders, orderStatuses]);
 
   const validateScan = useCallback(
-    (_code: string) => {
+    (code: string) => {
       if (!currentOrder || !canScan) return;
 
-      const nextItem = currentOrder.items.find((item) => item.scannedCount < item.quantity);
-
-      if (!nextItem) {
-        setScanError("Все позиции в заказе уже отсканированы");
+      if (!products.length) {
+        setScanError("Каталог товаров не загружен. Обнови страницу.");
         return;
       }
+
+      const result = resolveScanFromBarcode(products, currentOrder, code);
+      if (!result.ok) {
+        setScanError(result.message);
+        return;
+      }
+
+      const { item: matchedItem } = result;
 
       onOrdersChange((prev) =>
         prev.map((order, idx) =>
@@ -146,7 +165,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
             ? {
                 ...order,
                 items: order.items.map((item) =>
-                  item.id === nextItem.id
+                  item.id === matchedItem.id
                     ? { ...item, scannedCount: item.scannedCount + 1, scannedAt: Date.now() }
                     : item,
                 ),
@@ -154,9 +173,10 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
             : order,
         ),
       );
+      setScanError(null);
       setScannerOpen(false);
     },
-    [currentOrder, currentIndex, canScan, onOrdersChange],
+    [currentOrder, currentIndex, canScan, onOrdersChange, products],
   );
 
   useHardwareScanner(validateScan, !manualMode && !scannerOpen && canScan);
