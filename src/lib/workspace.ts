@@ -77,6 +77,35 @@ function clearSyncQueue() {
   localStorage.removeItem(SYNC_QUEUE_KEY);
 }
 
+export async function refreshWorkspaceFromApi(): Promise<{
+  ok: boolean;
+  workspace?: SharedWorkspaceState;
+  error?: string;
+  ordersCount?: number;
+}> {
+  const res = await fetch("/api/workspace/refresh", {
+    method: "POST",
+    cache: "no-store",
+  });
+
+  const data = (await res.json()) as {
+    ok: boolean;
+    workspace?: SharedWorkspaceState;
+    error?: string;
+    ordersCount?: number;
+  };
+
+  if (!res.ok || !data.ok) {
+    return { ok: false, error: data.error ?? "Не удалось обновить данные" };
+  }
+
+  return {
+    ok: true,
+    workspace: data.workspace,
+    ordersCount: data.ordersCount,
+  };
+}
+
 export async function fetchSharedWorkspace(): Promise<SharedWorkspaceState | null> {
   const res = await fetch("/api/workspace", { cache: "no-store" });
   if (!res.ok) return null;

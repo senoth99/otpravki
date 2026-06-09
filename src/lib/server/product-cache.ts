@@ -42,6 +42,12 @@ async function fetchRemote(): Promise<ApiProduct[]> {
   return filterProducts(data);
 }
 
+export async function refreshProductsCache(): Promise<ApiProduct[]> {
+  const products = await fetchRemote();
+  await writeCache(products);
+  return products;
+}
+
 export async function getProductsWithCache(): Promise<{
   products: ApiProduct[];
   source: "network" | "cache" | "stale-cache" | "empty";

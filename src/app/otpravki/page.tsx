@@ -37,7 +37,11 @@ export default async function OtpravkiPage() {
   if (existing && !mockStale && USE_MOCK_ORDERS) {
     return (
       <div className="min-h-screen overflow-x-hidden bg-gray-50 px-3 py-3 sm:p-6">
-        <ShippingPanel assemblyItems={existing.assemblyItems} orders={existing.orders} />
+        <ShippingPanel
+          assemblyItems={existing.assemblyItems}
+          orders={existing.orders}
+          enableApiRefresh={false}
+        />
       </div>
     );
   }
@@ -85,7 +89,11 @@ export default async function OtpravkiPage() {
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-gray-50 px-3 py-3 sm:p-6">
-      <ShippingPanel assemblyItems={shared.assemblyItems} orders={shared.orders} />
+      <ShippingPanel
+        assemblyItems={shared.assemblyItems}
+        orders={shared.orders}
+        enableApiRefresh={!USE_MOCK_ORDERS}
+      />
     </div>
   );
 }

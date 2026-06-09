@@ -12,6 +12,7 @@ import {
   getPendingSyncCount,
   loadWorkspace,
   pushWorkspace,
+  refreshWorkspaceFromApi,
   saveWorkspace,
   subscribeWorkspaceStream,
   syncResetToken,
@@ -33,11 +34,26 @@ export function useWorkspace({ initialAssembly, initialOrders }: UseWorkspaceOpt
   const [orders, setOrders] = useState(initialOrders);
   const [isOnline, setIsOnline] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [pendingSync, setPendingSync] = useState(0);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
 
   assemblyRef.current = assemblyItems;
   ordersRef.current = orders;
+
+  const replaceWorkspace = useCallback((remote: SharedWorkspaceState) => {
+    applyingRemote.current = true;
+    revisionRef.current = remote.revision;
+    setAssemblyItems(remote.assemblyItems);
+    setOrders(remote.orders);
+    saveWorkspace(remote);
+
+    queueMicrotask(() => {
+      applyingRemote.current = false;
+    });
+    setLastSyncAt(Date.now());
+    setPendingSync(getPendingSyncCount());
+  }, []);
 
   const applyRemote = useCallback((remote: SharedWorkspaceState) => {
     if (remote.revision <= revisionRef.current) return;
@@ -163,6 +179,25 @@ export function useWorkspace({ initialAssembly, initialOrders }: UseWorkspaceOpt
     [persist],
   );
 
+  const refreshFromApi = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    if (!navigator.onLine) {
+      return { ok: false, error: "Нет подключения к интернету" };
+    }
+
+    setIsRefreshing(true);
+    try {
+      const result = await refreshWorkspaceFromApi();
+      if (result.workspace) {
+        replaceWorkspace(result.workspace);
+      }
+      return result.ok
+        ? { ok: true }
+        : { ok: false, error: result.error ?? "Не удалось обновить" };
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [replaceWorkspace]);
+
   const updateOrders = useCallback(
     (next: ShippingOrder[] | ((prev: ShippingOrder[]) => ShippingOrder[])) => {
       const prev = ordersRef.current;
@@ -185,8 +220,10 @@ export function useWorkspace({ initialAssembly, initialOrders }: UseWorkspaceOpt
     updateOrders,
     isOnline,
     isSyncing,
+    isRefreshing,
     pendingSync,
     lastSyncAt,
     syncNow: runSync,
+    refreshFromApi,
   };
 }
