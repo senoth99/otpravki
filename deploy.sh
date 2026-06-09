@@ -166,6 +166,7 @@ User=${USER}
 Group=${USER}
 WorkingDirectory=${APP_DIR}/.next/standalone
 Environment=NODE_ENV=production
+Environment=NODE_OPTIONS=--dns-result-order=ipv4first
 Environment=PORT=${PORT}
 Environment=HOSTNAME=0.0.0.0
 Environment=DATA_DIR=${DATA_DIR}
@@ -223,6 +224,17 @@ if [[ -n "$LAN_IP" ]]; then
 fi
 echo "  Проверка API:"
 echo "    curl http://127.0.0.1:${PORT}/api/health"
+echo "    curl http://127.0.0.1:${PORT}/api/health/casher"
+if command -v curl &>/dev/null; then
+  CASHER_CHECK="$(curl -sf --max-time 15 "http://127.0.0.1:${PORT}/api/health/casher" 2>/dev/null || true)"
+  if [[ -n "$CASHER_CHECK" ]] && echo "$CASHER_CHECK" | grep -q '"ok":true'; then
+    echo "  Casher API с сервера: OK"
+  elif [[ -n "$CASHER_CHECK" ]]; then
+    echo "  ⚠️  Casher API с сервера недоступен — «Обновить» не сработает"
+    echo "      На Debian: curl -I https://api.cashercollection.com/products"
+    echo "      Нужен интернет/DNS на сервере, не только на телефоне"
+  fi
+fi
 echo ""
 echo "  Управление:"
 echo "    sudo systemctl status  $SERVICE_NAME"

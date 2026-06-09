@@ -2,11 +2,7 @@ import { ShippingPanel } from "@/components/otpravki";
 import { USE_MOCK_ORDERS } from "@/lib/app-config";
 import { buildInitialWorkspace } from "@/lib/build-workspace";
 import { getMockResetToken } from "@/lib/server/mock-reset";
-import {
-  getSharedWorkspace,
-  initSharedWorkspace,
-  syncWorkspaceFromApi,
-} from "@/lib/server/workspace-store";
+import { getSharedWorkspace, initSharedWorkspace } from "@/lib/server/workspace-store";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +21,29 @@ function EmptyState({ title, hint }: { title: string; hint: string }) {
   );
 }
 
+function OtpravkiShell({
+  assemblyItems,
+  orders,
+  apiOrderIds,
+  enableApiRefresh,
+}: {
+  assemblyItems: Parameters<typeof ShippingPanel>[0]["assemblyItems"];
+  orders: Parameters<typeof ShippingPanel>[0]["orders"];
+  apiOrderIds?: string[];
+  enableApiRefresh: boolean;
+}) {
+  return (
+    <div className="min-h-screen overflow-x-hidden bg-gray-50 px-3 py-3 sm:p-6">
+      <ShippingPanel
+        assemblyItems={assemblyItems}
+        orders={orders}
+        apiOrderIds={apiOrderIds}
+        enableApiRefresh={enableApiRefresh}
+      />
+    </div>
+  );
+}
+
 export default async function OtpravkiPage() {
   const resetToken = await getMockResetToken();
   const existing = await getSharedWorkspace();
@@ -34,16 +53,15 @@ export default async function OtpravkiPage() {
     existing !== null &&
     existing.resetToken !== resetToken;
 
-  if (existing && !mockStale && USE_MOCK_ORDERS) {
+  // Перезагрузка страницы: только сохранённое состояние. API — кнопка «Обновить».
+  if (existing && !mockStale) {
     return (
-      <div className="min-h-screen overflow-x-hidden bg-gray-50 px-3 py-3 sm:p-6">
-        <ShippingPanel
-          assemblyItems={existing.assemblyItems}
-          orders={existing.orders}
-          apiOrderIds={existing.apiOrderIds}
-          enableApiRefresh={false}
-        />
-      </div>
+      <OtpravkiShell
+        assemblyItems={existing.assemblyItems}
+        orders={existing.orders}
+        apiOrderIds={existing.apiOrderIds}
+        enableApiRefresh={!USE_MOCK_ORDERS}
+      />
     );
   }
 
@@ -69,33 +87,18 @@ export default async function OtpravkiPage() {
     );
   }
 
-  if (!USE_MOCK_ORDERS && workspaceData.orders.length === 0) {
-    return (
-      <EmptyState
-        title="Нет заказов на отправку"
-        hint="Все неотправленные заказы либо без товара на складе, либо уже обработаны"
-      />
-    );
-  }
-
-  const shared = USE_MOCK_ORDERS
-    ? await initSharedWorkspace(
-        workspaceData.assemblyItems,
-        workspaceData.orders,
-        resetToken ?? undefined,
-      )
-    : existing
-      ? await syncWorkspaceFromApi(workspaceData)
-      : await initSharedWorkspace(workspaceData.assemblyItems, workspaceData.orders);
+  const shared = await initSharedWorkspace(
+    workspaceData.assemblyItems,
+    workspaceData.orders,
+    USE_MOCK_ORDERS ? resetToken ?? undefined : undefined,
+  );
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-gray-50 px-3 py-3 sm:p-6">
-      <ShippingPanel
-        assemblyItems={shared.assemblyItems}
-        orders={shared.orders}
-        apiOrderIds={shared.apiOrderIds}
-        enableApiRefresh={!USE_MOCK_ORDERS}
-      />
-    </div>
+    <OtpravkiShell
+      assemblyItems={shared.assemblyItems}
+      orders={shared.orders}
+      apiOrderIds={shared.apiOrderIds}
+      enableApiRefresh={!USE_MOCK_ORDERS}
+    />
   );
 }

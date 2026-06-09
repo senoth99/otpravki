@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { USE_MOCK_ORDERS } from "@/lib/app-config";
 import { buildWorkspaceFromApi } from "@/lib/build-workspace";
 import { formatApiFetchError } from "@/lib/server/api-fetch-error";
-import { refreshProductsCache } from "@/lib/server/product-cache";
+import { getProductsWithCache, refreshProductsCache } from "@/lib/server/product-cache";
 import { syncWorkspaceFromApi } from "@/lib/server/workspace-store";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,15 @@ export async function POST() {
   }
 
   try {
-    await refreshProductsCache();
+    let productsNote: string | undefined;
+    try {
+      await refreshProductsCache();
+    } catch {
+      const cached = await getProductsWithCache();
+      if (cached.products.length === 0) throw new Error("Нет кэша товаров и нет сети до API");
+      productsNote = "Товары из кэша (API недоступен)";
+    }
+
     const fresh = await buildWorkspaceFromApi();
 
     if (!fresh) {
@@ -33,6 +41,7 @@ export async function POST() {
       workspace,
       ordersCount: fresh.orders.length,
       assemblyCount: fresh.assemblyItems.length,
+      note: productsNote,
     });
   } catch (error) {
     return NextResponse.json(

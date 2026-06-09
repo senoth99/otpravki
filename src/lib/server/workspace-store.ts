@@ -66,6 +66,7 @@ export async function resetSharedWorkspace(
     revision: 1,
     assemblyItems,
     orders,
+    apiOrderIds: orders.filter((order) => !order.barcodePrinted).map((order) => order.id),
     updatedAt: Date.now(),
     updatedBy: "server",
     resetToken,

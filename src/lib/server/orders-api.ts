@@ -1,5 +1,6 @@
 import type { ApiUnshippedOrder } from "@/types/orders-api";
 import { ORDERS_API_BASE, casherAuthHeaders, getCasherApiKey } from "@/lib/server/casher-api";
+import { externalFetch } from "@/lib/server/external-fetch";
 import { assertPdfBuffer } from "@/lib/server/pdf-label-printer";
 
 const UNSHIPPED_PATH = "/orders/admin/unshipped-with-stock";
@@ -21,12 +22,12 @@ export async function fetchUnshippedOrders(): Promise<ApiUnshippedOrder[]> {
     throw new Error("Не задан API-ключ (api или CASHER_API_KEY в .env)");
   }
 
-  const res = await fetch(`${ORDERS_API_BASE}${UNSHIPPED_PATH}`, {
+  const res = await externalFetch(`${ORDERS_API_BASE}${UNSHIPPED_PATH}`, {
     headers: {
       ...casherAuthHeaders(),
       Accept: "application/json",
     },
-    cache: "no-store",
+    timeoutMs: 25_000,
   });
 
   if (!res.ok) {
@@ -48,12 +49,12 @@ export async function downloadBarcodePdf(barcodeUrl: string): Promise<Buffer> {
     throw new Error("Не задан API-ключ для скачивания этикетки");
   }
 
-  const res = await fetch(barcodeUrl, {
+  const res = await externalFetch(barcodeUrl, {
     headers: {
       ...casherAuthHeaders(),
       Accept: "application/pdf",
     },
-    cache: "no-store",
+    timeoutMs: 30_000,
   });
 
   if (!res.ok) {

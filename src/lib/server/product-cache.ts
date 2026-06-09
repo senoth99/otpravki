@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
+import { externalFetch } from "@/lib/server/external-fetch";
 import type { ApiProduct } from "@/types/shipping";
 
 const API_BASE = process.env.PRODUCTS_API_URL ?? "https://api.cashercollection.com";
@@ -33,10 +34,7 @@ function filterProducts(products: ApiProduct[]) {
 }
 
 async function fetchRemote(): Promise<ApiProduct[]> {
-  const res = await fetch(`${API_BASE}/products`, {
-    next: { revalidate: 0 },
-    signal: AbortSignal.timeout(15000),
-  });
+  const res = await externalFetch(`${API_BASE}/products`, { timeoutMs: 20_000 });
   if (!res.ok) throw new Error(`Products API ${res.status}`);
   const data: ApiProduct[] = await res.json();
   return filterProducts(data);
