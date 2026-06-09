@@ -153,21 +153,50 @@ export function createWorkspace(
 export function subscribeWorkspaceStream(
   onWorkspace: (workspace: SharedWorkspaceState) => void,
 ): () => void {
-  const source = new EventSource("/api/workspace/stream");
+  let source: EventSource | null = null;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let closed = false;
 
-  source.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data) as {
-        type: string;
-        workspace: SharedWorkspaceState;
-      };
-      if (data.type === "workspace" && data.workspace) {
-        onWorkspace(data.workspace);
-      }
-    } catch {
-      // ignore malformed events
-    }
+  const refreshFromServer = () => {
+    void fetchSharedWorkspace().then((workspace) => {
+      if (workspace) onWorkspace(workspace);
+    });
   };
 
-  return () => source.close();
+  const connect = () => {
+    if (closed) return;
+
+    source?.close();
+    source = new EventSource("/api/workspace/stream");
+
+    source.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data) as {
+          type: string;
+          workspace: SharedWorkspaceState;
+        };
+        if (data.type === "workspace" && data.workspace) {
+          onWorkspace(data.workspace);
+        }
+      } catch {
+        // ignore malformed events
+      }
+    };
+
+    source.onerror = () => {
+      source?.close();
+      source = null;
+      if (closed) return;
+      refreshFromServer();
+      reconnectTimer = setTimeout(connect, 2000);
+    };
+  };
+
+  connect();
+
+  return () => {
+    closed = true;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    source?.close();
+  };
 }

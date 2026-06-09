@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
+import { reconcileAssemblyOnShip } from "@/lib/assembly-demand";
 import {
   applySharedWorkspace,
   createWorkspace,
@@ -51,7 +52,9 @@ export function useWorkspace({ initialAssembly, initialOrders }: UseWorkspaceOpt
     setOrders(merged.orders);
     saveWorkspace(merged);
 
-    applyingRemote.current = false;
+    queueMicrotask(() => {
+      applyingRemote.current = false;
+    });
     setLastSyncAt(Date.now());
     setPendingSync(getPendingSyncCount());
   }, []);
@@ -66,14 +69,13 @@ export function useWorkspace({ initialAssembly, initialOrders }: UseWorkspaceOpt
     try {
       const result = await pushWorkspace(workspace);
       if (result.workspace) {
-        revisionRef.current = result.workspace.revision;
-        setLastSyncAt(Date.now());
+        applyRemote(result.workspace);
       }
       setPendingSync(getPendingSyncCount());
     } finally {
       setIsSyncing(false);
     }
-  }, []);
+  }, [applyRemote]);
 
   const persist = useCallback(
     (assembly: AssemblyItem[], ords: ShippingOrder[]) => {
@@ -154,6 +156,7 @@ export function useWorkspace({ initialAssembly, initialOrders }: UseWorkspaceOpt
 
   const updateAssembly = useCallback(
     (items: AssemblyItem[]) => {
+      assemblyRef.current = items;
       setAssemblyItems(items);
       if (hydrated.current) persist(items, ordersRef.current);
     },
@@ -162,11 +165,15 @@ export function useWorkspace({ initialAssembly, initialOrders }: UseWorkspaceOpt
 
   const updateOrders = useCallback(
     (next: ShippingOrder[] | ((prev: ShippingOrder[]) => ShippingOrder[])) => {
-      setOrders((prev) => {
-        const resolved = typeof next === "function" ? next(prev) : next;
-        if (hydrated.current) persist(assemblyRef.current, resolved);
-        return resolved;
-      });
+      const prev = ordersRef.current;
+      const resolved = typeof next === "function" ? next(prev) : next;
+      const assembly = reconcileAssemblyOnShip(prev, resolved, assemblyRef.current);
+
+      ordersRef.current = resolved;
+      assemblyRef.current = assembly;
+      setOrders(resolved);
+      setAssemblyItems(assembly);
+      if (hydrated.current) persist(assembly, resolved);
     },
     [persist],
   );

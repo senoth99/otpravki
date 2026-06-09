@@ -1,7 +1,7 @@
 export const ORDERS_API_BASE =
   process.env.ORDERS_API_URL?.replace(/\/$/, "") ??
   process.env.CASHER_API_URL?.replace(/\/$/, "") ??
-  "https://api.stage.cashercollection.com";
+  "https://api.cashercollection.com";
 
 function sanitizeApiKey(raw: string | undefined): string | undefined {
   if (!raw) return undefined;

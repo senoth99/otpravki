@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { getPendingAssemblyItems } from "@/lib/assembly-demand";
 import type { AssemblyItem, ShippingOrder, ShippingTab } from "@/types/shipping";
 import { AssemblyView } from "./AssemblyView";
 import { ShippingView } from "./ShippingView";
@@ -25,6 +26,11 @@ export function ShippingPanel({ assemblyItems: initialAssembly, orders: initialO
     pendingSync,
   } = useWorkspace({ initialAssembly, initialOrders });
 
+  const pendingAssemblyItems = useMemo(
+    () => getPendingAssemblyItems(assemblyItems, orders),
+    [assemblyItems, orders],
+  );
+
   return (
     <>
       <SyncIndicator isOnline={isOnline} isSyncing={isSyncing} pendingSync={pendingSync} />
@@ -39,7 +45,11 @@ export function ShippingPanel({ assemblyItems: initialAssembly, orders: initialO
 
       {tab === "assembly" ? (
         <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-6">
-          <AssemblyView items={assemblyItems} onItemsChange={updateAssembly} />
+          <AssemblyView
+            items={pendingAssemblyItems}
+            allItems={assemblyItems}
+            onItemsChange={updateAssembly}
+          />
         </div>
       ) : (
         <ShippingView

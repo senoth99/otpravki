@@ -39,7 +39,17 @@ function resolveSizeId(product: ApiProduct | undefined, size: string, lineId: nu
 }
 
 function buildProductIndex(products: ApiProduct[]): Map<string, ApiProduct> {
-  return new Map(products.map((product) => [product.slug, product]));
+  const index = new Map<string, ApiProduct>();
+  for (const product of products) {
+    if (!product.slug) continue;
+    index.set(product.slug, product);
+    index.set(product.slug.toLowerCase(), product);
+  }
+  return index;
+}
+
+function findProduct(index: Map<string, ApiProduct>, slug: string): ApiProduct | undefined {
+  return index.get(slug) ?? index.get(slug.toLowerCase());
 }
 
 export function mapUnshippedOrdersToWorkspace(
@@ -56,7 +66,7 @@ export function mapUnshippedOrdersToWorkspace(
     for (const line of order.items) {
       if (!line.inStockAtWarehouse) continue;
 
-      const product = productIndex.get(line.productSlug);
+      const product = findProduct(productIndex, line.productSlug);
       const productId = line.productSlug;
       const sizeId = resolveSizeId(product, line.size, line.id);
       const key = assemblyKey(productId, line.size);

@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { formatSize } from "@/lib/format";
 import type { AssemblyItem } from "@/types/shipping";
+import { ProductImage } from "./ProductImage";
 import { QuantityTracker } from "./QuantityTracker";
 
 interface AssemblyItemCardProps {
@@ -24,10 +24,9 @@ export function AssemblyItemCard({ item, onIncrement, onDecrement }: AssemblyIte
     >
       <div className="flex min-w-0 items-start gap-3 sm:flex-1">
         <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-gray-100 sm:h-20 sm:w-20">
-          <Image
+          <ProductImage
             src={item.imageUrl}
             alt={item.productName}
-            fill
             className={`object-cover transition-opacity ${isComplete ? "opacity-60" : ""}`}
             sizes="(max-width: 640px) 64px, 80px"
           />

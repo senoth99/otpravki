@@ -9,6 +9,7 @@ function buildUrgencyMap(orders: ShippingOrder[]) {
   const map = new Map<string, number>();
 
   for (const order of orders) {
+    if (order.barcodePrinted) continue;
     const weight = URGENCY_WEIGHT[order.urgency];
     for (const item of order.items) {
       const key = itemKey(item.productId, item.sizeId);

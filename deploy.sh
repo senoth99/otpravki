@@ -147,7 +147,7 @@ UNIT_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 echo "==> Настраиваю systemd ($SERVICE_NAME)..."
 
 CASHER_API_KEY_VALUE="${CASHER_API_KEY:-${api:-}}"
-ORDERS_API_URL_VALUE="${ORDERS_API_URL:-https://api.stage.cashercollection.com}"
+ORDERS_API_URL_VALUE="${ORDERS_API_URL:-https://api.cashercollection.com}"
 USE_MOCK_ORDERS_VALUE="${USE_MOCK_ORDERS:-false}"
 
 if [[ "${USE_MOCK_ORDERS_VALUE}" == "false" && -z "${CASHER_API_KEY_VALUE}" ]]; then

@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { formatSize } from "@/lib/format";
 import type { ShippingOrderItem } from "@/types/shipping";
+import { ProductImage } from "./ProductImage";
 import { QuantityProgress } from "./QuantityProgress";
 
 const STATUS_BADGE =
@@ -42,10 +42,9 @@ export function OrderItemRow({ item, manual, onIncrement, onDecrement }: OrderIt
       <div className="flex items-center gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-gray-100">
-            <Image
+            <ProductImage
               src={item.imageUrl}
               alt={item.productName}
-              fill
               className="object-cover"
               sizes="56px"
             />
