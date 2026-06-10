@@ -229,9 +229,9 @@ fi
 
 LISTEN_ADDR=""
 if command -v ss &>/dev/null; then
-  LISTEN_ADDR="$(ss -tlnp 2>/dev/null | awk -v p=":${PORT}" '\$4 ~ p {print \$4; exit}')"
+  LISTEN_ADDR="$(ss -tlnp 2>/dev/null | awk -v p=":${PORT}" '$4 ~ p {print $4; exit}')"
 elif command -v netstat &>/dev/null; then
-  LISTEN_ADDR="$(netstat -tlnp 2>/dev/null | awk -v p=":${PORT}" '\$4 ~ p {print \$4; exit}')"
+  LISTEN_ADDR="$(netstat -tlnp 2>/dev/null | awk -v p=":${PORT}" '$4 ~ p {print $4; exit}')"
 fi
 if [[ -n "$LISTEN_ADDR" && "$LISTEN_ADDR" != *"0.0.0.0:${PORT}"* && "$LISTEN_ADDR" != *"[::]:${PORT}"* ]]; then
   echo "    ⚠️  Слушает только $LISTEN_ADDR — с телефона в WiFi не откроется"
