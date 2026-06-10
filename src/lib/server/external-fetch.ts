@@ -19,10 +19,11 @@ export async function externalFetch(
 
 export async function probeExternalApi(
   url = "https://api.cashercollection.com/products",
+  headers?: HeadersInit,
 ): Promise<{ ok: boolean; status?: number; error?: string; ms: number }> {
   const started = Date.now();
   try {
-    const res = await externalFetch(url, { timeoutMs: 10_000 });
+    const res = await externalFetch(url, { timeoutMs: 10_000, headers });
     return { ok: res.ok, status: res.status, ms: Date.now() - started };
   } catch (error) {
     return {
