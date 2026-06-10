@@ -14,6 +14,24 @@ function pickByTimestamp<T extends number>(
   return aTime > bTime ? aValue : bValue;
 }
 
+/** Отправленный статус липкий: API не выкидывает заказ из архива, кроме явной отмены */
+function resolveBarcodePrinted(a: ShippingOrder, b: ShippingOrder): boolean {
+  const aPrinted = a.barcodePrinted;
+  const bPrinted = b.barcodePrinted;
+
+  if (aPrinted && bPrinted) return true;
+  if (!aPrinted && !bPrinted) return false;
+
+  const aAt = a.barcodePrintedAt ?? 0;
+  const bAt = b.barcodePrintedAt ?? 0;
+
+  if (aPrinted && !bPrinted) {
+    return bAt <= aAt;
+  }
+
+  return aAt <= bAt;
+}
+
 function mergeAssemblyItem(a: AssemblyItem, b: AssemblyItem): AssemblyItem {
   const aTime = a.collectedAt ?? 0;
   const bTime = b.collectedAt ?? 0;
@@ -45,16 +63,12 @@ export function mergeOrder(a: ShippingOrder, b: ShippingOrder): ShippingOrder {
     itemsById.set(item.id, existing ? mergeOrderItem(existing, item) : item);
   }
 
-  const aPrinted = a.barcodePrinted;
-  const bPrinted = b.barcodePrinted;
-  const barcodePrinted = pickByTimestamp(
-    aPrinted ? 1 : 0,
-    a.barcodePrintedAt,
-    bPrinted ? 1 : 0,
-    b.barcodePrintedAt,
-  ) === 1;
-
-  const [base] = (a.barcodePrintedAt ?? 0) >= (b.barcodePrintedAt ?? 0) ? [a, b] : [b, a];
+  const barcodePrinted = resolveBarcodePrinted(a, b);
+  const [base] = barcodePrinted
+    ? (a.barcodePrinted ? [a, b] : [b, a])
+    : (a.barcodePrintedAt ?? 0) >= (b.barcodePrintedAt ?? 0)
+      ? [a, b]
+      : [b, a];
 
   return {
     ...base,

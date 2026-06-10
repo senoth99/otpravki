@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
-import { mergeShippedArchives, normalizeWorkspaceState } from "@/lib/shipped-archive";
+import { mergeShippedArchives, normalizeWorkspaceState, unionPermanentArchive } from "@/lib/shipped-archive";
 import { mergeFreshOrdersData } from "@/lib/workspace-api-merge";
 import { mergeWorkspaces } from "@/lib/workspace-merge";
 import type { WorkspaceData } from "@/lib/build-workspace";
@@ -187,7 +187,7 @@ async function applyWorkspaceUpdateInner(
           version: 1 as const,
           assemblyItems: incoming.assemblyItems,
           orders: incoming.orders,
-          shippedArchive: mergeShippedArchives(
+          shippedArchive: unionPermanentArchive(
             incoming.shippedArchive ?? [],
             incoming.orders,
             current?.shippedArchive ?? [],

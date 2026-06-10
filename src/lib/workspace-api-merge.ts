@@ -1,4 +1,4 @@
-import { mergeShippedArchives } from "@/lib/shipped-archive";
+import { mergeShippedArchives, unionPermanentArchive } from "@/lib/shipped-archive";
 import type { AssemblyItem, ShippingOrder, ShippingOrderItem } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
 
@@ -63,9 +63,10 @@ export function mergeFreshOrdersData(
     });
   }
 
-  const shippedArchive = [...archiveById.values()].sort(
-    (a, b) => (b.barcodePrintedAt ?? 0) - (a.barcodePrintedAt ?? 0),
-  );
+  const shippedArchive = unionPermanentArchive(
+    [...archiveById.values()],
+    existing.shippedArchive ?? [],
+  ).sort((a, b) => (b.barcodePrintedAt ?? 0) - (a.barcodePrintedAt ?? 0));
 
   const assemblyItems = fresh.assemblyItems.map((item) => {
     const prev = existingAssembly.get(item.id);

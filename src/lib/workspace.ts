@@ -2,7 +2,7 @@ import { io, type Socket } from "socket.io-client";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState, WorkspaceState } from "@/types/workspace";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
-import { mergeShippedArchives } from "@/lib/shipped-archive";
+import { mergeShippedArchives, unionPermanentArchive } from "@/lib/shipped-archive";
 import { mergeWorkspaces } from "@/lib/workspace-merge";
 
 const WORKSPACE_KEY = "otpravki-workspace-v1";
@@ -268,7 +268,7 @@ export function applySharedWorkspace(
     revision: remote.revision,
     updatedBy: remote.updatedBy,
     apiOrderIds: remote.apiOrderIds ?? merged.apiOrderIds,
-    shippedArchive: mergeShippedArchives(
+    shippedArchive: unionPermanentArchive(
       merged.shippedArchive ?? [],
       remote.shippedArchive ?? [],
       merged.orders,

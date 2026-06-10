@@ -53,6 +53,7 @@ export async function POST() {
     void logSync("api.refresh.ok", {
       orders: fresh.orders.length,
       assembly: fresh.assemblyItems.length,
+      archive: workspace.shippedArchive?.length ?? 0,
       revision: workspace.revision,
     });
 
