@@ -4,6 +4,12 @@ import { mergeShippedArchives, normalizeWorkspaceState, unionPermanentArchive } 
 import { mergeWorkspaces } from "@/lib/workspace-merge";
 import type { WorkspaceData } from "@/lib/build-workspace";
 import { mergePersistedArchive } from "@/lib/server/shipped-archive-store";
+import {
+  applySessionProgress,
+  loadSessionProgress,
+  saveSessionProgress,
+} from "@/lib/server/session-progress-store";
+import { mergeFreshOrdersData } from "@/lib/workspace-api-merge";
 import { logSync } from "@/lib/server/sync-log";
 import { appendSyncEvent, forwardToRemote } from "@/lib/server/sync-store";
 
@@ -105,22 +111,35 @@ export async function replaceSessionArchive(shippedArchive: ShippingOrder[]): Pr
   broadcast(memoryState);
 }
 
-/** Свежие заказы с API + постоянный архив отправленных (до 200) */
+/** Свежие заказы с API + архив + сохранённый прогресс сборки/сканов */
 export async function replaceWorkspaceFromApi(fresh: WorkspaceData): Promise<SharedWorkspaceState> {
   const shippedArchive = await mergePersistedArchive(memoryState?.shippedArchive ?? []);
+  const sessionProgress = memoryState ? null : await loadSessionProgress();
 
-  const next: SharedWorkspaceState = normalizeWorkspaceState({
+  const mergeBase: SharedWorkspaceState = memoryState ?? {
     version: 1,
-    revision: (memoryState?.revision ?? 0) + 1,
-    assemblyItems: fresh.assemblyItems,
-    orders: fresh.orders,
+    revision: 0,
+    assemblyItems: [],
+    orders: [],
     shippedArchive,
-    apiOrderIds: fresh.orders.map((order) => order.id),
+    apiOrderIds: [],
+    updatedAt: 0,
+    updatedBy: "server",
+  };
+
+  let next = normalizeWorkspaceState(
+    mergeFreshOrdersData({ ...mergeBase, shippedArchive }, fresh),
+  );
+  next = applySessionProgress(next, sessionProgress);
+  next = {
+    ...next,
+    revision: (memoryState?.revision ?? 0) + 1,
     updatedAt: Date.now(),
     updatedBy: "api-sync",
-  });
+  };
 
   memoryState = next;
+  await saveSessionProgress(next);
   broadcast(next);
   return next;
 }
@@ -171,6 +190,7 @@ async function applyWorkspaceUpdateInner(
   next.shippedArchive = await mergePersistedArchive(next.shippedArchive ?? []);
 
   memoryState = next;
+  await saveSessionProgress(next);
   broadcast(next);
 
   void logSync("workspace.update", {

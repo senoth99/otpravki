@@ -7,7 +7,7 @@ import { canUnshipFromArchive } from "@/lib/archive-status";
 import { reconcileAssemblyOnShip } from "@/lib/assembly-demand";
 import { collectShippedArchive, normalizeWorkspaceState } from "@/lib/shipped-archive";
 import { checkServerReachable, subscribeServerReachability } from "@/lib/server-reachability";
-import { persistShippedOrders } from "@/lib/archive-api";
+import { persistSessionProgress, persistShippedOrders } from "@/lib/archive-api";
 import {
   createWorkspace,
   logClientSync,
@@ -103,6 +103,7 @@ export function useWorkspace({
         });
       }
 
+      void persistSessionProgress(workspace);
       pushToServer(workspace);
     },
     [pushToServer],

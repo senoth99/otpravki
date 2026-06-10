@@ -51,6 +51,12 @@ function findProduct(index: Map<string, ApiProduct>, slug: string): ApiProduct |
   return index.get(slug) ?? index.get(slug.toLowerCase());
 }
 
+/** Заказ можно отправить разом — всё на складе */
+function isFullyStockedOrder(order: ApiUnshippedOrder): boolean {
+  if (!order.allInStockAtWarehouse) return false;
+  return order.items.length > 0 && order.items.every((line) => line.inStockAtWarehouse);
+}
+
 export function mapUnshippedOrdersToWorkspace(
   apiOrders: ApiUnshippedOrder[],
   products: ApiProduct[],
@@ -60,6 +66,8 @@ export function mapUnshippedOrdersToWorkspace(
   const orders: ShippingOrder[] = [];
 
   for (const order of apiOrders) {
+    if (!isFullyStockedOrder(order)) continue;
+
     const shippingItems: ShippingOrderItem[] = [];
 
     for (const line of order.items) {
@@ -109,12 +117,12 @@ export function mapUnshippedOrdersToWorkspace(
       id: String(order.id),
       orderNumber: order.orderNumber,
       customerName: order.fullName,
-      urgency: deriveUrgency(order.createdAt, order.allInStockAtWarehouse),
+      urgency: deriveUrgency(order.createdAt, true),
       deadline: formatDeadline(order.createdAt),
       items: shippingItems,
       barcodeUrl: order.barcodeUrl,
       barcodePrinted: false,
-      allInStockAtWarehouse: order.allInStockAtWarehouse,
+      allInStockAtWarehouse: true,
       city: order.city,
       trackingNumber: order.trackingNumber ?? undefined,
     });
@@ -123,8 +131,6 @@ export function mapUnshippedOrdersToWorkspace(
   const assemblyItems = sortAssemblyItemsByUrgency([...assemblyMap.values()], orders);
 
   orders.sort((a, b) => {
-    const readyDiff = Number(b.allInStockAtWarehouse) - Number(a.allInStockAtWarehouse);
-    if (readyDiff !== 0) return readyDiff;
     const urgencyDiff = URGENCY_WEIGHT[a.urgency] - URGENCY_WEIGHT[b.urgency];
     if (urgencyDiff !== 0) return urgencyDiff;
     return a.orderNumber.localeCompare(b.orderNumber);
