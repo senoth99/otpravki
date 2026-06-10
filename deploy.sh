@@ -227,22 +227,21 @@ if grep -qE '^HOSTNAME=(127\.0\.0\.1|localhost)\b' "$APP_DIR/.env" 2>/dev/null; 
   echo "    ⚠️  В .env HOSTNAME=127.0.0.1 — из LAN не откроется (deploy всё равно форсирует 0.0.0.0)"
 fi
 
-LISTEN_ADDR=""
 if command -v ss &>/dev/null; then
-  LISTEN_ADDR="$(ss -tlnp 2>/dev/null | awk -v p=":${PORT}" '$4 ~ p {print $4; exit}')"
-elif command -v netstat &>/dev/null; then
-  LISTEN_ADDR="$(netstat -tlnp 2>/dev/null | awk -v p=":${PORT}" '$4 ~ p {print $4; exit}')"
-fi
-if [[ -n "$LISTEN_ADDR" && "$LISTEN_ADDR" != *"0.0.0.0:${PORT}"* && "$LISTEN_ADDR" != *"[::]:${PORT}"* ]]; then
-  echo "    ⚠️  Слушает только $LISTEN_ADDR — с телефона в WiFi не откроется"
+  if ! ss -tlnp 2>/dev/null | grep -q "0.0.0.0:${PORT}"; then
+    if ss -tlnp 2>/dev/null | grep -q ":${PORT}"; then
+      echo "    ⚠️  Порт ${PORT} не на 0.0.0.0 — с телефона в WiFi может не открыться"
+      ss -tlnp 2>/dev/null | grep ":${PORT}" | sed 's/^/    /' | head -1
+    fi
+  fi
 fi
 
 LAN_IP=""
 if command -v hostname &>/dev/null; then
-  LAN_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  LAN_IP="$(hostname -I 2>/dev/null | cut -d' ' -f1)"
 fi
 if [[ -z "$LAN_IP" ]] && command -v ip &>/dev/null; then
-  LAN_IP="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1); exit}')"
+  LAN_IP="$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([^ ]*\).*/\1/p' | head -1)"
 fi
 
 echo ""
