@@ -18,8 +18,15 @@ export async function GET() {
 
   const ok = products.ok && hasKey && orders?.ok === true;
 
+  const timedOut =
+    products.error?.includes("timeout") || products.error?.includes("aborted") ||
+    orders?.error?.includes("timeout") || orders?.error?.includes("aborted");
+
   let hint = "Сервер видит API Casher — заказы и товары доступны";
-  if (!products.ok) {
+  if (timedOut) {
+    hint =
+      "Таймаут до api.cashercollection.com — на сервере нет выхода в интернет или DNS. С сервера: curl -4 -I https://api.cashercollection.com/products";
+  } else if (!products.ok) {
     hint = "С Debian нет доступа к API — проверь интернет, DNS, файрвол";
   } else if (!hasKey) {
     hint = "Задай CASHER_API_KEY в ~/otpravki/.env и перезапусти: sudo systemctl restart otpravki";

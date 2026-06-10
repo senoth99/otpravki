@@ -23,7 +23,7 @@ export async function probeExternalApi(
 ): Promise<{ ok: boolean; status?: number; error?: string; ms: number }> {
   const started = Date.now();
   try {
-    const res = await externalFetch(url, { timeoutMs: 10_000, headers });
+    const res = await externalFetch(url, { timeoutMs: 20_000, headers });
     return { ok: res.ok, status: res.status, ms: Date.now() - started };
   } catch (error) {
     return {
