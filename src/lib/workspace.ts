@@ -86,6 +86,9 @@ export async function refreshWorkspaceFromApi(): Promise<{
   error?: string;
   ordersCount?: number;
   assemblyCount?: number;
+  apiOrdersCount?: number;
+  inArchiveCount?: number;
+  note?: string;
 }> {
   try {
     logClientSync("refresh.start");
@@ -101,6 +104,9 @@ export async function refreshWorkspaceFromApi(): Promise<{
       error?: string;
       ordersCount?: number;
       assemblyCount?: number;
+      apiOrdersCount?: number;
+      inArchiveCount?: number;
+      note?: string;
     };
 
     if (!res.ok || !data.ok) {
@@ -117,6 +123,9 @@ export async function refreshWorkspaceFromApi(): Promise<{
       workspace: data.workspace,
       ordersCount: data.ordersCount,
       assemblyCount: data.assemblyCount,
+      apiOrdersCount: data.apiOrdersCount,
+      inArchiveCount: data.inArchiveCount,
+      note: data.note,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "fetch failed";

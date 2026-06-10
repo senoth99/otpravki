@@ -31,6 +31,7 @@ interface UseWorkspaceOptions {
   initialOrders: ShippingOrder[];
   initialApiOrderIds?: string[];
   initialShippedArchive?: ShippingOrder[];
+  initialRevision?: number;
 }
 
 const REVISION_POLL_MS = 500;
@@ -40,8 +41,9 @@ export function useWorkspace({
   initialOrders,
   initialApiOrderIds = [],
   initialShippedArchive = [],
+  initialRevision = 0,
 }: UseWorkspaceOptions) {
-  const revisionRef = useRef(0);
+  const revisionRef = useRef(initialRevision);
   const bootstrappedRef = useRef(false);
   const userEditedRef = useRef(false);
   const assemblyRef = useRef(initialAssembly);
@@ -64,8 +66,8 @@ export function useWorkspace({
   const [pendingSync, setPendingSync] = useState(0);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
   const [syncReady, setSyncReady] = useState(false);
-  const [serverRevision, setServerRevision] = useState(0);
-  const [clientRevision, setClientRevision] = useState(0);
+  const [serverRevision, setServerRevision] = useState(initialRevision);
+  const [clientRevision, setClientRevision] = useState(initialRevision);
 
   assemblyRef.current = assemblyItems;
   ordersRef.current = orders;
@@ -184,12 +186,14 @@ export function useWorkspace({
 
       const local = loadWorkspace();
 
-      if (userEditedRef.current && local) {
-        const pushed = await pushWorkspace(local);
-        if (pushed.workspace) {
-          applyWorkspaceState(pushed.workspace);
-        } else {
-          applyWorkspaceState({ ...local, revision: remote?.revision ?? 0 } as SharedWorkspaceState);
+      if (userEditedRef.current) {
+        if (local) {
+          const pushed = await pushWorkspace(local);
+          if (pushed.workspace && pushed.workspace.revision > revisionRef.current) {
+            applyWorkspaceState(pushed.workspace);
+          } else if (local.updatedAt >= (remote?.updatedAt ?? 0)) {
+            applyWorkspaceState({ ...local, revision: remote?.revision ?? revisionRef.current } as SharedWorkspaceState);
+          }
         }
         setSyncReady(true);
         return;
@@ -197,12 +201,12 @@ export function useWorkspace({
 
       if (local && remote && local.updatedAt > remote.updatedAt) {
         const pushed = await pushWorkspace(local);
-        if (pushed.workspace) {
+        if (pushed.workspace && pushed.workspace.revision > revisionRef.current) {
           applyWorkspaceState(pushed.workspace);
-        } else {
+        } else if (remote.revision <= revisionRef.current) {
           applyWorkspaceState({ ...local, revision: remote.revision } as SharedWorkspaceState);
         }
-      } else if (remote) {
+      } else if (remote && remote.revision > revisionRef.current) {
         applyWorkspaceState(remote);
       } else if (local) {
         applyWorkspaceState({ ...local, revision: 0 } as SharedWorkspaceState);
@@ -294,6 +298,9 @@ export function useWorkspace({
     error?: string;
     ordersCount?: number;
     assemblyCount?: number;
+    apiOrdersCount?: number;
+    inArchiveCount?: number;
+    note?: string;
   }> => {
     setIsRefreshing(true);
     try {
@@ -318,17 +325,19 @@ export function useWorkspace({
       });
       applyWorkspaceState(merged);
       userEditedRef.current = true;
-      void pushToServer(merged);
 
       return {
         ok: true,
         ordersCount: result.ordersCount,
         assemblyCount: result.assemblyCount,
+        apiOrdersCount: result.apiOrdersCount,
+        inArchiveCount: result.inArchiveCount,
+        note: result.note,
       };
     } finally {
       setIsRefreshing(false);
     }
-  }, [applyWorkspaceState, pushToServer]);
+  }, [applyWorkspaceState]);
 
   const updateOrders = useCallback(
     (next: ShippingOrder[] | ((prev: ShippingOrder[]) => ShippingOrder[])) => {

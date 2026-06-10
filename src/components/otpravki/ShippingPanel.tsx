@@ -1,12 +1,11 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { computeCompletedAssemblyIds, getAssemblyViewSections } from "@/lib/assembly-demand";
 import type { AssemblyItem, ShippingOrder, ShippingTab } from "@/types/shipping";
 import { ArchiveView } from "./ArchiveView";
 import { AssemblyView } from "./AssemblyView";
-import { RefreshButton } from "./RefreshButton";
 import { ShippingView } from "./ShippingView";
 import { TabSwitcher } from "./TabSwitcher";
 
@@ -15,7 +14,7 @@ interface ShippingPanelProps {
   orders: ShippingOrder[];
   apiOrderIds?: string[];
   shippedArchive?: ShippingOrder[];
-  enableApiRefresh?: boolean;
+  initialRevision?: number;
 }
 
 export function ShippingPanel({
@@ -23,16 +22,13 @@ export function ShippingPanel({
   orders: initialOrders,
   apiOrderIds: initialApiOrderIds = [],
   shippedArchive: initialShippedArchive = [],
-  enableApiRefresh = true,
+  initialRevision = 0,
 }: ShippingPanelProps) {
   const [tab, setTab] = useState<ShippingTab>("assembly");
   const [assemblySettled, setAssemblySettled] = useState(false);
   const [pinnedCompletedIds, setPinnedCompletedIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
-  const [refreshError, setRefreshError] = useState<string | null>(null);
-  const [refreshNote, setRefreshNote] = useState<string | null>(null);
-  const refreshInFlightRef = useRef(false);
   const {
     assemblyItems,
     orders,
@@ -41,13 +37,12 @@ export function ShippingPanel({
     updateAssembly,
     updateOrders,
     unshipFromArchive,
-    isRefreshing,
-    refreshFromApi,
   } = useWorkspace({
     initialAssembly,
     initialOrders,
     initialApiOrderIds,
     initialShippedArchive,
+    initialRevision,
   });
 
   const assemblySections = useMemo(
@@ -71,53 +66,13 @@ export function ShippingPanel({
     setTab(next);
   };
 
-  const handleRefresh = async () => {
-    if (refreshInFlightRef.current) return;
-    refreshInFlightRef.current = true;
-    setRefreshError(null);
-    setRefreshNote(null);
-    try {
-      const result = await refreshFromApi();
-      if (!result.ok) {
-        setRefreshError(result.error ?? "Ошибка обновления");
-        return;
-      }
-      const ordersCount = result.ordersCount ?? orders.length;
-      const assemblyCount = result.assemblyCount ?? assemblyItems.length;
-      setRefreshNote(`Обновлено: ${ordersCount} заказов, ${assemblyCount} позиций сборки`);
-      if (assemblySettled) {
-        setPinnedCompletedIds(new Set());
-      }
-    } finally {
-      refreshInFlightRef.current = false;
-    }
-  };
-
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3">
-        <div className="relative z-10 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">Отправки</h1>
-            <p className="text-xs text-gray-500 sm:text-sm">Сборка и отправка заказов</p>
-          </div>
-          {enableApiRefresh && (
-            <RefreshButton
-              onClick={() => void handleRefresh()}
-              loading={isRefreshing}
-            />
-          )}
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">Отправки</h1>
+          <p className="text-xs text-gray-500 sm:text-sm">Сборка и отправка заказов</p>
         </div>
-        {refreshError && (
-          <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 sm:text-sm">
-            {refreshError}
-          </p>
-        )}
-        {refreshNote && !refreshError && (
-          <p className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800 sm:text-sm">
-            {refreshNote}
-          </p>
-        )}
         <TabSwitcher active={tab} onChange={handleTabChange} />
       </div>
 

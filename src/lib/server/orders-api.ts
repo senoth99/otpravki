@@ -67,6 +67,35 @@ export async function fetchUnshippedOrders(): Promise<ApiUnshippedOrder[]> {
   return (await res.json()) as ApiUnshippedOrder[];
 }
 
+/** PUT /orders/{id}/status — перед печатью этикетки */
+export async function markOrderShipped(orderId: string): Promise<void> {
+  const key = getCasherApiKey();
+  if (!key) {
+    throw new Error("Не задан API-ключ (api или CASHER_API_KEY в .env)");
+  }
+
+  const res = await externalFetch(
+    `${ORDERS_API_BASE}/orders/${encodeURIComponent(orderId)}/status`,
+    {
+      method: "PUT",
+      headers: {
+        ...casherAuthHeaders(),
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ status: "shipped" }),
+      timeoutMs: 25_000,
+    },
+  );
+
+  if (res.status !== 200) {
+    const body = await res.text().catch(() => "");
+    throw new Error(
+      `Не удалось отметить заказ отправленным: HTTP ${res.status}${body ? ` — ${body.slice(0, 200)}` : ""}`,
+    );
+  }
+}
+
 export async function downloadBarcodePdf(
   barcodeUrl: string,
   orderId?: string,

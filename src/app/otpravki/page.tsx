@@ -2,6 +2,7 @@ import { ShippingPanel } from "@/components/otpravki";
 import { USE_MOCK_ORDERS } from "@/lib/app-config";
 import { buildInitialWorkspace } from "@/lib/build-workspace";
 import { getMockResetToken } from "@/lib/server/mock-reset";
+import { fetchAndSyncWorkspaceFromApi } from "@/lib/server/workspace-api-sync";
 import { getSharedWorkspace, initSharedWorkspace } from "@/lib/server/workspace-store";
 
 export const dynamic = "force-dynamic";
@@ -26,13 +27,13 @@ function OtpravkiShell({
   orders,
   apiOrderIds,
   shippedArchive,
-  enableApiRefresh,
+  initialRevision,
 }: {
   assemblyItems: Parameters<typeof ShippingPanel>[0]["assemblyItems"];
   orders: Parameters<typeof ShippingPanel>[0]["orders"];
   apiOrderIds?: string[];
   shippedArchive?: Parameters<typeof ShippingPanel>[0]["shippedArchive"];
-  enableApiRefresh: boolean;
+  initialRevision?: number;
 }) {
   return (
     <div className="min-h-screen overflow-x-hidden bg-gray-50 px-3 py-3 sm:p-6">
@@ -41,7 +42,7 @@ function OtpravkiShell({
         orders={orders}
         apiOrderIds={apiOrderIds}
         shippedArchive={shippedArchive}
-        enableApiRefresh={enableApiRefresh}
+        initialRevision={initialRevision}
       />
     </div>
   );
@@ -49,14 +50,46 @@ function OtpravkiShell({
 
 export default async function OtpravkiPage() {
   const resetToken = await getMockResetToken();
+
+  if (!USE_MOCK_ORDERS) {
+    const existing = await getSharedWorkspace();
+    try {
+      const { workspace } = await fetchAndSyncWorkspaceFromApi();
+      return (
+        <OtpravkiShell
+          assemblyItems={workspace.assemblyItems}
+          orders={workspace.orders}
+          apiOrderIds={workspace.apiOrderIds}
+          shippedArchive={workspace.shippedArchive}
+          initialRevision={workspace.revision}
+        />
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Ошибка загрузки заказов";
+      if (existing) {
+        return (
+          <OtpravkiShell
+            assemblyItems={existing.assemblyItems}
+            orders={existing.orders}
+            apiOrderIds={existing.apiOrderIds}
+            shippedArchive={existing.shippedArchive}
+            initialRevision={existing.revision}
+          />
+        );
+      }
+      return (
+        <EmptyState
+          title="Не удалось загрузить заказы"
+          hint={`${message}. Проверь CASHER_API_KEY в .env и: sudo systemctl restart otpravki`}
+        />
+      );
+    }
+  }
+
   const existing = await getSharedWorkspace();
   const mockStale =
-    USE_MOCK_ORDERS &&
-    resetToken !== null &&
-    existing !== null &&
-    existing.resetToken !== resetToken;
+    resetToken !== null && existing !== null && existing.resetToken !== resetToken;
 
-  // Перезагрузка страницы: только сохранённое состояние. API — кнопка «Обновить».
   if (existing && !mockStale) {
     return (
       <OtpravkiShell
@@ -64,29 +97,24 @@ export default async function OtpravkiPage() {
         orders={existing.orders}
         apiOrderIds={existing.apiOrderIds}
         shippedArchive={existing.shippedArchive}
-        enableApiRefresh={!USE_MOCK_ORDERS}
+        initialRevision={existing.revision}
       />
     );
   }
 
   let workspaceData;
   try {
-    workspaceData = await buildInitialWorkspace(USE_MOCK_ORDERS);
+    workspaceData = await buildInitialWorkspace(true);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Ошибка загрузки заказов";
-    return (
-      <EmptyState
-        title="Не удалось загрузить заказы"
-        hint={`${message}. Проверь CASHER_API_KEY в .env и: sudo systemctl restart otpravki`}
-      />
-    );
+    return <EmptyState title="Не удалось загрузить заказы" hint={message} />;
   }
 
   if (!workspaceData) {
     return (
       <EmptyState
         title="Нет данных о товарах"
-        hint="Подключите интернет и обновите страницу — товары загрузятся автоматически"
+        hint="Подключите интернет и обновите страницу"
       />
     );
   }
@@ -94,7 +122,7 @@ export default async function OtpravkiPage() {
   const shared = await initSharedWorkspace(
     workspaceData.assemblyItems,
     workspaceData.orders,
-    USE_MOCK_ORDERS ? resetToken ?? undefined : undefined,
+    resetToken ?? undefined,
   );
 
   return (
@@ -103,7 +131,7 @@ export default async function OtpravkiPage() {
       orders={shared.orders}
       apiOrderIds={shared.apiOrderIds}
       shippedArchive={shared.shippedArchive}
-      enableApiRefresh={!USE_MOCK_ORDERS}
+      initialRevision={shared.revision}
     />
   );
 }

@@ -3,6 +3,7 @@ import {
   getPrinterDiagnostics,
   printToBarcodePrinter,
 } from "@/lib/server/barcode-printer";
+import { markOrderShipped } from "@/lib/server/orders-api";
 
 export const maxDuration = 60;
 
@@ -31,6 +32,29 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { ok: false, reason: "invalid_payload", message: "Некорректные данные заказа" },
         { status: 400 },
+      );
+    }
+
+    if (!body.orderId?.trim()) {
+      return NextResponse.json(
+        { ok: false, reason: "missing_order_id", message: "Нет ID заказа для смены статуса в Casher" },
+        { status: 400 },
+      );
+    }
+
+    try {
+      await markOrderShipped(body.orderId.trim());
+    } catch (error) {
+      return NextResponse.json(
+        {
+          ok: false,
+          reason: "status_update_failed",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Не удалось отметить заказ отправленным в Casher",
+        },
+        { status: 502 },
       );
     }
 
