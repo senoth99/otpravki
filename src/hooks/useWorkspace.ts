@@ -289,33 +289,42 @@ export function useWorkspace({
     [persist],
   );
 
-  const refreshFromApi = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
-    if (!navigator.onLine) {
-      return { ok: false, error: "Нет подключения к интернету" };
-    }
-
+  const refreshFromApi = useCallback(async (): Promise<{
+    ok: boolean;
+    error?: string;
+    ordersCount?: number;
+    assemblyCount?: number;
+  }> => {
     setIsRefreshing(true);
     try {
       const result = await refreshWorkspaceFromApi();
-      if (result.workspace) {
-        const { orders: mergedOrders, shippedArchive: mergedArchive } =
-          mergeWorkspaceWithLocalArchive(
-            result.workspace,
-            ordersRef.current,
-            shippedArchiveRef.current,
-          );
-        const merged = normalizeWorkspaceState({
-          ...result.workspace,
-          orders: mergedOrders,
-          shippedArchive: mergedArchive,
-        });
-        applyWorkspaceState(merged);
-        userEditedRef.current = true;
-        await pushToServer(merged);
+      if (!result.ok) {
+        return { ok: false, error: result.error ?? "Не удалось обновить" };
       }
-      return result.ok
-        ? { ok: true }
-        : { ok: false, error: result.error ?? "Не удалось обновить" };
+      if (!result.workspace) {
+        return { ok: false, error: "Пустой ответ сервера" };
+      }
+
+      const { orders: mergedOrders, shippedArchive: mergedArchive } =
+        mergeWorkspaceWithLocalArchive(
+          result.workspace,
+          ordersRef.current,
+          shippedArchiveRef.current,
+        );
+      const merged = normalizeWorkspaceState({
+        ...result.workspace,
+        orders: mergedOrders,
+        shippedArchive: mergedArchive,
+      });
+      applyWorkspaceState(merged);
+      userEditedRef.current = true;
+      await pushToServer(merged);
+
+      return {
+        ok: true,
+        ordersCount: result.ordersCount,
+        assemblyCount: result.assemblyCount,
+      };
     } finally {
       setIsRefreshing(false);
     }

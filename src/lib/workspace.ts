@@ -1,6 +1,7 @@
 import { io, type Socket } from "socket.io-client";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState, WorkspaceState } from "@/types/workspace";
+import { fetchWithTimeout } from "@/lib/fetch-timeout";
 import { mergeShippedArchives } from "@/lib/shipped-archive";
 import { mergeWorkspaces } from "@/lib/workspace-merge";
 
@@ -84,12 +85,14 @@ export async function refreshWorkspaceFromApi(): Promise<{
   workspace?: SharedWorkspaceState;
   error?: string;
   ordersCount?: number;
+  assemblyCount?: number;
 }> {
   try {
-    const res = await fetch("/api/workspace/refresh", {
+    logClientSync("refresh.start");
+    const res = await fetchWithTimeout("/api/workspace/refresh", {
       method: "POST",
       cache: "no-store",
-      signal: AbortSignal.timeout(45_000),
+      timeoutMs: 60_000,
     });
 
     const data = (await res.json()) as {
@@ -97,18 +100,27 @@ export async function refreshWorkspaceFromApi(): Promise<{
       workspace?: SharedWorkspaceState;
       error?: string;
       ordersCount?: number;
+      assemblyCount?: number;
     };
 
     if (!res.ok || !data.ok) {
+      logClientSync("refresh.fail", { message: data.error, meta: { status: res.status } });
       return { ok: false, error: data.error ?? "Не удалось обновить данные" };
     }
+
+    logClientSync("refresh.ok", {
+      meta: { ordersCount: data.ordersCount, assemblyCount: data.assemblyCount },
+    });
 
     return {
       ok: true,
       workspace: data.workspace,
       ordersCount: data.ordersCount,
+      assemblyCount: data.assemblyCount,
     };
-  } catch {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "fetch failed";
+    logClientSync("refresh.fail", { message });
     return {
       ok: false,
       error: "Не удалось связаться с сервером. Проверь Wi‑Fi и что otpravki запущен.",
@@ -124,9 +136,9 @@ function cacheBust(url: string): string {
 }
 
 export async function fetchWorkspaceRevision(): Promise<number> {
-  const res = await fetch(cacheBust("/api/workspace/revision"), {
+  const res = await fetchWithTimeout(cacheBust("/api/workspace/revision"), {
     cache: "no-store",
-    signal: AbortSignal.timeout(SYNC_TIMEOUT_MS),
+    timeoutMs: SYNC_TIMEOUT_MS,
   });
   if (!res.ok) {
     throw new Error(`revision fetch failed: ${res.status}`);
@@ -136,9 +148,9 @@ export async function fetchWorkspaceRevision(): Promise<number> {
 }
 
 export async function fetchSharedWorkspace(): Promise<SharedWorkspaceState | null> {
-  const res = await fetch(cacheBust("/api/workspace"), {
+  const res = await fetchWithTimeout(cacheBust("/api/workspace"), {
     cache: "no-store",
-    signal: AbortSignal.timeout(SYNC_TIMEOUT_MS),
+    timeoutMs: SYNC_TIMEOUT_MS,
   });
   if (!res.ok) {
     throw new Error(`workspace fetch failed: ${res.status}`);
@@ -183,12 +195,12 @@ export async function pushWorkspace(workspace: WorkspaceState): Promise<{
   }
 
   try {
-    const res = await fetch("/api/workspace", {
+    const res = await fetchWithTimeout("/api/workspace", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
       cache: "no-store",
-      signal: AbortSignal.timeout(SYNC_TIMEOUT_MS),
+      timeoutMs: SYNC_TIMEOUT_MS,
     });
 
     const data = (await res.json()) as {

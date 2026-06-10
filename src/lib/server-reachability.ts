@@ -1,12 +1,14 @@
+import { fetchWithTimeout } from "@/lib/fetch-timeout";
+
 const HEALTH_URL = "/api/health";
 const PING_TIMEOUT_MS = 2_000;
 const REACHABILITY_INTERVAL_MS = 3_000;
 
 export async function checkServerReachable(): Promise<boolean> {
   try {
-    const res = await fetch(HEALTH_URL, {
+    const res = await fetchWithTimeout(HEALTH_URL, {
       cache: "no-store",
-      signal: AbortSignal.timeout(PING_TIMEOUT_MS),
+      timeoutMs: PING_TIMEOUT_MS,
     });
     return res.ok;
   } catch {

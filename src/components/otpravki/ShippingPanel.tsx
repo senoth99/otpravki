@@ -31,6 +31,7 @@ export function ShippingPanel({
     () => new Set(),
   );
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [refreshNote, setRefreshNote] = useState<string | null>(null);
   const {
     assemblyItems,
     orders,
@@ -39,8 +40,6 @@ export function ShippingPanel({
     updateAssembly,
     updateOrders,
     unshipFromArchive,
-    isInternetOnline,
-    isSyncing,
     isRefreshing,
     refreshFromApi,
   } = useWorkspace({
@@ -93,13 +92,18 @@ export function ShippingPanel({
             <RefreshButton
               onClick={() => void handleRefresh()}
               loading={isRefreshing}
-              disabled={!isInternetOnline || isSyncing}
+              disabled={isRefreshing}
             />
           )}
         </div>
         {refreshError && (
           <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 sm:text-sm">
             {refreshError}
+          </p>
+        )}
+        {refreshNote && !refreshError && (
+          <p className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800 sm:text-sm">
+            {refreshNote}
           </p>
         )}
         <TabSwitcher active={tab} onChange={handleTabChange} />

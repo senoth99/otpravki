@@ -1,6 +1,35 @@
 import { mergeShippedArchives } from "@/lib/shipped-archive";
-import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
+import type { AssemblyItem, ShippingOrder, ShippingOrderItem } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
+
+function mergeAssemblyProgress(prev: AssemblyItem, fresh: AssemblyItem): AssemblyItem {
+  return {
+    ...fresh,
+    collectedCount: Math.min(prev.collectedCount, fresh.quantity),
+    collectedAt: prev.collectedAt,
+  };
+}
+
+function mergeOrderItemProgress(prev: ShippingOrderItem, fresh: ShippingOrderItem): ShippingOrderItem {
+  return {
+    ...fresh,
+    scannedCount: Math.min(prev.scannedCount, fresh.quantity),
+    scannedAt: prev.scannedAt,
+  };
+}
+
+function mergeOrderProgress(prev: ShippingOrder, fresh: ShippingOrder): ShippingOrder {
+  const prevItems = new Map(prev.items.map((item) => [item.id, item]));
+  return {
+    ...fresh,
+    barcodePrinted: prev.barcodePrinted,
+    barcodePrintedAt: prev.barcodePrintedAt,
+    items: fresh.items.map((item) => {
+      const old = prevItems.get(item.id);
+      return old ? mergeOrderItemProgress(old, item) : item;
+    }),
+  };
+}
 
 /** Свежие данные с API + архив отправленных (никогда не очищается) */
 export function mergeFreshOrdersData(
@@ -14,12 +43,15 @@ export function mergeFreshOrdersData(
     ]),
   );
 
+  const existingOrders = new Map(existing.orders.map((order) => [order.id, order]));
+  const existingAssembly = new Map(existing.assemblyItems.map((item) => [item.id, item]));
   const activeOrders: ShippingOrder[] = [];
 
   for (const order of fresh.orders) {
     const archived = archiveById.get(order.id);
     if (!archived) {
-      activeOrders.push(order);
+      const prev = existingOrders.get(order.id);
+      activeOrders.push(prev ? mergeOrderProgress(prev, order) : order);
       continue;
     }
 
@@ -35,9 +67,14 @@ export function mergeFreshOrdersData(
     (a, b) => (b.barcodePrintedAt ?? 0) - (a.barcodePrintedAt ?? 0),
   );
 
+  const assemblyItems = fresh.assemblyItems.map((item) => {
+    const prev = existingAssembly.get(item.id);
+    return prev ? mergeAssemblyProgress(prev, item) : item;
+  });
+
   return {
     ...existing,
-    assemblyItems: fresh.assemblyItems,
+    assemblyItems,
     orders: activeOrders,
     shippedArchive,
     apiOrderIds: fresh.orders.map((order) => order.id),

@@ -8,6 +8,7 @@ import {
   getStaleProductsFromCache,
   refreshProductsCache,
 } from "@/lib/server/product-cache";
+import { logSync } from "@/lib/server/sync-log";
 import { syncWorkspaceFromApi } from "@/lib/server/workspace-store";
 import type { ApiProduct } from "@/types/shipping";
 
@@ -49,6 +50,12 @@ export async function POST() {
 
     const workspace = await syncWorkspaceFromApi(fresh);
 
+    void logSync("api.refresh.ok", {
+      orders: fresh.orders.length,
+      assembly: fresh.assemblyItems.length,
+      revision: workspace.revision,
+    });
+
     return NextResponse.json({
       ok: true,
       workspace,
@@ -57,9 +64,8 @@ export async function POST() {
       note: productsNote,
     });
   } catch (error) {
-    return NextResponse.json(
-      { ok: false, error: formatApiFetchError(error) },
-      { status: 500 },
-    );
+    const message = formatApiFetchError(error);
+    void logSync("api.refresh.fail", { message });
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
