@@ -11,9 +11,10 @@ export function RefreshButton({ onClick, loading, disabled }: RefreshButtonProps
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled || loading}
+      disabled={disabled}
       title="Обновить заказы и товары с API"
-      className="group inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:border-gray-300 hover:bg-gray-50 hover:shadow active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
+      aria-busy={loading}
+      className="group relative z-20 inline-flex shrink-0 touch-manipulation items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:border-gray-300 hover:bg-gray-50 hover:shadow active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-11 sm:px-4"
     >
       <span
         className={`flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-gray-600 transition-colors group-hover:bg-gray-200 group-disabled:bg-gray-100 ${

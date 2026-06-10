@@ -318,7 +318,7 @@ export function useWorkspace({
       });
       applyWorkspaceState(merged);
       userEditedRef.current = true;
-      await pushToServer(merged);
+      void pushToServer(merged);
 
       return {
         ok: true,

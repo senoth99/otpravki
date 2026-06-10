@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { computeCompletedAssemblyIds, getAssemblyViewSections } from "@/lib/assembly-demand";
 import type { AssemblyItem, ShippingOrder, ShippingTab } from "@/types/shipping";
@@ -32,6 +32,7 @@ export function ShippingPanel({
   );
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [refreshNote, setRefreshNote] = useState<string | null>(null);
+  const refreshInFlightRef = useRef(false);
   const {
     assemblyItems,
     orders,
@@ -71,19 +72,31 @@ export function ShippingPanel({
   };
 
   const handleRefresh = async () => {
+    if (refreshInFlightRef.current) return;
+    refreshInFlightRef.current = true;
     setRefreshError(null);
-    const result = await refreshFromApi();
-    if (!result.ok) {
-      setRefreshError(result.error ?? "Ошибка обновления");
-    } else if (assemblySettled) {
-      setPinnedCompletedIds(new Set());
+    setRefreshNote(null);
+    try {
+      const result = await refreshFromApi();
+      if (!result.ok) {
+        setRefreshError(result.error ?? "Ошибка обновления");
+        return;
+      }
+      const ordersCount = result.ordersCount ?? orders.length;
+      const assemblyCount = result.assemblyCount ?? assemblyItems.length;
+      setRefreshNote(`Обновлено: ${ordersCount} заказов, ${assemblyCount} позиций сборки`);
+      if (assemblySettled) {
+        setPinnedCompletedIds(new Set());
+      }
+    } finally {
+      refreshInFlightRef.current = false;
     }
   };
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3">
-        <div className="flex items-start justify-between gap-3">
+        <div className="relative z-10 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">Отправки</h1>
             <p className="text-xs text-gray-500 sm:text-sm">Сборка и отправка заказов</p>
@@ -92,7 +105,6 @@ export function ShippingPanel({
             <RefreshButton
               onClick={() => void handleRefresh()}
               loading={isRefreshing}
-              disabled={isRefreshing}
             />
           )}
         </div>
