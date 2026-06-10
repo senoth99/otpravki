@@ -7,6 +7,7 @@ import { canUnshipFromArchive } from "@/lib/archive-status";
 import { reconcileAssemblyOnShip } from "@/lib/assembly-demand";
 import { collectShippedArchive, normalizeWorkspaceState } from "@/lib/shipped-archive";
 import { checkServerReachable, subscribeServerReachability } from "@/lib/server-reachability";
+import { persistShippedOrders } from "@/lib/archive-api";
 import {
   createWorkspace,
   logClientSync,
@@ -86,11 +87,22 @@ export function useWorkspace({
 
   const persist = useCallback(
     (assembly: AssemblyItem[], ords: ShippingOrder[]) => {
+      const prevArchiveIds = new Set(shippedArchiveRef.current.map((order) => order.id));
       const workspace = normalizeWorkspaceState(
         createWorkspace(assembly, ords, shippedArchiveRef.current),
       );
-      shippedArchiveRef.current = workspace.shippedArchive ?? [];
-      setShippedArchive(workspace.shippedArchive ?? []);
+      const archive = workspace.shippedArchive ?? [];
+      const newlyShipped = archive.filter((order) => !prevArchiveIds.has(order.id));
+
+      shippedArchiveRef.current = archive;
+      setShippedArchive(archive);
+
+      if (newlyShipped.length > 0) {
+        void persistShippedOrders(newlyShipped).then((ok) => {
+          if (!ok) setIsServerReachable(false);
+        });
+      }
+
       pushToServer(workspace);
     },
     [pushToServer],

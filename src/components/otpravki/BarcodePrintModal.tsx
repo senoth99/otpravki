@@ -2,19 +2,16 @@
 
 import { useState } from "react";
 import { printOrderBarcode } from "@/lib/print-barcode";
+import type { ShippingOrder } from "@/types/shipping";
 
 interface BarcodePrintModalProps {
-  orderNumber: string;
-  orderId: string;
-  barcodeUrl?: string;
+  order: ShippingOrder;
   onClose: () => void;
   onPrinted: () => void;
 }
 
 export function BarcodePrintModal({
-  orderNumber,
-  orderId,
-  barcodeUrl,
+  order,
   onClose,
   onPrinted,
 }: BarcodePrintModalProps) {
@@ -24,7 +21,11 @@ export function BarcodePrintModal({
   const handlePrint = async () => {
     setPrinting(true);
     setError(null);
-    const result = await printOrderBarcode(orderNumber, { orderId, barcodeUrl });
+    const result = await printOrderBarcode(order.orderNumber, {
+      orderId: order.id,
+      barcodeUrl: order.barcodeUrl,
+      order,
+    });
     setPrinting(false);
     if (!result.ok) {
       setError(result.message ?? "Не удалось напечатать");
@@ -37,12 +38,12 @@ export function BarcodePrintModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
         <h3 className="text-lg font-semibold text-gray-900">Печать баркода</h3>
-        <p className="mt-2 text-sm text-gray-600">Заказ {orderNumber}</p>
+        <p className="mt-2 text-sm text-gray-600">Заказ {order.orderNumber}</p>
 
         <div className="my-6 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
-          <p className="font-mono text-lg text-gray-800">{orderNumber}</p>
+          <p className="font-mono text-lg text-gray-800">{order.orderNumber}</p>
           <p className="mt-2 text-xs text-gray-500">
-            {barcodeUrl ? "Этикетка СДЭК (PDF)" : "CASHER COLLECTION"}
+            {order.barcodeUrl ? "Этикетка СДЭК (PDF)" : "CASHER COLLECTION"}
           </p>
         </div>
 

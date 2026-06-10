@@ -4,10 +4,13 @@ export interface PrintResult {
   printer?: string | null;
 }
 
+import type { ShippingOrder } from "@/types/shipping";
+
 export interface PrintOrderOptions {
   orderId?: string;
   barcodeUrl?: string;
   barcodeData?: string;
+  order?: ShippingOrder;
 }
 
 /** Серверная печать на баркод-принтер через CUPS */
@@ -24,6 +27,7 @@ export async function printOrderBarcode(
         orderId: options.orderId,
         barcodeUrl: options.barcodeUrl,
         barcodeData: options.barcodeUrl ? undefined : (options.barcodeData ?? orderNumber),
+        order: options.order,
       }),
     });
 

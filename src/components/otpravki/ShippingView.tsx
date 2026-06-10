@@ -278,6 +278,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
       const result = await printOrderBarcode(shippedNumber, {
         orderId: currentOrder.id,
         barcodeUrl: currentOrder.barcodeUrl,
+        order: { ...currentOrder, barcodePrinted: true, barcodePrintedAt: shippedAt },
       });
       if (result.ok) return;
 
@@ -555,9 +556,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
 
       {printModalOpen && currentOrder && (
         <BarcodePrintModal
-          orderNumber={currentOrder.orderNumber}
-          orderId={currentOrder.id}
-          barcodeUrl={currentOrder.barcodeUrl}
+          order={currentOrder}
           onClose={() => setPrintModalOpen(false)}
           onPrinted={handlePrinted}
         />

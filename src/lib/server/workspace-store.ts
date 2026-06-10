@@ -3,7 +3,7 @@ import type { SharedWorkspaceState } from "@/types/workspace";
 import { mergeShippedArchives, normalizeWorkspaceState, unionPermanentArchive } from "@/lib/shipped-archive";
 import { mergeWorkspaces } from "@/lib/workspace-merge";
 import type { WorkspaceData } from "@/lib/build-workspace";
-import { loadPersistedArchive, savePersistedArchive } from "@/lib/server/shipped-archive-store";
+import { mergePersistedArchive } from "@/lib/server/shipped-archive-store";
 import { logSync } from "@/lib/server/sync-log";
 import { appendSyncEvent, forwardToRemote } from "@/lib/server/sync-store";
 
@@ -91,9 +91,23 @@ export async function resetSharedWorkspace(
   return state;
 }
 
+/** Обновить архив в оперативной сессии после записи на диск */
+export async function replaceSessionArchive(shippedArchive: ShippingOrder[]): Promise<void> {
+  if (!memoryState) return;
+
+  memoryState = normalizeWorkspaceState({
+    ...memoryState,
+    shippedArchive,
+    revision: memoryState.revision + 1,
+    updatedAt: Date.now(),
+    updatedBy: "archive-sync",
+  });
+  broadcast(memoryState);
+}
+
 /** Свежие заказы с API + постоянный архив отправленных (до 200) */
 export async function replaceWorkspaceFromApi(fresh: WorkspaceData): Promise<SharedWorkspaceState> {
-  const shippedArchive = await loadPersistedArchive();
+  const shippedArchive = await mergePersistedArchive(memoryState?.shippedArchive ?? []);
 
   const next: SharedWorkspaceState = normalizeWorkspaceState({
     version: 1,
@@ -154,7 +168,7 @@ async function applyWorkspaceUpdateInner(
     updatedBy: clientId,
   });
 
-  next.shippedArchive = await savePersistedArchive(next.shippedArchive ?? []);
+  next.shippedArchive = await mergePersistedArchive(next.shippedArchive ?? []);
 
   memoryState = next;
   broadcast(next);

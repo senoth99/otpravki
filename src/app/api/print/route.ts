@@ -3,7 +3,10 @@ import {
   getPrinterDiagnostics,
   printToBarcodePrinter,
 } from "@/lib/server/barcode-printer";
+import { mergePersistedArchive } from "@/lib/server/shipped-archive-store";
 import { markOrderShipped } from "@/lib/server/orders-api";
+import { getSharedWorkspace, replaceSessionArchive } from "@/lib/server/workspace-store";
+import type { ShippingOrder } from "@/types/shipping";
 
 export const maxDuration = 60;
 
@@ -26,6 +29,7 @@ export async function POST(request: Request) {
       orderId?: string;
       barcodeData?: string;
       barcodeUrl?: string;
+      order?: ShippingOrder;
     };
 
     if (!body.orderNumber) {
@@ -56,6 +60,23 @@ export async function POST(request: Request) {
         },
         { status: 502 },
       );
+    }
+
+    const workspace = await getSharedWorkspace();
+    const orderId = body.orderId.trim();
+    const fromSession =
+      body.order ??
+      workspace?.orders.find((order) => order.id === orderId) ??
+      workspace?.shippedArchive?.find((order) => order.id === orderId);
+
+    if (fromSession) {
+      const archived: ShippingOrder = {
+        ...fromSession,
+        barcodePrinted: true,
+        barcodePrintedAt: fromSession.barcodePrintedAt ?? Date.now(),
+      };
+      const nextArchive = await mergePersistedArchive([archived]);
+      await replaceSessionArchive(nextArchive);
     }
 
     const result = await printToBarcodePrinter(body.orderNumber, {
