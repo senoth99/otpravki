@@ -8,7 +8,6 @@ import { ArchiveView } from "./ArchiveView";
 import { AssemblyView } from "./AssemblyView";
 import { RefreshButton } from "./RefreshButton";
 import { ShippingView } from "./ShippingView";
-import { SyncIndicator } from "./SyncIndicator";
 import { TabSwitcher } from "./TabSwitcher";
 
 interface ShippingPanelProps {
@@ -40,15 +39,9 @@ export function ShippingPanel({
     updateAssembly,
     updateOrders,
     unshipFromArchive,
-    isServerReachable,
     isInternetOnline,
-    isStreamConnected,
     isSyncing,
-    isPulling,
     isRefreshing,
-    pendingSync,
-    serverRevision,
-    clientRevision,
     refreshFromApi,
   } = useWorkspace({
     initialAssembly,
@@ -89,17 +82,7 @@ export function ShippingPanel({
   };
 
   return (
-    <>
-      <SyncIndicator
-        isServerReachable={isServerReachable}
-        isStreamConnected={isStreamConnected}
-        isSyncing={isSyncing}
-        isPulling={isPulling}
-        pendingSync={pendingSync}
-        serverRevision={serverRevision}
-        clientRevision={clientRevision}
-      />
-      <div className="mx-auto w-full max-w-3xl space-y-4 sm:space-y-6">
+    <div className="mx-auto w-full max-w-3xl space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -147,6 +130,5 @@ export function ShippingPanel({
         </div>
       )}
     </div>
-    </>
   );
 }

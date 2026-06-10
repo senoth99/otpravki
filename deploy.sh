@@ -181,8 +181,6 @@ Group=${USER}
 WorkingDirectory=${APP_DIR}/.next/standalone
 Environment=NODE_ENV=production
 Environment=NODE_OPTIONS=--dns-result-order=ipv4first
-Environment=PORT=${PORT}
-Environment=HOSTNAME=0.0.0.0
 Environment=DATA_DIR=${DATA_DIR}
 Environment=BUILD_ID=${BUILD_ID}
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -196,6 +194,8 @@ Environment=BARCODE_LABEL_DPI=${BARCODE_LABEL_DPI:-203}
 Environment=BARCODE_LABEL_SCALE=${BARCODE_LABEL_SCALE:-0.5}
 Environment=BARCODE_LABEL_ROTATION=${BARCODE_LABEL_ROTATION:-180}
 EnvironmentFile=-${APP_DIR}/.env
+Environment=PORT=${PORT}
+Environment=HOSTNAME=0.0.0.0
 ExecStart=/usr/bin/env node server.js
 Restart=on-failure
 RestartSec=5
@@ -214,6 +214,27 @@ if as_root systemctl is-active --quiet "$SERVICE_NAME"; then
   STATUS="работает"
 else
   STATUS="ошибка — смотри: sudo journalctl -u $SERVICE_NAME -n 30"
+fi
+
+if command -v ufw &>/dev/null && as_root ufw status 2>/dev/null | grep -q "Status: active"; then
+  if ! as_root ufw status 2>/dev/null | grep -qE "${PORT}/tcp|${PORT} .+ALLOW"; then
+    echo "==> Открываю порт ${PORT}/tcp в ufw (LAN-доступ)..."
+    as_root ufw allow "${PORT}/tcp" >/dev/null 2>&1 || true
+  fi
+fi
+
+if grep -qE '^HOSTNAME=(127\.0\.0\.1|localhost)\b' "$APP_DIR/.env" 2>/dev/null; then
+  echo "    ⚠️  В .env HOSTNAME=127.0.0.1 — из LAN не откроется (deploy всё равно форсирует 0.0.0.0)"
+fi
+
+LISTEN_ADDR=""
+if command -v ss &>/dev/null; then
+  LISTEN_ADDR="$(ss -tlnp 2>/dev/null | awk -v p=":${PORT}" '\$4 ~ p {print \$4; exit}')"
+elif command -v netstat &>/dev/null; then
+  LISTEN_ADDR="$(netstat -tlnp 2>/dev/null | awk -v p=":${PORT}" '\$4 ~ p {print \$4; exit}')"
+fi
+if [[ -n "$LISTEN_ADDR" && "$LISTEN_ADDR" != *"0.0.0.0:${PORT}"* && "$LISTEN_ADDR" != *"[::]:${PORT}"* ]]; then
+  echo "    ⚠️  Слушает только $LISTEN_ADDR — с телефона в WiFi не откроется"
 fi
 
 LAN_IP=""
@@ -235,6 +256,12 @@ echo ""
 if [[ -n "$LAN_IP" ]]; then
   echo "  С телефона / планшета в той же WiFi-сети:"
   echo "    http://${LAN_IP}:${PORT}/otpravki"
+  if as_root systemctl is-active --quiet nginx 2>/dev/null; then
+    echo "    http://${LAN_IP}/otpravki  (через nginx, порт 80)"
+  fi
+  echo ""
+  echo "  Если не открывается — IP мог смениться после перезагрузки роутера."
+  echo "  Проверка с сервера: curl -s http://${LAN_IP}:${PORT}/api/health"
   echo ""
 fi
 echo "  Проверка API:"
