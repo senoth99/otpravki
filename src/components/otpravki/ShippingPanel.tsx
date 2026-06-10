@@ -37,6 +37,8 @@ export function ShippingPanel({
     updateAssembly,
     updateOrders,
     unshipFromArchive,
+    isInternetOnline,
+    isServerReachable,
   } = useWorkspace({
     initialAssembly,
     initialOrders,
@@ -56,6 +58,8 @@ export function ShippingPanel({
     [assemblyItems, orders, assemblySettled, pinnedCompletedIds],
   );
 
+  const offline = !isInternetOnline || !isServerReachable;
+
   const handleTabChange = (next: ShippingTab) => {
     if (tab === "assembly" && next !== "assembly") {
       setAssemblySettled(true);
@@ -67,7 +71,17 @@ export function ShippingPanel({
   };
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-4 sm:space-y-6">
+    <div className="relative mx-auto w-full max-w-3xl space-y-4 sm:space-y-6">
+      {offline && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 p-4">
+          <div className="max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl">
+            <p className="font-semibold text-gray-900">Нет интернета</p>
+            <p className="mt-2 text-sm text-gray-600">
+              Нужен доступ к api.cashercollection.com. Перезагрузи страницу, когда сеть появится.
+            </p>
+          </div>
+        </div>
+      )}
       <div className="flex flex-col gap-3">
         <div className="min-w-0">
           <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">Отправки</h1>

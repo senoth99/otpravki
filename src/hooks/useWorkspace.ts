@@ -5,25 +5,13 @@ import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
 import { canUnshipFromArchive } from "@/lib/archive-status";
 import { reconcileAssemblyOnShip } from "@/lib/assembly-demand";
-import {
-  collectShippedArchive,
-  mergeWorkspaceWithLocalArchive,
-  normalizeWorkspaceState,
-} from "@/lib/shipped-archive";
+import { collectShippedArchive, normalizeWorkspaceState } from "@/lib/shipped-archive";
 import { checkServerReachable, subscribeServerReachability } from "@/lib/server-reachability";
 import {
   createWorkspace,
   logClientSync,
-  fetchSharedWorkspace,
-  fetchWorkspaceRevision,
-  flushSyncQueue,
-  getPendingSyncCount,
-  loadWorkspace,
   pushWorkspace,
-  refreshWorkspaceFromApi,
-  saveWorkspace,
   subscribeWorkspaceStream,
-  syncResetToken,
 } from "@/lib/workspace";
 
 interface UseWorkspaceOptions {
@@ -34,8 +22,6 @@ interface UseWorkspaceOptions {
   initialRevision?: number;
 }
 
-const REVISION_POLL_MS = 500;
-
 export function useWorkspace({
   initialAssembly,
   initialOrders,
@@ -44,12 +30,9 @@ export function useWorkspace({
   initialRevision = 0,
 }: UseWorkspaceOptions) {
   const revisionRef = useRef(initialRevision);
-  const bootstrappedRef = useRef(false);
-  const userEditedRef = useRef(false);
   const assemblyRef = useRef(initialAssembly);
   const ordersRef = useRef(initialOrders);
   const shippedArchiveRef = useRef(collectShippedArchive(initialOrders, initialShippedArchive));
-  const pushChainRef = useRef(Promise.resolve());
 
   const [assemblyItems, setAssemblyItems] = useState(initialAssembly);
   const [orders, setOrders] = useState(initialOrders);
@@ -61,13 +44,6 @@ export function useWorkspace({
   );
   const [isStreamConnected, setIsStreamConnected] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isPulling, setIsPulling] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [pendingSync, setPendingSync] = useState(0);
-  const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
-  const [syncReady, setSyncReady] = useState(false);
-  const [serverRevision, setServerRevision] = useState(initialRevision);
-  const [clientRevision, setClientRevision] = useState(initialRevision);
 
   assemblyRef.current = assemblyItems;
   ordersRef.current = orders;
@@ -79,12 +55,7 @@ export function useWorkspace({
     setOrders([...next.orders]);
     setShippedArchive(next.shippedArchive ?? []);
     setApiOrderIds(next.apiOrderIds ?? []);
-    setServerRevision(next.revision);
-    setClientRevision(next.revision);
     revisionRef.current = next.revision;
-    saveWorkspace(next);
-    setLastSyncAt(Date.now());
-    setPendingSync(getPendingSyncCount());
   }, []);
 
   const applyFromServer = useCallback(
@@ -97,170 +68,45 @@ export function useWorkspace({
 
   const pushToServer = useCallback(
     (workspace: ReturnType<typeof createWorkspace>) => {
-      pushChainRef.current = pushChainRef.current
-        .then(async () => {
-          setIsSyncing(true);
-          try {
-            const result = await pushWorkspace(workspace);
-            if (result.workspace) {
-              applyWorkspaceState(result.workspace);
-            } else {
-              setIsServerReachable(await checkServerReachable());
-            }
-            setPendingSync(getPendingSyncCount());
-          } finally {
-            setIsSyncing(false);
+      setIsSyncing(true);
+      void pushWorkspace(workspace)
+        .then((result) => {
+          if (result.workspace) {
+            applyWorkspaceState(result.workspace);
+          } else {
+            setIsServerReachable(false);
           }
         })
-        .catch(() => {
+        .finally(() => {
           setIsSyncing(false);
-          setPendingSync(getPendingSyncCount());
         });
-
-      return pushChainRef.current;
     },
     [applyWorkspaceState],
   );
 
-  const pullRemote = useCallback(async () => {
-    setIsPulling(true);
-    try {
-      const workspace = await fetchSharedWorkspace();
-      if (workspace) applyFromServer(workspace);
-    } catch {
-      // retry on next poll
-    } finally {
-      setIsPulling(false);
-    }
-  }, [applyFromServer]);
-
   const persist = useCallback(
     (assembly: AssemblyItem[], ords: ShippingOrder[]) => {
-      userEditedRef.current = true;
-
       const workspace = normalizeWorkspaceState(
         createWorkspace(assembly, ords, shippedArchiveRef.current),
       );
       shippedArchiveRef.current = workspace.shippedArchive ?? [];
       setShippedArchive(workspace.shippedArchive ?? []);
-      saveWorkspace(workspace);
-      void pushToServer(workspace);
+      pushToServer(workspace);
     },
     [pushToServer],
   );
 
-  const runSync = useCallback(async () => {
-    setIsSyncing(true);
-    try {
-      const result = await flushSyncQueue();
-      setPendingSync(getPendingSyncCount());
-      if (result.workspace) {
-        applyWorkspaceState(result.workspace);
-      } else if (result.synced > 0) {
-        setLastSyncAt(Date.now());
-      }
-      return result;
-    } finally {
-      setIsSyncing(false);
-    }
-  }, [applyWorkspaceState]);
-
   useEffect(() => {
-    if (bootstrappedRef.current) return;
-    bootstrappedRef.current = true;
-
-    const bootstrap = async () => {
-      setIsServerReachable(await checkServerReachable());
-      await runSync();
-
-      let remote: SharedWorkspaceState | null = null;
-      try {
-        remote = await fetchSharedWorkspace();
-      } catch {
-        // offline — use local cache
-      }
-
-      if (remote?.resetToken) {
-        syncResetToken(remote.resetToken);
-      }
-
-      const local = loadWorkspace();
-
-      if (userEditedRef.current) {
-        if (local) {
-          const pushed = await pushWorkspace(local);
-          if (pushed.workspace && pushed.workspace.revision > revisionRef.current) {
-            applyWorkspaceState(pushed.workspace);
-          } else if (local.updatedAt >= (remote?.updatedAt ?? 0)) {
-            applyWorkspaceState({ ...local, revision: remote?.revision ?? revisionRef.current } as SharedWorkspaceState);
-          }
-        }
-        setSyncReady(true);
-        return;
-      }
-
-      if (local && remote && local.updatedAt > remote.updatedAt) {
-        const pushed = await pushWorkspace(local);
-        if (pushed.workspace && pushed.workspace.revision > revisionRef.current) {
-          applyWorkspaceState(pushed.workspace);
-        } else if (remote.revision <= revisionRef.current) {
-          applyWorkspaceState({ ...local, revision: remote.revision } as SharedWorkspaceState);
-        }
-      } else if (remote && remote.revision > revisionRef.current) {
-        applyWorkspaceState(remote);
-      } else if (local) {
-        applyWorkspaceState({ ...local, revision: 0 } as SharedWorkspaceState);
-        await pushToServer(local);
-      }
-
-      setSyncReady(true);
-      setPendingSync(getPendingSyncCount());
-    };
-
-    void bootstrap();
-  }, [applyWorkspaceState, pushToServer, runSync]);
+    void checkServerReachable().then(setIsServerReachable);
+    return subscribeServerReachability(setIsServerReachable);
+  }, []);
 
   useEffect(() => {
     return subscribeWorkspaceStream({
       onWorkspace: applyFromServer,
       onConnectionChange: setIsStreamConnected,
-      onRevisionPing: (revision) => {
-        setServerRevision(revision);
-        if (revision > revisionRef.current) {
-          void pullRemote();
-        }
-      },
     });
-  }, [applyFromServer, pullRemote]);
-
-  useEffect(() => {
-    const pollRevision = () => {
-      void fetchWorkspaceRevision()
-        .then((revision) => {
-          setServerRevision(revision);
-          if (revision > revisionRef.current) {
-            void pullRemote();
-          }
-        })
-        .catch(() => {
-          // retry
-        });
-    };
-
-    pollRevision();
-    const interval = setInterval(pollRevision, REVISION_POLL_MS);
-    return () => clearInterval(interval);
-  }, [pullRemote]);
-
-  useEffect(() => {
-    return subscribeServerReachability((reachable) => {
-      setIsServerReachable(reachable);
-      if (reachable) {
-        void pullRemote();
-        void runSync();
-      }
-    });
-  }, [pullRemote, runSync]);
+  }, [applyFromServer]);
 
   useEffect(() => {
     const onOnline = () => setIsInternetOnline(true);
@@ -292,52 +138,6 @@ export function useWorkspace({
     },
     [persist],
   );
-
-  const refreshFromApi = useCallback(async (): Promise<{
-    ok: boolean;
-    error?: string;
-    ordersCount?: number;
-    assemblyCount?: number;
-    apiOrdersCount?: number;
-    inArchiveCount?: number;
-    note?: string;
-  }> => {
-    setIsRefreshing(true);
-    try {
-      const result = await refreshWorkspaceFromApi();
-      if (!result.ok) {
-        return { ok: false, error: result.error ?? "Не удалось обновить" };
-      }
-      if (!result.workspace) {
-        return { ok: false, error: "Пустой ответ сервера" };
-      }
-
-      const { orders: mergedOrders, shippedArchive: mergedArchive } =
-        mergeWorkspaceWithLocalArchive(
-          result.workspace,
-          ordersRef.current,
-          shippedArchiveRef.current,
-        );
-      const merged = normalizeWorkspaceState({
-        ...result.workspace,
-        orders: mergedOrders,
-        shippedArchive: mergedArchive,
-      });
-      applyWorkspaceState(merged);
-      userEditedRef.current = true;
-
-      return {
-        ok: true,
-        ordersCount: result.ordersCount,
-        assemblyCount: result.assemblyCount,
-        apiOrdersCount: result.apiOrdersCount,
-        inArchiveCount: result.inArchiveCount,
-        note: result.note,
-      };
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [applyWorkspaceState]);
 
   const updateOrders = useCallback(
     (next: ShippingOrder[] | ((prev: ShippingOrder[]) => ShippingOrder[])) => {
@@ -409,14 +209,5 @@ export function useWorkspace({
     isInternetOnline,
     isStreamConnected,
     isSyncing,
-    isPulling,
-    isRefreshing,
-    pendingSync,
-    lastSyncAt,
-    serverRevision,
-    clientRevision,
-    syncReady,
-    syncNow: runSync,
-    refreshFromApi,
   };
 }

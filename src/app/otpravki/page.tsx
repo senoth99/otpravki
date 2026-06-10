@@ -52,7 +52,6 @@ export default async function OtpravkiPage() {
   const resetToken = await getMockResetToken();
 
   if (!USE_MOCK_ORDERS) {
-    const existing = await getSharedWorkspace();
     try {
       const { workspace } = await fetchAndSyncWorkspaceFromApi();
       return (
@@ -66,21 +65,10 @@ export default async function OtpravkiPage() {
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : "Ошибка загрузки заказов";
-      if (existing) {
-        return (
-          <OtpravkiShell
-            assemblyItems={existing.assemblyItems}
-            orders={existing.orders}
-            apiOrderIds={existing.apiOrderIds}
-            shippedArchive={existing.shippedArchive}
-            initialRevision={existing.revision}
-          />
-        );
-      }
       return (
         <EmptyState
-          title="Не удалось загрузить заказы"
-          hint={`${message}. Проверь CASHER_API_KEY в .env и: sudo systemctl restart otpravki`}
+          title="Нет связи с Casher API"
+          hint={`${message}. Нужен интернет и доступ к api.cashercollection.com`}
         />
       );
     }

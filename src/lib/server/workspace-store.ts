@@ -1,37 +1,17 @@
-import { mkdir, readFile, writeFile } from "fs/promises";
-import path from "path";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
 import { mergeShippedArchives, normalizeWorkspaceState, unionPermanentArchive } from "@/lib/shipped-archive";
-import { mergeFreshOrdersData } from "@/lib/workspace-api-merge";
 import { mergeWorkspaces } from "@/lib/workspace-merge";
 import type { WorkspaceData } from "@/lib/build-workspace";
+import { loadPersistedArchive, savePersistedArchive } from "@/lib/server/shipped-archive-store";
 import { logSync } from "@/lib/server/sync-log";
 import { appendSyncEvent, forwardToRemote } from "@/lib/server/sync-store";
-
-const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
-const WORKSPACE_DIR = path.join(DATA_DIR, "workspace");
-const STATE_FILE = path.join(WORKSPACE_DIR, "state.json");
 
 type WorkspaceListener = (state: SharedWorkspaceState) => void;
 
 const listeners = new Set<WorkspaceListener>();
 
 let memoryState: SharedWorkspaceState | null = null;
-
-async function readFromDisk(): Promise<SharedWorkspaceState | null> {
-  try {
-    const raw = await readFile(STATE_FILE, "utf-8");
-    return JSON.parse(raw) as SharedWorkspaceState;
-  } catch {
-    return null;
-  }
-}
-
-async function writeToDisk(state: SharedWorkspaceState) {
-  await mkdir(WORKSPACE_DIR, { recursive: true });
-  await writeFile(STATE_FILE, JSON.stringify(state), "utf-8");
-}
 
 function broadcast(state: SharedWorkspaceState) {
   for (const listener of listeners) {
@@ -53,13 +33,6 @@ function broadcast(state: SharedWorkspaceState) {
       updatedBy: state.updatedBy,
       orders: state.orders.length,
     });
-  } else {
-    void logSync("broadcast.no-socket", {
-      revision: state.revision,
-      updatedBy: state.updatedBy,
-      orders: state.orders.length,
-      hint: "Запускай через npm run dev / node server.js, не next dev",
-    });
   }
 }
 
@@ -80,26 +53,11 @@ export function subscribeWorkspace(listener: WorkspaceListener): () => void {
 }
 
 export async function getWorkspaceRevision(): Promise<number> {
-  const state = await getSharedWorkspace();
-  return state?.revision ?? 0;
+  return memoryState?.revision ?? 0;
 }
 
+/** Только оперативная сессия — без чтения с диска */
 export async function getSharedWorkspace(): Promise<SharedWorkspaceState | null> {
-  if (memoryState) return memoryState;
-
-  const disk = await readFromDisk();
-  if (!disk) return null;
-
-  const normalized = normalizeWorkspaceState(disk);
-  memoryState = normalized;
-
-  if (
-    disk.orders.length !== normalized.orders.length ||
-    (disk.shippedArchive?.length ?? 0) !== (normalized.shippedArchive?.length ?? 0)
-  ) {
-    await writeToDisk(normalized);
-  }
-
   return memoryState;
 }
 
@@ -129,35 +87,26 @@ export async function resetSharedWorkspace(
   };
 
   memoryState = state;
-  await writeToDisk(state);
   broadcast(state);
   return state;
 }
 
-export async function syncWorkspaceFromApi(fresh: WorkspaceData): Promise<SharedWorkspaceState> {
-  const existing = await getSharedWorkspace();
+/** Свежие заказы с API + постоянный архив отправленных (до 200) */
+export async function replaceWorkspaceFromApi(fresh: WorkspaceData): Promise<SharedWorkspaceState> {
+  const shippedArchive = await loadPersistedArchive();
 
-  const next: SharedWorkspaceState = normalizeWorkspaceState(
-    existing
-      ? {
-          ...mergeFreshOrdersData(existing, fresh),
-          revision: existing.revision + 1,
-          updatedBy: "api-sync",
-        }
-      : {
-          version: 1,
-          revision: 1,
-          assemblyItems: fresh.assemblyItems,
-          orders: fresh.orders,
-          shippedArchive: [],
-          apiOrderIds: fresh.orders.map((order) => order.id),
-          updatedAt: Date.now(),
-          updatedBy: "server",
-        },
-  );
+  const next: SharedWorkspaceState = normalizeWorkspaceState({
+    version: 1,
+    revision: (memoryState?.revision ?? 0) + 1,
+    assemblyItems: fresh.assemblyItems,
+    orders: fresh.orders,
+    shippedArchive,
+    apiOrderIds: fresh.orders.map((order) => order.id),
+    updatedAt: Date.now(),
+    updatedBy: "api-sync",
+  });
 
   memoryState = next;
-  await writeToDisk(next);
   broadcast(next);
   return next;
 }
@@ -167,7 +116,7 @@ export async function initSharedWorkspace(
   orders: ShippingOrder[],
   resetToken?: string,
 ): Promise<SharedWorkspaceState> {
-  const existing = await getSharedWorkspace();
+  const existing = memoryState;
   if (existing && !isStaleMockWorkspace(existing, resetToken ?? null)) {
     return existing;
   }
@@ -179,7 +128,7 @@ async function applyWorkspaceUpdateInner(
   incoming: SharedWorkspaceState | Omit<SharedWorkspaceState, "revision">,
   clientId: string,
 ): Promise<SharedWorkspaceState> {
-  const current = await getSharedWorkspace();
+  const current = memoryState;
 
   const mergedBase =
     !current || incoming.updatedAt >= current.updatedAt
@@ -205,8 +154,9 @@ async function applyWorkspaceUpdateInner(
     updatedBy: clientId,
   });
 
+  next.shippedArchive = await savePersistedArchive(next.shippedArchive ?? []);
+
   memoryState = next;
-  await writeToDisk(next);
   broadcast(next);
 
   void logSync("workspace.update", {

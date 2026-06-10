@@ -24,13 +24,7 @@ async function readWorkspaceState() {
     const data = await res.json();
     return data.workspace ?? null;
   } catch {
-    const stateFile = path.join(getDataDir(), "workspace", "state.json");
-    try {
-      const raw = await fsp.readFile(stateFile, "utf8");
-      return JSON.parse(raw);
-    } catch {
-      return null;
-    }
+    return null;
   }
 }
 

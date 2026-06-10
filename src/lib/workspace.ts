@@ -5,10 +5,7 @@ import { fetchWithTimeout } from "@/lib/fetch-timeout";
 import { mergeShippedArchives, unionPermanentArchive } from "@/lib/shipped-archive";
 import { mergeWorkspaces } from "@/lib/workspace-merge";
 
-const WORKSPACE_KEY = "otpravki-workspace-v1";
-const SYNC_QUEUE_KEY = "otpravki-sync-queue-v1";
 const CLIENT_ID_KEY = "otpravki-client-id";
-const RESET_TOKEN_KEY = "otpravki-reset-token";
 
 export type { WorkspaceState, SharedWorkspaceState };
 
@@ -22,138 +19,11 @@ export function getClientId(): string {
   return id;
 }
 
-export function loadWorkspace(): WorkspaceState | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(WORKSPACE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as WorkspaceState;
-  } catch {
-    return null;
-  }
-}
-
-export function saveWorkspace(state: WorkspaceState) {
-  localStorage.setItem(WORKSPACE_KEY, JSON.stringify(state));
-}
-
-export function clearLocalWorkspace() {
-  localStorage.removeItem(WORKSPACE_KEY);
-  localStorage.removeItem(SYNC_QUEUE_KEY);
-}
-
-export function syncResetToken(serverToken: string | undefined) {
-  if (!serverToken) return false;
-
-  const localToken = localStorage.getItem(RESET_TOKEN_KEY);
-  if (localToken === serverToken) return false;
-
-  clearLocalWorkspace();
-  localStorage.setItem(RESET_TOKEN_KEY, serverToken);
-  return true;
-}
-
-export function enqueueSync(workspace: WorkspaceState) {
-  localStorage.setItem(
-    SYNC_QUEUE_KEY,
-    JSON.stringify([
-      {
-        id: `${workspace.updatedAt}-${Math.random().toString(36).slice(2, 8)}`,
-        createdAt: Date.now(),
-        workspace,
-      },
-    ]),
-  );
-}
-
-export function getPendingSyncCount(): number {
-  try {
-    const raw = localStorage.getItem(SYNC_QUEUE_KEY);
-    const queue = raw ? (JSON.parse(raw) as unknown[]) : [];
-    return queue.length;
-  } catch {
-    return 0;
-  }
-}
-
-export function clearSyncQueue() {
-  localStorage.removeItem(SYNC_QUEUE_KEY);
-}
-
-export async function refreshWorkspaceFromApi(): Promise<{
-  ok: boolean;
-  workspace?: SharedWorkspaceState;
-  error?: string;
-  ordersCount?: number;
-  assemblyCount?: number;
-  apiOrdersCount?: number;
-  inArchiveCount?: number;
-  note?: string;
-}> {
-  try {
-    logClientSync("refresh.start");
-    const res = await fetchWithTimeout("/api/workspace/refresh", {
-      method: "POST",
-      cache: "no-store",
-      timeoutMs: 60_000,
-    });
-
-    const data = (await res.json()) as {
-      ok: boolean;
-      workspace?: SharedWorkspaceState;
-      error?: string;
-      ordersCount?: number;
-      assemblyCount?: number;
-      apiOrdersCount?: number;
-      inArchiveCount?: number;
-      note?: string;
-    };
-
-    if (!res.ok || !data.ok) {
-      logClientSync("refresh.fail", { message: data.error, meta: { status: res.status } });
-      return { ok: false, error: data.error ?? "Не удалось обновить данные" };
-    }
-
-    logClientSync("refresh.ok", {
-      meta: { ordersCount: data.ordersCount, assemblyCount: data.assemblyCount },
-    });
-
-    return {
-      ok: true,
-      workspace: data.workspace,
-      ordersCount: data.ordersCount,
-      assemblyCount: data.assemblyCount,
-      apiOrdersCount: data.apiOrdersCount,
-      inArchiveCount: data.inArchiveCount,
-      note: data.note,
-    };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "fetch failed";
-    logClientSync("refresh.fail", { message });
-    return {
-      ok: false,
-      error: "Не удалось связаться с сервером. Проверь Wi‑Fi и что otpravki запущен.",
-    };
-  }
-}
-
 const SYNC_TIMEOUT_MS = 20_000;
 
 function cacheBust(url: string): string {
   const sep = url.includes("?") ? "&" : "?";
   return `${url}${sep}_=${Date.now()}`;
-}
-
-export async function fetchWorkspaceRevision(): Promise<number> {
-  const res = await fetchWithTimeout(cacheBust("/api/workspace/revision"), {
-    cache: "no-store",
-    timeoutMs: SYNC_TIMEOUT_MS,
-  });
-  if (!res.ok) {
-    throw new Error(`revision fetch failed: ${res.status}`);
-  }
-  const data = (await res.json()) as { revision: number };
-  return data.revision;
 }
 
 export async function fetchSharedWorkspace(): Promise<SharedWorkspaceState | null> {
@@ -219,51 +89,18 @@ export async function pushWorkspace(workspace: WorkspaceState): Promise<{
 
     if (!res.ok) {
       logClientSync("push.http.error", { meta: { status: res.status } });
-      enqueueSync(workspace);
       return { ok: false };
     }
 
     if (data.ok) {
       logClientSync("push.http.ok", { revision: data.workspace?.revision });
-      clearSyncQueue();
     }
     return data;
   } catch (err) {
     logClientSync("push.http.fail", {
       message: err instanceof Error ? err.message : "fetch failed",
     });
-    enqueueSync(workspace);
     return { ok: false };
-  }
-}
-
-export async function flushSyncQueue(): Promise<{
-  synced: number;
-  failed: number;
-  workspace?: SharedWorkspaceState;
-}> {
-  try {
-    const raw = localStorage.getItem(SYNC_QUEUE_KEY);
-    if (!raw) return { synced: 0, failed: 0 };
-
-    const queue = JSON.parse(raw) as { workspace: WorkspaceState }[];
-    if (queue.length === 0) return { synced: 0, failed: 0 };
-
-    const local = loadWorkspace();
-    const queued = queue[queue.length - 1].workspace;
-    const toPush =
-      local && local.updatedAt > queued.updatedAt
-        ? local
-        : queued;
-
-    const result = await pushWorkspace(toPush);
-    if (result.ok) {
-      clearSyncQueue();
-      return { synced: 1, failed: 0, workspace: result.workspace };
-    }
-    return { synced: 0, failed: 1 };
-  } catch {
-    return { synced: 0, failed: 1 };
   }
 }
 
@@ -303,27 +140,13 @@ export function createWorkspace(
 export interface WorkspaceStreamOptions {
   onWorkspace: (workspace: SharedWorkspaceState) => void;
   onConnectionChange?: (connected: boolean) => void;
-  onRevisionPing?: (revision: number) => void;
 }
 
 const SOCKET_RECONNECT_MS = 300;
 
-function applyWorkspaceEvent(
-  workspace: SharedWorkspaceState | undefined,
-  onWorkspace: (workspace: SharedWorkspaceState) => void,
-  onRevisionPing?: (revision: number) => void,
-) {
-  if (!workspace) return;
-  onWorkspace(workspace);
-  if (typeof workspace.revision === "number") {
-    onRevisionPing?.(workspace.revision);
-  }
-}
-
 export function subscribeWorkspaceStream({
   onWorkspace,
   onConnectionChange,
-  onRevisionPing,
 }: WorkspaceStreamOptions): () => void {
   let connected = false;
   let closed = false;
@@ -332,16 +155,6 @@ export function subscribeWorkspaceStream({
     if (connected === next) return;
     connected = next;
     onConnectionChange?.(next);
-  };
-
-  const refreshFromServer = () => {
-    void fetchSharedWorkspace()
-      .then((workspace) => {
-        if (workspace) onWorkspace(workspace);
-      })
-      .catch(() => {
-        // retry on next reconnect
-      });
   };
 
   const socket = io({
@@ -363,32 +176,17 @@ export function subscribeWorkspaceStream({
   });
   socket.on("workspace:sync", (workspace: SharedWorkspaceState) => {
     logClientSync("recv.sync", { revision: workspace?.revision });
-    applyWorkspaceEvent(workspace, onWorkspace, onRevisionPing);
+    if (workspace) onWorkspace(workspace);
   });
   socket.on("workspace:update", (workspace: SharedWorkspaceState) => {
     logClientSync("recv.update", { revision: workspace?.revision });
-    applyWorkspaceEvent(workspace, onWorkspace, onRevisionPing);
+    if (workspace) onWorkspace(workspace);
   });
-
-  const reconnectNow = () => {
-    if (closed) return;
-    refreshFromServer();
-    if (!socket.connected) socket.connect();
-  };
-
-  const onVisible = () => {
-    if (document.visibilityState === "visible") reconnectNow();
-  };
-
-  window.addEventListener("focus", reconnectNow);
-  document.addEventListener("visibilitychange", onVisible);
 
   return () => {
     closed = true;
     socket.disconnect();
     if (activeSocket === socket) activeSocket = null;
     setConnected(false);
-    window.removeEventListener("focus", reconnectNow);
-    document.removeEventListener("visibilitychange", onVisible);
   };
 }
