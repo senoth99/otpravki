@@ -84,7 +84,10 @@ export function mapUnshippedOrdersToWorkspace(
 
       const assemblyLine = assemblyMap.get(key);
       if (assemblyLine) {
-        assemblyLine.quantity += line.quantity;
+        assemblyLine.quantity = Math.min(
+          assemblyLine.quantity + line.quantity,
+          line.warehouseQuantity,
+        );
       } else {
         assemblyMap.set(key, {
           id: `assembly-${key}`,
@@ -95,7 +98,7 @@ export function mapUnshippedOrdersToWorkspace(
           brand: product?.brand || "CASHER",
           imageUrl: imagePath ? getImageUrl(imagePath) : "",
           barcodeId: String(sizeId),
-          quantity: line.quantity,
+          quantity: Math.min(line.quantity, line.warehouseQuantity),
           collectedCount: 0,
           isBlogger,
         });
