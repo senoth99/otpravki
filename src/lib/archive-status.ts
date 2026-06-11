@@ -2,12 +2,12 @@ export type ArchiveDeliveryStatus = "in-transit" | "delivered";
 
 export const ARCHIVE_STATUS_LABEL: Record<ArchiveDeliveryStatus, string> = {
   "in-transit": "В обработке",
-  delivered: "Уехал",
+  delivered: "Собран",
 };
 
 export const ARCHIVE_STATUS_HINT: Record<ArchiveDeliveryStatus, string> = {
   "in-transit": "Заказ ещё не уехал в СДЭК или СДЭК его ещё не отправил",
-  delivered: "Заказ уехал к покупателю — всё",
+  delivered: "Заказ собран и передан в отправку",
 };
 
 export function getArchiveDeliveryStatus(

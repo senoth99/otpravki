@@ -451,7 +451,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
                 </div>
                 <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2 sm:block sm:bg-transparent sm:p-0 sm:text-right">
                   <p className="text-sm font-medium text-gray-700">
-                    {shippableIndices.indexOf(currentIndex) + 1 || 1} / {shippableIndices.length || 1}
+                    {Math.max(1, shippableIndices.indexOf(currentIndex) + 1)} / {shippableIndices.length || 1}
                   </p>
                   <p className="text-xs tabular-nums text-gray-500">
                     Сканировано: {scannedCount} / {totalUnits}

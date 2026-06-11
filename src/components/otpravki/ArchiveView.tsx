@@ -7,9 +7,10 @@ import {
   canUnshipFromArchive,
   getArchiveDeliveryStatus,
 } from "@/lib/archive-status";
-import { formatMoscowDateTime, formatOrderNumberShort } from "@/lib/format";
+import { formatMoscowDateTime, formatOrderNumberShort, formatSize } from "@/lib/format";
 import { mergeShippedArchives } from "@/lib/shipped-archive";
 import type { ShippingOrder } from "@/types/shipping";
+import { ProductImage } from "./ProductImage";
 
 interface ArchiveViewProps {
   orders: ShippingOrder[];
@@ -134,9 +135,29 @@ export function ArchiveView({ orders, shippedArchive, apiOrderIds, onUnship }: A
                 </div>
               </div>
 
-              <p className="mt-3 text-xs leading-relaxed text-gray-600">
-                {ARCHIVE_STATUS_HINT[status]}
-              </p>
+              <div className="mt-3 space-y-1.5">
+                {order.items.map((item) => (
+                  <div key={item.id} className="flex items-center gap-2.5">
+                    <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+                      <ProductImage
+                        src={item.imageUrl}
+                        alt={item.productName}
+                        className="object-cover"
+                        sizes="40px"
+                      />
+                      {item.quantity > 1 && (
+                        <div className="absolute left-0.5 top-0.5 rounded bg-gray-900 px-0.5 text-[9px] font-bold text-white leading-none py-0.5">
+                          ×{item.quantity}
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium text-gray-800">{item.productName}</p>
+                      <p className="text-[11px] text-gray-500">{item.brand} · {formatSize(item.size)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500">
                 <span className="rounded-lg bg-white/70 px-2 py-1">
@@ -158,6 +179,10 @@ export function ArchiveView({ orders, shippedArchive, apiOrderIds, onUnship }: A
                   </button>
                 )}
               </div>
+
+              <p className="mt-2 text-xs leading-relaxed text-gray-500">
+                {ARCHIVE_STATUS_HINT[status]}
+              </p>
             </div>
           );
         })}

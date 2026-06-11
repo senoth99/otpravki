@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
 import { canUnshipFromArchive } from "@/lib/archive-status";
@@ -167,11 +167,12 @@ export function useWorkspace({
     [persist],
   );
 
+  const apiSet = useMemo(() => new Set(apiOrderIds), [apiOrderIds]);
+
   const unshipFromArchive = useCallback(
     (orderId: string): { ok: true } | { ok: false; error: string } => {
-      const apiSet = new Set(apiOrderIds);
       if (!canUnshipFromArchive(orderId, apiSet)) {
-        return { ok: false, error: "Заказ уже уехал в СДЭК — отменить нельзя" };
+        return { ok: false, error: "Заказ уже отправлен в СДЭК — отменить нельзя" };
       }
 
       const archived =
@@ -185,7 +186,7 @@ export function useWorkspace({
       const unshipped: ShippingOrder = {
         ...archived,
         barcodePrinted: false,
-        barcodePrintedAt: Date.now(),
+        barcodePrintedAt: undefined,
         items: archived.items.map((item) => ({
           ...item,
           scannedCount: 0,
@@ -207,7 +208,7 @@ export function useWorkspace({
 
       return { ok: true };
     },
-    [apiOrderIds, persist],
+    [apiSet, persist],
   );
 
   return {

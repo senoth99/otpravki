@@ -69,10 +69,6 @@ export async function pushWorkspace(workspace: WorkspaceState): Promise<{
     clientId: getClientId(),
   };
 
-  if (activeSocket?.connected) {
-    activeSocket.emit("workspace:set", payload);
-  }
-
   try {
     const res = await fetchWithTimeout("/api/workspace", {
       method: "POST",

@@ -89,10 +89,9 @@ function attachWorkspaceSocket(httpServer) {
 
         const body = await res.json();
         if (body.workspace) {
-          io.emit("workspace:update", body.workspace);
-          void logSync("socket.emit", {
+          void logSync("socket.set.ok", {
+            socketId: socket.id,
             revision: body.workspace.revision,
-            source: "workspace:set",
           });
         }
       } catch (err) {
