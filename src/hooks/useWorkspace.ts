@@ -116,10 +116,11 @@ export function useWorkspace({
 
   useEffect(() => {
     return subscribeWorkspaceStream({
+      onSync: applyWorkspaceState,
       onWorkspace: applyFromServer,
       onConnectionChange: setIsStreamConnected,
     });
-  }, [applyFromServer]);
+  }, [applyFromServer, applyWorkspaceState]);
 
   useEffect(() => {
     const onOnline = () => setIsInternetOnline(true);

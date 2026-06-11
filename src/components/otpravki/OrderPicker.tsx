@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { formatMoscowDate, formatOrderNumberShort } from "@/lib/format";
-import { ORDER_STATUS_LABEL, type OrderDisplayStatus } from "@/lib/order-status";
+import { type OrderDisplayStatus } from "@/lib/order-status";
 import { getSortedOrderIndices } from "@/lib/order-sort";
 import type { ShippingOrder } from "@/types/shipping";
 
@@ -64,8 +64,7 @@ function OrderTabContent({
         {formatOrderNumberShort(order.orderNumber)}
       </p>
       <p className={`mt-0.5 w-full truncate text-[10px] leading-tight ${subtextClass(status, active)}`}>
-        {order.createdAt ? `от ${formatMoscowDate(order.createdAt)} · ` : ""}
-        {ORDER_STATUS_LABEL[status]}
+        {order.createdAt ? `от ${formatMoscowDate(order.createdAt)}` : ""}
       </p>
     </>
   );

@@ -135,6 +135,7 @@ export function createWorkspace(
 
 export interface WorkspaceStreamOptions {
   onWorkspace: (workspace: SharedWorkspaceState) => void;
+  onSync?: (workspace: SharedWorkspaceState) => void;
   onConnectionChange?: (connected: boolean) => void;
 }
 
@@ -142,6 +143,7 @@ const SOCKET_RECONNECT_MS = 300;
 
 export function subscribeWorkspaceStream({
   onWorkspace,
+  onSync,
   onConnectionChange,
 }: WorkspaceStreamOptions): () => void {
   let connected = false;
@@ -172,7 +174,7 @@ export function subscribeWorkspaceStream({
   });
   socket.on("workspace:sync", (workspace: SharedWorkspaceState) => {
     logClientSync("recv.sync", { revision: workspace?.revision });
-    if (workspace) onWorkspace(workspace);
+    if (workspace) (onSync ?? onWorkspace)(workspace);
   });
   socket.on("workspace:update", (workspace: SharedWorkspaceState) => {
     logClientSync("recv.update", { revision: workspace?.revision });

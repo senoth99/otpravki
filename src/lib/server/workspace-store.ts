@@ -1,6 +1,6 @@
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
-import { mergeShippedArchives, normalizeWorkspaceState, unionPermanentArchive } from "@/lib/shipped-archive";
+import { mergeShippedArchives, normalizeWorkspaceState } from "@/lib/shipped-archive";
 import { mergeWorkspaces } from "@/lib/workspace-merge";
 import type { WorkspaceData } from "@/lib/build-workspace";
 import { mergePersistedArchive } from "@/lib/server/shipped-archive-store";
@@ -172,22 +172,16 @@ async function applyWorkspaceUpdateInner(
 ): Promise<SharedWorkspaceState> {
   const current = memoryState;
 
-  const mergedBase =
-    !current || incoming.updatedAt >= current.updatedAt
-      ? {
-          version: 1 as const,
-          assemblyItems: incoming.assemblyItems,
-          orders: incoming.orders,
-          shippedArchive: unionPermanentArchive(
-            incoming.shippedArchive ?? [],
-            incoming.orders,
-            current?.shippedArchive ?? [],
-            current?.orders ?? [],
-          ),
-          apiOrderIds: incoming.apiOrderIds ?? current?.apiOrderIds,
-          updatedAt: incoming.updatedAt,
-        }
-      : mergeWorkspaces(current, incoming);
+  const mergedBase = current
+    ? mergeWorkspaces(current, incoming)
+    : {
+        version: 1 as const,
+        assemblyItems: incoming.assemblyItems,
+        orders: incoming.orders,
+        shippedArchive: incoming.shippedArchive ?? [],
+        apiOrderIds: incoming.apiOrderIds,
+        updatedAt: incoming.updatedAt,
+      };
 
   const next: SharedWorkspaceState = normalizeWorkspaceState({
     ...mergedBase,
