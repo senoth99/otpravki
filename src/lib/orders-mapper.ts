@@ -1,4 +1,5 @@
 import { sortAssemblyItemsByUrgency } from "@/lib/assembly-sort";
+import { isBloggerOrder } from "@/lib/blogger-order";
 import { getImageUrl } from "@/lib/api";
 import { addMoscowCalendarDays, formatMoscowDate, formatSize, isMoscowToday } from "@/lib/format";
 import { URGENCY_WEIGHT } from "@/lib/urgency";
@@ -11,8 +12,9 @@ import type {
   ShippingOrderItem,
 } from "@/types/shipping";
 
-function assemblyKey(productSlug: string, size: string) {
-  return `${productSlug}-${size.toLowerCase()}`;
+function assemblyKey(productSlug: string, size: string, isBlogger: boolean) {
+  const base = `${productSlug}-${size.toLowerCase()}`;
+  return isBlogger ? `${base}-blogger` : base;
 }
 
 function deriveUrgency(createdAt: string, allInStock: boolean): OrderUrgency {
@@ -69,6 +71,7 @@ export function mapUnshippedOrdersToWorkspace(
     if (!isFullyStockedOrder(order)) continue;
 
     const shippingItems: ShippingOrderItem[] = [];
+    const isBlogger = isBloggerOrder(order.orderNumber);
 
     for (const line of order.items) {
       if (!line.inStockAtWarehouse) continue;
@@ -76,7 +79,7 @@ export function mapUnshippedOrdersToWorkspace(
       const product = findProduct(productIndex, line.productSlug);
       const productId = line.productSlug;
       const sizeId = resolveSizeId(product, line.size, line.id);
-      const key = assemblyKey(productId, line.size);
+      const key = assemblyKey(productId, line.size, isBlogger);
       const imagePath = product?.images[0] ?? "";
 
       const assemblyLine = assemblyMap.get(key);
@@ -94,6 +97,7 @@ export function mapUnshippedOrdersToWorkspace(
           barcodeId: String(sizeId),
           quantity: line.quantity,
           collectedCount: 0,
+          isBlogger,
         });
       }
 
@@ -116,6 +120,7 @@ export function mapUnshippedOrdersToWorkspace(
     orders.push({
       id: String(order.id),
       orderNumber: order.orderNumber,
+      isBlogger,
       customerName: order.fullName,
       urgency: deriveUrgency(order.createdAt, true),
       deadline: formatDeadline(order.createdAt),

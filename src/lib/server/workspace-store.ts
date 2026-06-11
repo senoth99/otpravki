@@ -113,7 +113,12 @@ export async function replaceSessionArchive(shippedArchive: ShippingOrder[]): Pr
 
 /** Свежие заказы с API + архив + сохранённый прогресс сборки/сканов */
 export async function replaceWorkspaceFromApi(fresh: WorkspaceData): Promise<SharedWorkspaceState> {
-  const shippedArchive = await mergePersistedArchive(memoryState?.shippedArchive ?? []);
+  let shippedArchive = memoryState?.shippedArchive ?? [];
+  try {
+    shippedArchive = await mergePersistedArchive(shippedArchive);
+  } catch {
+    // архив на диске недоступен — продолжаем с оперативным состоянием
+  }
   const sessionProgress = memoryState ? null : await loadSessionProgress();
 
   const mergeBase: SharedWorkspaceState = memoryState ?? {
@@ -139,7 +144,11 @@ export async function replaceWorkspaceFromApi(fresh: WorkspaceData): Promise<Sha
   };
 
   memoryState = next;
-  await saveSessionProgress(next);
+  try {
+    await saveSessionProgress(next);
+  } catch {
+    // не блокируем загрузку заказов из-за ошибки записи прогресса
+  }
   broadcast(next);
   return next;
 }

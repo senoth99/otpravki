@@ -1,5 +1,6 @@
 import { ShippingPanel } from "@/components/otpravki";
 import { USE_MOCK_ORDERS } from "@/lib/app-config";
+import { describeCasherLoadError } from "@/lib/casher-error";
 import { buildInitialWorkspace } from "@/lib/build-workspace";
 import { getMockResetToken } from "@/lib/server/mock-reset";
 import { fetchAndSyncWorkspaceFromApi } from "@/lib/server/workspace-api-sync";
@@ -64,13 +65,8 @@ export default async function OtpravkiPage() {
         />
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Ошибка загрузки заказов";
-      return (
-        <EmptyState
-          title="Нет связи с Casher API"
-          hint={`${message}. Нужен интернет и доступ к api.cashercollection.com`}
-        />
-      );
+      const { title, hint } = describeCasherLoadError(error);
+      return <EmptyState title={title} hint={hint} />;
     }
   }
 

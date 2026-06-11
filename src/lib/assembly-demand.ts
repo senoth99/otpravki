@@ -1,8 +1,14 @@
 import { sortAssemblyItemsByUrgency } from "@/lib/assembly-sort";
+import { orderIsBlogger } from "@/lib/blogger-order";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 
-export function assemblyItemKey(productId: string, sizeId: number): string {
-  return `${productId}-${sizeId}`;
+export function assemblyItemKey(productId: string, sizeId: number, isBlogger = false): string {
+  const base = `${productId}-${sizeId}`;
+  return isBlogger ? `${base}-blogger` : base;
+}
+
+function itemPoolKey(item: { productId: string; sizeId: number; isBlogger?: boolean }): string {
+  return assemblyItemKey(item.productId, item.sizeId, item.isBlogger === true);
 }
 
 /** Сколько ещё нужно собрать по каждой позиции (только неотправленные заказы) */
@@ -11,8 +17,9 @@ export function computeAssemblyDemand(orders: ShippingOrder[]): Map<string, numb
 
   for (const order of orders) {
     if (order.barcodePrinted) continue;
+    const isBlogger = orderIsBlogger(order);
     for (const item of order.items) {
-      const key = assemblyItemKey(item.productId, item.sizeId);
+      const key = assemblyItemKey(item.productId, item.sizeId, isBlogger);
       demand.set(key, (demand.get(key) ?? 0) + item.quantity);
     }
   }
@@ -26,7 +33,7 @@ function enrichAssemblyItems(items: AssemblyItem[], orders: ShippingOrder[]): As
 
   return items
     .map((item) => {
-      const key = assemblyItemKey(item.productId, item.sizeId);
+      const key = itemPoolKey(item);
       const needed = demand.get(key) ?? 0;
       if (needed === 0) return null;
       return { ...item, quantity: needed };
@@ -93,10 +100,12 @@ export function consumeAssemblyForOrder(
   assemblyItems: AssemblyItem[],
   order: ShippingOrder,
 ): AssemblyItem[] {
+  const isBlogger = orderIsBlogger(order);
+
   return assemblyItems.map((assemblyItem) => {
-    const key = assemblyItemKey(assemblyItem.productId, assemblyItem.sizeId);
+    const key = itemPoolKey(assemblyItem);
     const line = order.items.find(
-      (item) => assemblyItemKey(item.productId, item.sizeId) === key,
+      (item) => assemblyItemKey(item.productId, item.sizeId, isBlogger) === key,
     );
     if (!line) return assemblyItem;
 

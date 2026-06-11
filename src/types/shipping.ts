@@ -28,6 +28,8 @@ export interface AssemblyItem {
   quantity: number;
   collectedCount: number;
   collectedAt?: number;
+  /** Отдельный пул сборки для блогерских заказов */
+  isBlogger?: boolean;
 }
 
 export type OrderUrgency = "critical" | "high" | "normal" | "low";
@@ -49,6 +51,8 @@ export interface ShippingOrderItem {
 export interface ShippingOrder {
   id: string;
   orderNumber: string;
+  /** Номер начинается с «б» — заказ для блогеров */
+  isBlogger?: boolean;
   customerName: string;
   urgency: OrderUrgency;
   deadline: string;

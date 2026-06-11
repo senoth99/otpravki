@@ -1,4 +1,5 @@
 import { assemblyItemKey } from "@/lib/assembly-demand";
+import { orderIsBlogger } from "@/lib/blogger-order";
 import { formatSize } from "@/lib/format";
 import { URGENCY_WEIGHT } from "@/lib/urgency";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
@@ -22,7 +23,7 @@ export function buildAssemblyAllocation(
 ): AssemblyAllocation {
   const pool = new Map<string, number>();
   for (const item of assemblyItems) {
-    pool.set(assemblyItemKey(item.productId, item.sizeId), item.collectedCount);
+    pool.set(assemblyItemKey(item.productId, item.sizeId, item.isBlogger === true), item.collectedCount);
   }
 
   const readyByOrderId = new Map<string, boolean>();
@@ -39,9 +40,10 @@ export function buildAssemblyAllocation(
   for (const order of activeOrders) {
     const missing: MissingAssemblyItem[] = [];
     let ready = true;
+    const isBlogger = orderIsBlogger(order);
 
     for (const line of order.items) {
-      const key = assemblyItemKey(line.productId, line.sizeId);
+      const key = assemblyItemKey(line.productId, line.sizeId, isBlogger);
       const have = pool.get(key) ?? 0;
       const need = line.quantity;
 
@@ -58,7 +60,7 @@ export function buildAssemblyAllocation(
 
     if (ready) {
       for (const line of order.items) {
-        const key = assemblyItemKey(line.productId, line.sizeId);
+        const key = assemblyItemKey(line.productId, line.sizeId, isBlogger);
         pool.set(key, (pool.get(key) ?? 0) - line.quantity);
       }
     }
@@ -94,13 +96,17 @@ export function getOrderAssemblyStatus(
   }
 
   const pool = new Map(
-    assemblyItems.map((item) => [assemblyItemKey(item.productId, item.sizeId), item.collectedCount]),
+    assemblyItems.map((item) => [
+      assemblyItemKey(item.productId, item.sizeId, item.isBlogger === true),
+      item.collectedCount,
+    ]),
   );
 
   const missing: MissingAssemblyItem[] = [];
+  const isBlogger = orderIsBlogger(order);
 
   for (const item of order.items) {
-    const key = assemblyItemKey(item.productId, item.sizeId);
+    const key = assemblyItemKey(item.productId, item.sizeId, isBlogger);
     const have = pool.get(key) ?? 0;
     const need = item.quantity;
 

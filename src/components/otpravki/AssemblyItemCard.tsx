@@ -2,6 +2,7 @@
 
 import { formatSize } from "@/lib/format";
 import type { AssemblyItem } from "@/types/shipping";
+import { BloggerBadge } from "./BloggerBadge";
 import { ProductImage } from "./ProductImage";
 import { QuantityTracker } from "./QuantityTracker";
 
@@ -55,10 +56,11 @@ export function AssemblyItemCard({ item, onIncrement, onDecrement }: AssemblyIte
             {item.productName}
           </p>
           <p className="mt-0.5 text-xs text-gray-500">{item.brand}</p>
-          <div className="mt-1.5 sm:mt-2">
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 sm:mt-2">
             <span className="rounded-lg bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
               {formatSize(item.size)}
             </span>
+            {item.isBlogger && <BloggerBadge />}
           </div>
         </div>
       </div>

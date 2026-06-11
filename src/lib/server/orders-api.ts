@@ -46,13 +46,19 @@ export async function fetchUnshippedOrders(): Promise<ApiUnshippedOrder[]> {
     throw new Error("Не задан API-ключ (api или CASHER_API_KEY в .env)");
   }
 
-  const res = await externalFetch(`${ORDERS_API_BASE}${UNSHIPPED_PATH}`, {
-    headers: {
-      ...casherAuthHeaders(),
-      Accept: "application/json",
-    },
-    timeoutMs: 25_000,
-  });
+  const ordersUrl = `${ORDERS_API_BASE}${UNSHIPPED_PATH}`;
+  let res: Response;
+  try {
+    res = await externalFetch(ordersUrl, {
+      headers: {
+        ...casherAuthHeaders(),
+        Accept: "application/json",
+      },
+      timeoutMs: 25_000,
+    });
+  } catch (error) {
+    throw new Error(formatApiFetchError(error, ordersUrl));
+  }
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");

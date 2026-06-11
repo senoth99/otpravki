@@ -7,7 +7,9 @@ import { resolveScanFromBarcode } from "@/lib/barcode-product";
 import { formatOrderNumberShort } from "@/lib/format";
 import { getOrderDisplayStatus } from "@/lib/order-status";
 import { findFirstAutoOrderIndex } from "@/lib/order-sort";
+import { orderIsBlogger } from "@/lib/blogger-order";
 import { printOrderBarcode } from "@/lib/print-barcode";
+import { BloggerBadge } from "./BloggerBadge";
 import type { ApiProduct, AssemblyItem, ShippingOrder } from "@/types/shipping";
 import { AssemblyLockedCard } from "./AssemblyLockedCard";
 import { AutoModeButton } from "./AutoModeButton";
@@ -426,6 +428,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
                     <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
                       {formatOrderNumberShort(displayOrder.orderNumber)}
                     </h2>
+                    {orderIsBlogger(displayOrder) && <BloggerBadge />}
                     {urgency && (
                       <span className={`rounded-lg px-2 py-0.5 text-xs font-medium ${urgency.className}`}>
                         {urgency.label}

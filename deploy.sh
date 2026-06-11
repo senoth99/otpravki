@@ -154,8 +154,8 @@ mkdir -p .next/standalone/.next
 cp -r .next/static .next/standalone/.next/static
 cp "$APP_DIR/server.js" .next/standalone/server.js
 cp "$APP_DIR/sync-log.js" .next/standalone/sync-log.js
-echo "==> Socket.IO для realtime..."
-npm install --prefix .next/standalone --omit=dev socket.io@^4.8.1
+echo "==> Зависимости standalone (socket.io, undici)..."
+npm install --prefix .next/standalone --omit=dev socket.io@^4.8.1 undici@^7.27.2
 
 UNIT_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 echo "==> Настраиваю systemd ($SERVICE_NAME)..."
