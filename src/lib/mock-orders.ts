@@ -73,10 +73,15 @@ export function generateOrdersFromAssembly(assemblyItems: AssemblyItem[], count 
       return toOrderItem(assemblyItem, Math.max(1, quantity));
     });
 
+    const ageDays =
+      urgency === "critical" ? 3 : urgency === "high" ? 2 : urgency === "normal" ? 1 : 0;
+    const createdAt = new Date(Date.now() - ageDays * 24 * 60 * 60 * 1000).toISOString();
+
     orders.push({
       id: `order-${i + 1}`,
       orderNumber: `CSH-${370000000000 + Math.floor(Math.random() * 999999999)}`,
       customerName: randomFrom(CUSTOMER_NAMES),
+      createdAt,
       urgency,
       deadline:
         urgency === "critical"

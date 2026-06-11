@@ -1,9 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { orderIsBlogger } from "@/lib/blogger-order";
-import { formatOrderNumberShort } from "@/lib/format";
-import { BloggerBadge } from "./BloggerBadge";
+import { formatMoscowDate, formatOrderNumberShort } from "@/lib/format";
 import { ORDER_STATUS_LABEL, type OrderDisplayStatus } from "@/lib/order-status";
 import { getSortedOrderIndices } from "@/lib/order-sort";
 import type { ShippingOrder } from "@/types/shipping";
@@ -62,11 +60,11 @@ function OrderTabContent({
 }) {
   return (
     <>
-      <p className="flex w-full items-center justify-center gap-1 truncate text-xs font-semibold">
-        <span className="truncate">{formatOrderNumberShort(order.orderNumber)}</span>
-        {orderIsBlogger(order) && <BloggerBadge className="!px-1 !py-0 text-[9px]" />}
+      <p className="w-full truncate text-xs font-semibold">
+        {formatOrderNumberShort(order.orderNumber)}
       </p>
-      <p className={`mt-0.5 line-clamp-2 w-full text-[10px] leading-tight ${subtextClass(status, active)}`}>
+      <p className={`mt-0.5 w-full truncate text-[10px] leading-tight ${subtextClass(status, active)}`}>
+        {order.createdAt ? `от ${formatMoscowDate(order.createdAt)} · ` : ""}
         {ORDER_STATUS_LABEL[status]}
       </p>
     </>

@@ -1,10 +1,11 @@
 "use client";
 
-import { formatOrderNumberShort } from "@/lib/format";
+import { formatMoscowDate, formatOrderNumberShort } from "@/lib/format";
 
 interface ShippedOrderCardProps {
   orderNumber: string;
   customerName: string;
+  createdAt?: string;
   onNext?: () => void;
   hasNext: boolean;
 }
@@ -12,6 +13,7 @@ interface ShippedOrderCardProps {
 export function ShippedOrderCard({
   orderNumber,
   customerName,
+  createdAt,
   onNext,
   hasNext,
 }: ShippedOrderCardProps) {
@@ -25,6 +27,9 @@ export function ShippedOrderCard({
 
       <p className="text-sm font-semibold text-gray-900">{formatOrderNumberShort(orderNumber)}</p>
       <p className="mt-1 text-xs text-gray-500">{customerName}</p>
+      {createdAt && (
+        <p className="mt-1 text-xs text-gray-500">Заказ от {formatMoscowDate(createdAt)}</p>
+      )}
       <p className="mt-3 text-sm font-medium text-green-700">Отправлен</p>
       <p className="mt-1 max-w-xs text-xs text-gray-500">Баркод распечатан, заказ передан в отправку</p>
 

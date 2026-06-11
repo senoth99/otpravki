@@ -54,6 +54,8 @@ export interface ShippingOrder {
   /** Номер начинается с «б» — заказ для блогеров */
   isBlogger?: boolean;
   customerName: string;
+  /** ISO-дата оформления заказа (из API) */
+  createdAt?: string;
   urgency: OrderUrgency;
   deadline: string;
   items: ShippingOrderItem[];

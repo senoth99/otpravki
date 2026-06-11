@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHardwareScanner } from "@/hooks/useHardwareScanner";
 import { buildAssemblyAllocation, getOrderAssemblyStatus } from "@/lib/assembly-status";
 import { resolveScanFromBarcode } from "@/lib/barcode-product";
-import { formatOrderNumberShort } from "@/lib/format";
+import { formatMoscowDate, formatOrderNumberShort } from "@/lib/format";
 import { getOrderDisplayStatus } from "@/lib/order-status";
 import { findFirstAutoOrderIndex } from "@/lib/order-sort";
 import { orderIsBlogger } from "@/lib/blogger-order";
@@ -417,6 +417,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
             <ShippedOrderCard
               orderNumber={displayOrder.orderNumber}
               customerName={displayOrder.customerName}
+              createdAt={displayOrder.createdAt}
               hasNext={hasNextUnshipped && !isViewingArchive}
               onNext={isViewingArchive ? undefined : handleNextOrder}
             />
@@ -441,7 +442,12 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
                     )}
                   </div>
                   <p className="mt-1 text-sm text-gray-600">{displayOrder.customerName}</p>
-                  <p className="text-xs text-gray-500">Срок: {displayOrder.deadline}</p>
+                  <p className="text-xs text-gray-500">
+                    {displayOrder.createdAt
+                      ? `Заказ от ${formatMoscowDate(displayOrder.createdAt)} · `
+                      : ""}
+                    Срок: {displayOrder.deadline}
+                  </p>
                 </div>
                 <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2 sm:block sm:bg-transparent sm:p-0 sm:text-right">
                   <p className="text-sm font-medium text-gray-700">

@@ -122,6 +122,7 @@ export function mapUnshippedOrdersToWorkspace(
       orderNumber: order.orderNumber,
       isBlogger,
       customerName: order.fullName,
+      createdAt: order.createdAt,
       urgency: deriveUrgency(order.createdAt, true),
       deadline: formatDeadline(order.createdAt),
       items: shippingItems,
