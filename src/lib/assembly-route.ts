@@ -1,5 +1,5 @@
 import { sortAssemblyItemsByUrgency } from "@/lib/assembly-sort";
-import { findCellLocation, type WarehouseCellLocation } from "@/lib/warehouse-location";
+import { findCellLocation, locationKey, type WarehouseCellLocation } from "@/lib/warehouse-location";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { FurnitureItem, WarehouseMapConfig } from "@/types/stock";
 
@@ -33,44 +33,74 @@ export function getCellWorldPosition(
   };
 }
 
-interface RoutedItem {
-  item: AssemblyItem;
+interface LocationStop {
+  key: string;
   x: number;
   y: number;
-  location?: WarehouseCellLocation;
+  items: AssemblyItem[];
 }
 
-function nearestNeighborRoute(stops: RoutedItem[]): AssemblyItem[] {
+function nearestNeighborLocationStops(stops: LocationStop[]): LocationStop[] {
   if (stops.length === 0) return [];
 
   const remaining = [...stops];
-  const ordered: AssemblyItem[] = [];
+  const ordered: LocationStop[] = [];
 
   let cx = Math.min(...remaining.map((s) => s.x));
   let cy = Math.min(...remaining.map((s) => s.y));
 
   while (remaining.length > 0) {
     let bestIdx = 0;
-    let bestScore = Infinity;
+    let bestDist = Infinity;
 
     for (let i = 0; i < remaining.length; i++) {
       const dx = remaining[i].x - cx;
       const dy = remaining[i].y - cy;
       const dist = Math.hypot(dx, dy);
-      const score = dist + (remaining[i].location ? 0 : 10_000);
-      if (score < bestScore) {
-        bestScore = score;
+      if (dist < bestDist) {
+        bestDist = dist;
         bestIdx = i;
       }
     }
 
     const [next] = remaining.splice(bestIdx, 1);
-    ordered.push(next.item);
+    ordered.push(next);
     cx = next.x;
     cy = next.y;
   }
 
   return ordered;
+}
+
+function groupLocatedRoute(located: RoutedItem[], orders: ShippingOrder[]): AssemblyItem[] {
+  const byLocation = new Map<string, LocationStop>();
+
+  for (const stop of located) {
+    if (!stop.location) continue;
+    const key = locationKey(stop.location);
+    const existing = byLocation.get(key);
+    if (existing) {
+      existing.items.push(stop.item);
+    } else {
+      byLocation.set(key, { key, x: stop.x, y: stop.y, items: [stop.item] });
+    }
+  }
+
+  const orderedStops = nearestNeighborLocationStops(Array.from(byLocation.values()));
+  const result: AssemblyItem[] = [];
+
+  for (const stop of orderedStops) {
+    result.push(...sortAssemblyItemsByUrgency(stop.items, orders));
+  }
+
+  return result;
+}
+
+interface RoutedItem {
+  item: AssemblyItem;
+  x: number;
+  y: number;
+  location?: WarehouseCellLocation;
 }
 
 /** Оптимальный порядок сборки: ближайший сосед по карте, без карты — по срочности. */
@@ -107,7 +137,7 @@ export function planAssemblyRoute(
     });
   }
 
-  const routed = nearestNeighborRoute(located);
+  const routed = groupLocatedRoute(located, orders);
   const fallback = sortAssemblyItemsByUrgency(unlocated, orders);
   return [...routed, ...fallback];
 }

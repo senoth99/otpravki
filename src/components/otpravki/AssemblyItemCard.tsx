@@ -10,6 +10,15 @@ import { BloggerBadge } from "./BloggerBadge";
 import { ProductImage } from "./ProductImage";
 import { QuantityTracker } from "./QuantityTracker";
 
+export interface LocationGroupEntry {
+  id: string;
+  productName: string;
+  size: string;
+  isBlogger?: boolean;
+  isCurrent: boolean;
+  isComplete: boolean;
+}
+
 interface AssemblyItemCardProps {
   item: AssemblyItem;
   onIncrement: (id: string) => void;
@@ -23,6 +32,8 @@ interface AssemblyItemCardProps {
   navOpen?: boolean;
   onNavOpenChange?: (open: boolean) => void;
   onAutoTake?: () => void;
+  locationGroup?: LocationGroupEntry[];
+  locationGroupIndex?: number;
 }
 
 export function AssemblyItemCard({
@@ -38,6 +49,8 @@ export function AssemblyItemCard({
   navOpen: navOpenProp,
   onNavOpenChange,
   onAutoTake,
+  locationGroup,
+  locationGroupIndex,
 }: AssemblyItemCardProps) {
   const [navOpenLocal, setNavOpenLocal] = useState(false);
   const navOpen = navOpenProp ?? navOpenLocal;
@@ -112,6 +125,29 @@ export function AssemblyItemCard({
               </button>
             )}
           </div>
+          {locationGroup && locationGroup.length > 1 && (
+            <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">
+                С этой ячейки · {locationGroupIndex}/{locationGroup.length}
+              </p>
+              <ul className="mt-1 space-y-0.5">
+                {locationGroup.map((entry, index) => (
+                  <li
+                    key={entry.id}
+                    className={`truncate text-xs ${
+                      entry.isCurrent
+                        ? "font-semibold text-gray-900"
+                        : entry.isComplete
+                          ? "text-green-700 line-through"
+                          : "text-gray-500"
+                    }`}
+                  >
+                    {index + 1}. {entry.productName}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
 
@@ -159,6 +195,9 @@ export function AssemblyItemCard({
           onClose={() => setNavOpen(false)}
           onTake={onAutoTake}
           takeProgress={onAutoTake ? { done: item.collectedCount, total: item.quantity } : undefined}
+          isBlogger={item.isBlogger === true}
+          locationGroup={locationGroup}
+          locationGroupIndex={locationGroupIndex}
         />
       )}
     </div>

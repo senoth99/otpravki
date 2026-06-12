@@ -1,6 +1,9 @@
 "use client";
 
 import { createPortal } from "react-dom";
+import { BloggerBadge } from "@/components/otpravki/BloggerBadge";
+import type { LocationGroupEntry } from "@/components/otpravki/AssemblyItemCard";
+import { formatSize } from "@/lib/format";
 import type { WarehouseCellLocation } from "@/lib/warehouse-location";
 import type { ApiStockItem, WarehouseMapConfig } from "@/types/stock";
 import { WarehouseMap } from "./WarehouseMap";
@@ -13,6 +16,9 @@ interface WarehouseLocationModalProps {
   onClose: () => void;
   onTake?: () => void;
   takeProgress?: { done: number; total: number };
+  isBlogger?: boolean;
+  locationGroup?: LocationGroupEntry[];
+  locationGroupIndex?: number;
 }
 
 export function WarehouseLocationModal({
@@ -23,6 +29,9 @@ export function WarehouseLocationModal({
   onClose,
   onTake,
   takeProgress,
+  isBlogger = false,
+  locationGroup,
+  locationGroupIndex = 1,
 }: WarehouseLocationModalProps) {
   const rackLabel = location.furnitureLabel?.trim() || "Стеллаж";
 
@@ -50,10 +59,61 @@ export function WarehouseLocationModal({
                 <span className="inline-flex items-center rounded-xl bg-gray-900 px-3.5 py-2 text-lg font-bold text-white shadow-sm sm:rounded-lg sm:px-2.5 sm:py-1 sm:text-sm">
                   Я{location.col}
                 </span>
+                {isBlogger && <BloggerBadge className="rounded-xl px-3.5 py-2 text-sm sm:rounded-lg sm:px-2.5 sm:py-1 sm:text-xs" />}
               </div>
               <p className="mt-2.5 line-clamp-2 text-sm leading-snug text-gray-600 sm:mt-0.5 sm:text-sm sm:text-gray-500">
                 {productName}
               </p>
+              {locationGroup && locationGroup.length > 1 && (
+                <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+                    С этой ячейки · {locationGroup.length} шт. · сейчас {locationGroupIndex}/
+                    {locationGroup.length}
+                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {locationGroup.map((entry, index) => (
+                      <li
+                        key={entry.id}
+                        className={`flex items-start gap-2 rounded-lg px-2 py-1.5 text-sm ${
+                          entry.isCurrent
+                            ? "bg-white font-semibold text-gray-900 shadow-sm ring-1 ring-amber-300"
+                            : entry.isComplete
+                              ? "text-green-700 line-through opacity-70"
+                              : "text-gray-600"
+                        }`}
+                      >
+                        <span
+                          className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                            entry.isCurrent
+                              ? "bg-amber-400 text-amber-950"
+                              : entry.isComplete
+                                ? "bg-green-500 text-white"
+                                : "bg-gray-200 text-gray-600"
+                          }`}
+                        >
+                          {entry.isComplete ? "✓" : index + 1}
+                        </span>
+                        <span className="min-w-0 flex-1 leading-snug">
+                          <span className="line-clamp-2">{entry.productName}</span>
+                          <span className="mt-0.5 block text-xs font-normal text-gray-500">
+                            {formatSize(entry.size)}
+                            {entry.isBlogger && (
+                              <span className="ml-1.5 inline-flex align-middle">
+                                <BloggerBadge className="px-1.5 py-0 text-[10px]" />
+                              </span>
+                            )}
+                          </span>
+                        </span>
+                        {entry.isCurrent && (
+                          <span className="shrink-0 rounded-md bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
+                            Сейчас
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <p className="mt-1 hidden text-xs text-gray-400 sm:block">
                 {rackLabel} · ряд {location.row} · ячейка {location.col}
               </p>

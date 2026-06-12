@@ -14,6 +14,10 @@ export function formatCellLocationHint(label: string, row: number, col: number):
   return `${label} Р${row}Я${col}`;
 }
 
+export function locationKey(location: Pick<WarehouseCellLocation, "furnitureId" | "cellKey">): string {
+  return `${location.furnitureId}:${location.cellKey}`;
+}
+
 export function findCellLocation(
   item: AssemblyItem,
   map: WarehouseMapConfig,

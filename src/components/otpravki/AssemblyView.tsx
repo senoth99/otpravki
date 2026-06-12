@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AssemblyViewSections } from "@/lib/assembly-demand";
 import { planAssemblyRoute } from "@/lib/assembly-route";
-import { findCellLocation } from "@/lib/warehouse-location";
+import { findCellLocation, locationKey } from "@/lib/warehouse-location";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { WarehouseMapConfig } from "@/types/stock";
 import { AssemblyItemCard } from "./AssemblyItemCard";
 import { AutoModeButton } from "./AutoModeButton";
+import { BloggerBadge } from "./BloggerBadge";
 
 interface AssemblyViewProps {
   sections: AssemblyViewSections;
@@ -56,9 +57,28 @@ export function AssemblyView({
     () => (currentItem && warehouseMap ? findCellLocation(currentItem, warehouseMap) : undefined),
     [currentItem, warehouseMap],
   );
-  const currentLocationKey = currentLocation
-    ? `${currentLocation.furnitureId}:${currentLocation.cellKey}`
-    : null;
+  const currentLocationKey = currentLocation ? locationKey(currentLocation) : null;
+
+  const locationGroup = useMemo(() => {
+    if (!currentLocationKey || !warehouseMap) return [];
+
+    return route
+      .map((routeItem) => itemFromAll(allItems, routeItem.id) ?? routeItem)
+      .filter((item) => {
+        const loc = findCellLocation(item, warehouseMap);
+        return loc && locationKey(loc) === currentLocationKey;
+      })
+      .map((item) => ({
+        id: item.id,
+        productName: item.productName,
+        size: item.size,
+        isBlogger: item.isBlogger === true,
+        isCurrent: item.id === currentItem?.id,
+        isComplete: item.collectedCount >= item.quantity,
+      }));
+  }, [route, allItems, warehouseMap, currentLocationKey, currentItem?.id]);
+
+  const locationGroupIndex = locationGroup.findIndex((entry) => entry.isCurrent) + 1;
 
   const findVisibleItem = useCallback(
     (id: string) => visibleItems.find((item) => item.id === id),
@@ -73,8 +93,8 @@ export function AssemblyView({
     totalStepsRef.current = 0;
   }, []);
 
-  const advanceRoute = useCallback(() => {
-    setNavOpen(false);
+  const advanceRoute = useCallback((keepNavOpen = false) => {
+    if (!keepNavOpen) setNavOpen(false);
     setNavDismissedFor(null);
     setStepsDone((n) => n + 1);
   }, []);
@@ -126,6 +146,12 @@ export function AssemblyView({
 
     const willComplete = visible.collectedCount + 1 >= visible.quantity;
     const hasNext = route.length > 1;
+    const nextRouteItem = route.length > 1 ? route[1] : undefined;
+    const nextItem = nextRouteItem ? itemFromAll(allItems, nextRouteItem.id) : undefined;
+    const nextLocation = nextItem && warehouseMap ? findCellLocation(nextItem, warehouseMap) : undefined;
+    const nextLocationKey = nextLocation ? locationKey(nextLocation) : null;
+    const stayAtLocation =
+      willComplete && hasNext && Boolean(currentLocationKey && nextLocationKey === currentLocationKey);
 
     onItemsChange(
       allItems.map((item) =>
@@ -137,7 +163,7 @@ export function AssemblyView({
 
     if (willComplete) {
       if (hasNext) {
-        advanceRoute();
+        advanceRoute(stayAtLocation);
       } else {
         exitAutoMode();
       }
@@ -148,7 +174,9 @@ export function AssemblyView({
     findVisibleItem,
     allItems,
     onItemsChange,
-    route.length,
+    route,
+    warehouseMap,
+    currentLocationKey,
     advanceRoute,
     exitAutoMode,
   ]);
@@ -228,12 +256,18 @@ export function AssemblyView({
       </div>
 
       {autoMode && route.length > 0 && currentItem && (
-        <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
           <span className="font-semibold text-gray-900">
             Шаг {stepNumber} / {totalSteps}
           </span>
+          {locationGroup.length > 1 && currentLocation && (
+            <span className="rounded-lg bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">
+              С этой ячейки · {locationGroupIndex}/{locationGroup.length}
+            </span>
+          )}
+          {currentItem.isBlogger && <BloggerBadge />}
           {currentLocation && (
-            <span className="ml-2 text-gray-600">→ {currentLocation.hint}</span>
+            <span className="text-gray-600">→ {currentLocation.hint}</span>
           )}
         </div>
       )}
@@ -258,6 +292,8 @@ export function AssemblyView({
               navOpen={navOpen}
               onNavOpenChange={handleNavOpenChange}
               onAutoTake={handleTake}
+              locationGroup={locationGroup.length > 1 ? locationGroup : undefined}
+              locationGroupIndex={locationGroupIndex}
             />
           )}
 
