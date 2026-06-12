@@ -57,7 +57,7 @@ function OtpravkiShell({
 export default async function OtpravkiPage() {
   const [resetToken, warehouseMap] = await Promise.all([
     getMockResetToken(),
-    getWarehouseMap().catch(() => ({ cells: [], updatedAt: 0 })),
+    getWarehouseMap().catch(() => ({ furniture: [], updatedAt: 0 })),
   ]);
 
   if (!USE_MOCK_ORDERS) {

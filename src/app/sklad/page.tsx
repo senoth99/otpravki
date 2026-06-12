@@ -10,7 +10,7 @@ export const metadata = {
 };
 
 const EMPTY_MAP: WarehouseMapConfig = {
-  cells: [],
+  furniture: [],
   updatedAt: 0,
 };
 

@@ -14,18 +14,25 @@ export interface ApiStockItem {
 }
 
 export interface WarehouseCell {
-  id: string; // "rack-{row}-{col}" или "table-{row}-{col}"
-  zone: "rack" | "table";
-  row: number;
-  col: number;
   productSlug?: string;
   productName?: string;
   brand?: string;
-  sizes?: string[]; // ["S", "M", "L", "XL"]
+  sizes?: string[];   // ["S", "M", "L"]
   label?: string;
 }
 
+export interface FurnitureItem {
+  id: string;
+  type: "rack" | "table";
+  label: string;
+  x: number;          // позиция на холсте (px)
+  y: number;
+  rows: number;       // количество рядов
+  cols: number;       // количество колонок
+  cells: Record<string, WarehouseCell>;  // ключ: "r{row}c{col}", например "r1c3"
+}
+
 export interface WarehouseMapConfig {
-  cells: WarehouseCell[];
+  furniture: FurnitureItem[];
   updatedAt: number;
 }

@@ -14,12 +14,20 @@ interface AssemblyViewProps {
 }
 
 function findCellHint(item: AssemblyItem, map: WarehouseMapConfig): string | undefined {
-  const cell = map.cells.find(
-    (c) => c.productSlug === item.productId && c.sizes?.includes(item.size),
-  );
-  if (!cell) return undefined;
-  const zoneLabel = cell.zone === "rack" ? "Стеллаж" : "Стол";
-  return `${zoneLabel} Р${cell.row}Я${cell.col}`;
+  for (const furniture of map.furniture) {
+    for (const [key, cell] of Object.entries(furniture.cells)) {
+      if (
+        cell.productSlug === item.productId &&
+        cell.sizes?.some((s) => s.toLowerCase() === item.size.toLowerCase())
+      ) {
+        const match = key.match(/^r(\d+)c(\d+)$/);
+        if (match) {
+          return `${furniture.label} Р${match[1]}Я${match[2]}`;
+        }
+      }
+    }
+  }
+  return undefined;
 }
 
 function totalUnits(sections: AssemblyViewSections) {

@@ -4,13 +4,34 @@ import { useState } from "react";
 import type { ApiStockItem, WarehouseCell } from "@/types/stock";
 
 interface CellModalProps {
+  furnitureId: string;
+  cellKey: string; // "r2c3"
   cell: WarehouseCell;
+  furnitureLabel: string;
   stock: ApiStockItem[];
-  onSave: (cell: WarehouseCell) => void;
+  onSave: (furnitureId: string, cellKey: string, cell: WarehouseCell) => void;
+  onClear: (furnitureId: string, cellKey: string) => void;
   onClose: () => void;
 }
 
-export function CellModal({ cell, stock, onSave, onClose }: CellModalProps) {
+function formatCellKey(cellKey: string): string {
+  return cellKey.replace(/r(\d+)c(\d+)/, "Р$1 Я$2");
+}
+
+export function CellModal({
+  furnitureId,
+  cellKey,
+  cell,
+  furnitureLabel,
+  stock,
+  onSave,
+  onClear,
+  onClose,
+}: CellModalProps) {
+  const sortedStock = [...stock].sort((a, b) =>
+    a.productName.localeCompare(b.productName, "ru")
+  );
+
   const [selectedSlug, setSelectedSlug] = useState<string>(
     cell.productSlug ?? ""
   );
@@ -19,7 +40,9 @@ export function CellModal({ cell, stock, onSave, onClose }: CellModalProps) {
   );
   const [label, setLabel] = useState(cell.label ?? "");
 
-  const selectedProduct = stock.find((s) => s.productSlug === selectedSlug);
+  const selectedProduct = sortedStock.find(
+    (s) => s.productSlug === selectedSlug
+  );
 
   function handleProductChange(slug: string) {
     setSelectedSlug(slug);
@@ -34,26 +57,17 @@ export function CellModal({ cell, stock, onSave, onClose }: CellModalProps) {
 
   function handleSave() {
     const updated: WarehouseCell = {
-      ...cell,
       productSlug: selectedSlug || undefined,
       productName: selectedProduct?.productName,
       brand: selectedProduct?.brand,
       sizes: selectedSizes.length > 0 ? selectedSizes : undefined,
       label: label.trim() || undefined,
     };
-    onSave(updated);
+    onSave(furnitureId, cellKey, updated);
   }
 
   function handleClear() {
-    const cleared: WarehouseCell = {
-      ...cell,
-      productSlug: undefined,
-      productName: undefined,
-      brand: undefined,
-      sizes: undefined,
-      label: undefined,
-    };
-    onSave(cleared);
+    onClear(furnitureId, cellKey);
   }
 
   return (
@@ -64,9 +78,13 @@ export function CellModal({ cell, stock, onSave, onClose }: CellModalProps) {
       }}
     >
       <div className="w-full max-w-sm rounded-2xl border border-gray-100 bg-white shadow-xl">
+        {/* Header */}
         <div className="border-b border-gray-100 px-5 py-4">
           <h2 className="text-base font-semibold text-gray-900">
-            Ячейка <span className="font-mono text-sm text-gray-500">{cell.id}</span>
+            {furnitureLabel}{" "}
+            <span className="font-mono text-sm font-normal text-gray-500">
+              · {formatCellKey(cellKey)}
+            </span>
           </h2>
         </div>
 
@@ -82,7 +100,7 @@ export function CellModal({ cell, stock, onSave, onClose }: CellModalProps) {
               className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-400 focus:bg-white"
             >
               <option value="">— Пусто —</option>
-              {stock.map((item) => (
+              {sortedStock.map((item) => (
                 <option key={item.productSlug} value={item.productSlug}>
                   {item.productName} ({item.brand})
                 </option>
@@ -105,7 +123,7 @@ export function CellModal({ cell, stock, onSave, onClose }: CellModalProps) {
                       className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                         checked
                           ? "border-gray-900 bg-gray-900 text-white"
-                          : "border-gray-200 bg-gray-50 text-gray-700"
+                          : "border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300"
                       }`}
                     >
                       <input
@@ -116,7 +134,7 @@ export function CellModal({ cell, stock, onSave, onClose }: CellModalProps) {
                       />
                       {sizeEntry.size}
                       {sizeEntry.quantity === 0 && (
-                        <span className="opacity-50"> ×0</span>
+                        <span className="opacity-40"> ×0</span>
                       )}
                     </label>
                   );
@@ -152,14 +170,14 @@ export function CellModal({ cell, stock, onSave, onClose }: CellModalProps) {
           <button
             type="button"
             onClick={handleClear}
-            className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 transition-colors active:bg-red-50"
+            className="rounded-xl border border-red-300 px-4 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 active:bg-red-100"
           >
             Очистить
           </button>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 transition-colors active:bg-gray-50"
+            className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
           >
             Отмена
           </button>
