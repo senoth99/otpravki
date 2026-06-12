@@ -108,6 +108,53 @@ function getColumnProductSlugs(f: FurnitureItem, colNum: number): string[] {
   return slugs;
 }
 
+function cellSearchHaystack(
+  cell: WarehouseCell | undefined,
+  stockBySlug: Map<string, ApiStockItem>,
+): string {
+  if (!cell) return "";
+  const stock =
+    cell.productSlug
+      ? (stockBySlug.get(cell.productSlug) ?? stockBySlug.get(cell.productSlug.toLowerCase()))
+      : undefined;
+  return [
+    cell.productName,
+    cell.productSlug,
+    cell.brand,
+    cell.label,
+    ...(cell.sizes ?? []),
+    stock?.productName,
+    stock?.brand,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function cellMatchesSearch(
+  cell: WarehouseCell | undefined,
+  query: string,
+  stockBySlug: Map<string, ApiStockItem>,
+): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return cellSearchHaystack(cell, stockBySlug).includes(q);
+}
+
+function columnMatchesSearch(
+  f: FurnitureItem,
+  colNum: number,
+  query: string,
+  stockBySlug: Map<string, ApiStockItem>,
+): boolean {
+  const q = query.trim();
+  if (!q) return true;
+  for (let r = 1; r <= f.rows; r++) {
+    if (cellMatchesSearch(f.cells[`r${r}c${colNum}`], q, stockBySlug)) return true;
+  }
+  return false;
+}
+
 function ProductIcon({ imageUrl, alt, size }: { imageUrl: string; alt: string; size: number }) {
   const [failed, setFailed] = useState(false);
   const src = toLocalImageUrl(imageUrl);
@@ -192,6 +239,7 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const slotAnchorRef = useRef<HTMLElement | null>(null);
@@ -222,6 +270,20 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
   const canvasSizeRef = useRef(canvasSize);
   canvasSizeRef.current = canvasSize;
   const stockBySlug = useMemo(() => buildStockIndex(stock), [stock]);
+  const searchActive = searchQuery.trim().length > 0;
+
+  const matchCount = useMemo(() => {
+    if (!searchActive) return 0;
+    let count = 0;
+    for (const f of furniture) {
+      for (let col = 1; col <= f.cols; col++) {
+        for (let r = 1; r <= f.rows; r++) {
+          if (cellMatchesSearch(f.cells[`r${r}c${col}`], searchQuery, stockBySlug)) count++;
+        }
+      }
+    }
+    return count;
+  }, [furniture, searchQuery, searchActive, stockBySlug]);
 
   const zoomAtPoint = useCallback((clientX: number, clientY: number, factor: number) => {
     const viewport = viewportRef.current;
@@ -433,7 +495,22 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-2">
+        <div className="relative">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Поиск товара на карте..."
+            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 pr-20 text-sm outline-none placeholder:text-gray-400 focus:border-gray-400"
+          />
+          {searchActive && (
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+              {matchCount > 0 ? `${matchCount} яч.` : "нет"}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-white px-1 py-1 shadow-sm">
           <button
             type="button"
@@ -470,6 +547,7 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
           Сохранить карту
         </button>
         {saved && <span className="text-xs text-green-600 font-medium">Сохранено!</span>}
+        </div>
       </div>
 
       <div
@@ -496,9 +574,9 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
           {furniture.map((f) => {
             const isV = f.rotation === "v";
             const fWidth = getFurnitureWidth(f);
-                    const slotCount = Math.max(1, Number(f.cols) || 1);
+            const slotCount = Math.max(1, Number(f.cols) || 1);
 
-                    return (
+            return (
               <div
                 key={f.id}
                 style={{ position: "absolute", left: f.x, top: f.y, zIndex: 2 }}
@@ -514,6 +592,8 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
                     const hasAny = filledCount > 0;
                     const isOpen = openSlot?.furnitureId === f.id && openSlot?.col === colNum;
                     const productSlugs = getColumnProductSlugs(f, colNum);
+                    const colMatches = columnMatchesSearch(f, colNum, searchQuery, stockBySlug);
+                    const dimmed = searchActive && !colMatches;
 
                     return (
                       <div
@@ -532,8 +612,10 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
                           setOpenSlot({ furnitureId: f.id, col: colNum });
                         }}
                         style={{ width: isV ? fWidth - 16 : SLOT_W, height: SLOT_H, position: "relative" }}
-                        className={`flex flex-col items-center justify-center overflow-hidden rounded-lg border cursor-pointer transition-all select-none
+                        className={`flex flex-col items-center justify-center overflow-hidden rounded-lg border cursor-pointer transition-all duration-150 select-none
                           ${isOpen ? "ring-2 ring-blue-400 ring-offset-1" : ""}
+                          ${searchActive && colMatches ? "ring-2 ring-amber-400 ring-offset-1 z-10" : ""}
+                          ${dimmed ? "opacity-25 saturate-50" : "opacity-100"}
                           ${hasAny ? "bg-blue-50 border-blue-200 hover:shadow" : "border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100"}`}
                       >
                         {hasAny ? (
@@ -601,9 +683,11 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
                 const hasProduct = Boolean(cell?.productSlug);
                 const isDragOverThis = dragOver === `${openSlotFurniture.id}:${cellKey}`;
                 const dragKey = `${openSlotFurniture.id}:${cellKey}`;
+                const rowMatches = cellMatchesSearch(cell, searchQuery, stockBySlug);
+                const rowDimmed = searchActive && !rowMatches;
 
                 return (
-                  <div key={rowIdx} className="flex items-center gap-1.5">
+                  <div key={rowIdx} className={`flex items-center gap-1.5 transition-opacity duration-150 ${rowDimmed ? "opacity-25" : ""}`}>
                     <div className="w-6 shrink-0 text-center text-[10px] font-medium text-gray-400">Р{rowNum}</div>
                     <div style={{ flex: 1 }}>
                       <div
@@ -628,6 +712,7 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
                         onDrop={(e) => handleCellDrop(e, openSlotFurniture.id, cellKey)}
                         onClick={() => openCellEditor(openSlotFurniture.id, cellKey)}
                         className={`flex flex-col justify-center gap-0.5 rounded-lg border p-2 cursor-pointer transition-all w-full
+                          ${searchActive && rowMatches ? "ring-2 ring-amber-400 ring-offset-1" : ""}
                           ${isDragOverThis ? "border-2 border-blue-400 bg-blue-100"
                             : hasProduct ? "border-blue-200 bg-blue-50 hover:shadow-sm"
                             : "border-dashed border-gray-200 bg-gray-50 hover:bg-gray-100"}`}
