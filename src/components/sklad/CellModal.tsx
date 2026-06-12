@@ -75,7 +75,7 @@ export function CellModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 px-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -83,11 +83,8 @@ export function CellModal({
       <div className="w-full max-w-sm rounded-2xl border border-gray-100 bg-white shadow-xl">
         {/* Header */}
         <div className="border-b border-gray-100 px-5 py-4">
-          <h2 className="text-base font-semibold text-gray-900">
-            {furnitureLabel}{" "}
-            <span className="font-mono text-sm font-normal text-gray-500">
-              · {formatCellKey(cellKey)}
-            </span>
+          <h2 className="font-mono text-base font-semibold text-gray-900">
+            {formatCellKey(cellKey)}
           </h2>
         </div>
 
