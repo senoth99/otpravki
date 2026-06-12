@@ -584,7 +584,7 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
               >
                 <div className={`p-2 ${isV ? "flex flex-col gap-1" : "flex flex-row gap-1"}`}>
                   {Array.from({ length: slotCount }, (_, colIdx) => {
-                    const colNum = colIdx + 1;
+                    const colNum = isV ? slotCount - colIdx : colIdx + 1;
                     let filledCount = 0;
                     for (let r = 1; r <= f.rows; r++) {
                       if (f.cells[`r${r}c${colNum}`]?.productSlug) filledCount++;
@@ -677,7 +677,7 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
             </div>
             <div className="flex flex-col gap-1.5 p-2 max-h-[min(420px,calc(100vh-80px))] overflow-y-auto">
               {Array.from({ length: openSlotFurniture.rows }, (_, rowIdx) => {
-                const rowNum = rowIdx + 1;
+                const rowNum = openSlotFurniture.rows - rowIdx;
                 const cellKey = `r${rowNum}c${openSlot.col}`;
                 const cell = openSlotFurniture.cells[cellKey];
                 const hasProduct = Boolean(cell?.productSlug);
