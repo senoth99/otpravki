@@ -286,6 +286,7 @@ export function WarehouseMap({
   readOnly = false,
   navigateTarget,
 }: WarehouseMapProps) {
+  const lockView = readOnly && Boolean(navigateTarget);
   const [furniture, setFurniture] = useState<FurnitureItem[]>(() =>
     autoAlign((initialMap.furniture ?? []).map(normalizeFurnitureItem)),
   );
@@ -573,7 +574,7 @@ export function WarehouseMap({
 
   useEffect(() => {
     const el = viewportRef.current;
-    if (!el) return;
+    if (!el || lockView) return;
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
@@ -583,11 +584,11 @@ export function WarehouseMap({
 
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [zoomAtPoint]);
+  }, [zoomAtPoint, lockView]);
 
   useEffect(() => {
     const el = viewportRef.current;
-    if (!el) return;
+    if (!el || lockView) return;
 
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
@@ -640,10 +641,11 @@ export function WarehouseMap({
       el.removeEventListener("touchend", onTouchEnd);
       el.removeEventListener("touchcancel", onTouchEnd);
     };
-  }, [applyPanDelta, applyPinch, beginPan, beginPinch, endGesture]);
+  }, [applyPanDelta, applyPinch, beginPan, beginPinch, endGesture, lockView]);
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      if (lockView) return;
       if (e.button !== 0 || e.pointerType === "touch") return;
 
       beginPan(e.clientX, e.clientY);
@@ -662,7 +664,7 @@ export function WarehouseMap({
       window.addEventListener("pointerup", onWindowPointerEnd);
       window.addEventListener("pointercancel", onWindowPointerEnd);
     },
-    [applyPanDelta, beginPan, endGesture],
+    [applyPanDelta, beginPan, endGesture, lockView],
   );
 
   function handleCellSave(furnitureId: string, cellKey: string, cell: WarehouseCell) {
@@ -752,7 +754,7 @@ export function WarehouseMap({
   const navigateCol = navigateTarget?.cellKey.match(/^r(\d+)c(\d+)$/)?.[2];
   const navigateRow = navigateTarget?.cellKey.match(/^r(\d+)c(\d+)$/)?.[1];
 
-  const isNavigationMode = readOnly && Boolean(navigateTarget);
+  const isNavigationMode = lockView;
 
   return (
     <div className={`flex h-full flex-col ${readOnly ? "gap-2 sm:gap-3" : "gap-4"}`}>
@@ -821,8 +823,8 @@ export function WarehouseMap({
 
       <div
         ref={viewportRef}
-        className={`relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 touch-none overscroll-none select-none ${
-          isPanning ? "cursor-grabbing" : "cursor-grab"
+        className={`relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 overscroll-none select-none ${
+          lockView ? "cursor-default" : isPanning ? "cursor-grabbing touch-none" : "cursor-grab touch-none"
         }`}
         style={{
           height: isNavigationMode
@@ -831,17 +833,10 @@ export function WarehouseMap({
               ? "min(52dvh, 520px)"
               : "min(calc(100dvh - 220px), 560px)",
           minHeight: isNavigationMode ? "min(42dvh, 360px)" : undefined,
-          touchAction: "none",
+          touchAction: lockView ? "auto" : "none",
         }}
         onPointerDown={handlePointerDown}
       >
-        {isNavigationMode && (
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/35 to-transparent px-3 py-2 sm:hidden">
-            <p className="text-center text-[11px] font-medium text-white">
-              Свайп — двигать · Щипок — масштаб
-            </p>
-          </div>
-        )}
         <div
           className="absolute left-0 top-0"
           style={{

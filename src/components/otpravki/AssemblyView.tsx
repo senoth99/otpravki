@@ -6,7 +6,6 @@ import { planAssemblyRoute } from "@/lib/assembly-route";
 import { findCellLocation } from "@/lib/warehouse-location";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { WarehouseMapConfig } from "@/types/stock";
-import { AssemblyAutoCountdown } from "./AssemblyAutoCountdown";
 import { AssemblyItemCard } from "./AssemblyItemCard";
 import { AutoModeButton } from "./AutoModeButton";
 
@@ -16,13 +15,6 @@ interface AssemblyViewProps {
   orders: ShippingOrder[];
   onItemsChange: (items: AssemblyItem[]) => void;
   warehouseMap?: WarehouseMapConfig;
-}
-
-interface CountdownState {
-  productName: string;
-  stepLabel: string;
-  secondsLeft: number;
-  hasNext: boolean;
 }
 
 function totalUnits(sections: AssemblyViewSections) {
@@ -49,10 +41,9 @@ export function AssemblyView({
   const visibleItems = [...sections.pending, ...sections.completed];
   const [autoMode, setAutoMode] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
-  const [countdown, setCountdown] = useState<CountdownState | null>(null);
+  const [navDismissedFor, setNavDismissedFor] = useState<string | null>(null);
   const [stepsDone, setStepsDone] = useState(0);
   const totalStepsRef = useRef(0);
-  const autoHandledRef = useRef<string | null>(null);
 
   const route = useMemo(
     () => planAssemblyRoute(allItems, orders, warehouseMap),
@@ -61,8 +52,13 @@ export function AssemblyView({
 
   const currentRouteItem = route[0];
   const currentItem = currentRouteItem ? itemFromAll(allItems, currentRouteItem.id) : undefined;
-  const currentLocation =
-    currentItem && warehouseMap ? findCellLocation(currentItem, warehouseMap) : undefined;
+  const currentLocation = useMemo(
+    () => (currentItem && warehouseMap ? findCellLocation(currentItem, warehouseMap) : undefined),
+    [currentItem, warehouseMap],
+  );
+  const currentLocationKey = currentLocation
+    ? `${currentLocation.furnitureId}:${currentLocation.cellKey}`
+    : null;
 
   const findVisibleItem = useCallback(
     (id: string) => visibleItems.find((item) => item.id === id),
@@ -71,18 +67,29 @@ export function AssemblyView({
 
   const exitAutoMode = useCallback(() => {
     setAutoMode(false);
-    setCountdown(null);
     setNavOpen(false);
+    setNavDismissedFor(null);
     setStepsDone(0);
     totalStepsRef.current = 0;
-    autoHandledRef.current = null;
   }, []);
 
   const advanceRoute = useCallback(() => {
     setNavOpen(false);
-    autoHandledRef.current = null;
+    setNavDismissedFor(null);
     setStepsDone((n) => n + 1);
   }, []);
+
+  const handleNavOpenChange = useCallback(
+    (open: boolean) => {
+      setNavOpen(open);
+      if (!open && autoMode && currentItem) {
+        setNavDismissedFor(currentItem.id);
+      } else if (open) {
+        setNavDismissedFor(null);
+      }
+    },
+    [autoMode, currentItem?.id],
+  );
 
   const handleAutoModeToggle = useCallback(() => {
     if (autoMode) {
@@ -91,57 +98,18 @@ export function AssemblyView({
     }
     totalStepsRef.current = route.length;
     setStepsDone(0);
+    setNavDismissedFor(null);
     setAutoMode(true);
-    setCountdown(null);
-    autoHandledRef.current = null;
     setNavOpen(true);
   }, [autoMode, exitAutoMode, route.length]);
 
   useEffect(() => {
-    if (!autoMode || countdown) return;
+    if (!autoMode) return;
     if (!currentItem) return;
-
-    const fresh = itemFromAll(allItems, currentItem.id);
-    if (!fresh || fresh.collectedCount < fresh.quantity) return;
-    if (autoHandledRef.current === currentItem.id) return;
-
-    autoHandledRef.current = currentItem.id;
-    const hasNext = route.length > 1;
-    setNavOpen(false);
-    setCountdown({
-      productName: fresh.productName,
-      stepLabel: `Шаг ${stepsDone + 1} / ${totalStepsRef.current || route.length}`,
-      secondsLeft: 3,
-      hasNext,
-    });
-  }, [autoMode, countdown, currentItem, allItems, route.length, stepsDone]);
-
-  useEffect(() => {
-    if (!countdown) return;
-    if (countdown.secondsLeft <= 0) {
-      if (countdown.hasNext) {
-        advanceRoute();
-      } else {
-        exitAutoMode();
-      }
-      setCountdown(null);
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setCountdown((prev) => (prev ? { ...prev, secondsLeft: prev.secondsLeft - 1 } : null));
-    }, 1000);
-
-    return () => window.clearTimeout(timer);
-  }, [countdown, advanceRoute, exitAutoMode]);
-
-  useEffect(() => {
-    if (!autoMode || countdown) return;
-    if (!currentItem) return;
-    if (currentLocation) {
-      setNavOpen(true);
-    }
-  }, [autoMode, countdown, currentItem?.id, currentLocation]);
+    if (!currentLocationKey) return;
+    if (navDismissedFor === currentItem.id) return;
+    setNavOpen(true);
+  }, [autoMode, currentItem?.id, currentLocationKey, navDismissedFor]);
 
   useEffect(() => {
     if (!autoMode) return;
@@ -149,6 +117,41 @@ export function AssemblyView({
       exitAutoMode();
     }
   }, [autoMode, route.length, exitAutoMode]);
+
+  const handleTake = useCallback(() => {
+    if (!autoMode || !currentItem) return;
+
+    const visible = findVisibleItem(currentItem.id);
+    if (!visible || visible.collectedCount >= visible.quantity) return;
+
+    const willComplete = visible.collectedCount + 1 >= visible.quantity;
+    const hasNext = route.length > 1;
+
+    onItemsChange(
+      allItems.map((item) =>
+        item.id === currentItem.id && item.collectedCount < visible.quantity
+          ? { ...item, collectedCount: item.collectedCount + 1, collectedAt: Date.now() }
+          : item,
+      ),
+    );
+
+    if (willComplete) {
+      if (hasNext) {
+        advanceRoute();
+      } else {
+        exitAutoMode();
+      }
+    }
+  }, [
+    autoMode,
+    currentItem,
+    findVisibleItem,
+    allItems,
+    onItemsChange,
+    route.length,
+    advanceRoute,
+    exitAutoMode,
+  ]);
 
   const handleIncrement = useCallback(
     (id: string) => {
@@ -224,7 +227,7 @@ export function AssemblyView({
         )}
       </div>
 
-      {autoMode && route.length > 0 && currentItem && !countdown && (
+      {autoMode && route.length > 0 && currentItem && (
         <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
           <span className="font-semibold text-gray-900">
             Шаг {stepNumber} / {totalSteps}
@@ -253,7 +256,8 @@ export function AssemblyView({
               emphasize
               stepNumber={stepNumber}
               navOpen={navOpen}
-              onNavOpenChange={setNavOpen}
+              onNavOpenChange={handleNavOpenChange}
+              onAutoTake={handleTake}
             />
           )}
 
@@ -345,16 +349,6 @@ export function AssemblyView({
             </div>
           )}
         </div>
-      )}
-
-      {countdown && (
-        <AssemblyAutoCountdown
-          productName={countdown.productName}
-          stepLabel={countdown.stepLabel}
-          secondsLeft={countdown.secondsLeft}
-          hasNext={countdown.hasNext}
-          onExitAutoMode={exitAutoMode}
-        />
       )}
     </div>
   );

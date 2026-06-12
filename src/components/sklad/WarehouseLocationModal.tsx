@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import type { WarehouseCellLocation } from "@/lib/warehouse-location";
 import type { ApiStockItem, WarehouseMapConfig } from "@/types/stock";
 import { WarehouseMap } from "./WarehouseMap";
@@ -10,6 +11,8 @@ interface WarehouseLocationModalProps {
   productName: string;
   stock?: ApiStockItem[];
   onClose: () => void;
+  onTake?: () => void;
+  takeProgress?: { done: number; total: number };
 }
 
 export function WarehouseLocationModal({
@@ -18,10 +21,12 @@ export function WarehouseLocationModal({
   productName,
   stock = [],
   onClose,
+  onTake,
+  takeProgress,
 }: WarehouseLocationModalProps) {
   const rackLabel = location.furnitureLabel?.trim() || "Стеллаж";
 
-  return (
+  const modal = (
     <div
       className="fixed inset-0 z-[10000] flex flex-col bg-white sm:items-center sm:justify-center sm:bg-black/50 sm:p-4"
       onClick={(e) => {
@@ -29,7 +34,7 @@ export function WarehouseLocationModal({
       }}
     >
       <div className="flex h-[100dvh] w-full flex-col overflow-hidden sm:h-auto sm:max-h-[94dvh] sm:max-w-2xl sm:rounded-2xl sm:border sm:border-gray-100 sm:bg-white sm:shadow-xl">
-        <div className="shrink-0 border-b border-amber-200 bg-gradient-to-b from-amber-50 to-white px-4 py-4 safe-top sm:border-gray-100 sm:bg-white sm:from-white sm:px-5 sm:py-4">
+        <div className="relative z-20 shrink-0 border-b border-amber-200 bg-gradient-to-b from-amber-50 to-white px-4 py-4 safe-top sm:border-gray-100 sm:bg-white sm:from-white sm:px-5 sm:py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700 sm:hidden">
@@ -55,8 +60,11 @@ export function WarehouseLocationModal({
             </div>
             <button
               type="button"
-              onClick={onClose}
-              className="shrink-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 sm:py-1.5"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
+              className="relative z-20 shrink-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 sm:py-1.5"
             >
               Закрыть
             </button>
@@ -74,7 +82,27 @@ export function WarehouseLocationModal({
             }}
           />
         </div>
+
+        {onTake && (
+          <div className="shrink-0 border-t border-gray-200 bg-white px-4 py-3 safe-bottom sm:px-5 sm:py-4">
+            <button
+              type="button"
+              onClick={onTake}
+              className="flex w-full min-h-[56px] items-center justify-center rounded-2xl bg-gray-900 px-6 py-4 text-lg font-bold uppercase tracking-wide text-white shadow-lg transition-transform active:scale-[0.98] active:bg-gray-800"
+            >
+              Взял
+              {takeProgress && takeProgress.total > 1 && (
+                <span className="ml-2 text-base font-semibold normal-case tracking-normal text-gray-300">
+                  {takeProgress.done + 1} / {takeProgress.total}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
+
+  if (typeof document === "undefined") return modal;
+  return createPortal(modal, document.body);
 }

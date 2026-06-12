@@ -22,6 +22,7 @@ interface AssemblyItemCardProps {
   stepNumber?: number;
   navOpen?: boolean;
   onNavOpenChange?: (open: boolean) => void;
+  onAutoTake?: () => void;
 }
 
 export function AssemblyItemCard({
@@ -36,6 +37,7 @@ export function AssemblyItemCard({
   stepNumber,
   navOpen: navOpenProp,
   onNavOpenChange,
+  onAutoTake,
 }: AssemblyItemCardProps) {
   const [navOpenLocal, setNavOpenLocal] = useState(false);
   const navOpen = navOpenProp ?? navOpenLocal;
@@ -113,14 +115,31 @@ export function AssemblyItemCard({
         </div>
       </div>
 
-      <div className="w-full border-t border-gray-100 pt-3 sm:w-36 sm:shrink-0 sm:border-t-0 sm:pt-0">
-        <QuantityTracker
-          quantity={item.quantity}
-          doneCount={item.collectedCount}
-          onIncrement={locked ? () => {} : () => onIncrement(item.id)}
-          onDecrement={locked ? () => {} : () => onDecrement(item.id)}
-        />
-      </div>
+      {!onAutoTake && (
+        <div className="w-full border-t border-gray-100 pt-3 sm:w-36 sm:shrink-0 sm:border-t-0 sm:pt-0">
+          <QuantityTracker
+            quantity={item.quantity}
+            doneCount={item.collectedCount}
+            onIncrement={locked ? () => {} : () => onIncrement(item.id)}
+            onDecrement={locked ? () => {} : () => onDecrement(item.id)}
+          />
+        </div>
+      )}
+
+      {onAutoTake && !isComplete && (
+        <button
+          type="button"
+          onClick={onAutoTake}
+          className="flex w-full min-h-[52px] items-center justify-center rounded-2xl bg-gray-900 px-6 py-3.5 text-base font-bold uppercase tracking-wide text-white shadow-md transition-transform active:scale-[0.98] active:bg-gray-800 sm:min-h-[48px] sm:w-36 sm:shrink-0"
+        >
+          Взял
+          {item.quantity > 1 && (
+            <span className="ml-2 text-sm font-semibold normal-case tracking-normal text-gray-300">
+              {item.collectedCount + 1} / {item.quantity}
+            </span>
+          )}
+        </button>
+      )}
 
       {navOpen && warehouseMap && cellLocation && (
         <WarehouseLocationModal
@@ -138,6 +157,8 @@ export function AssemblyItemCard({
             },
           ]}
           onClose={() => setNavOpen(false)}
+          onTake={onAutoTake}
+          takeProgress={onAutoTake ? { done: item.collectedCount, total: item.quantity } : undefined}
         />
       )}
     </div>
