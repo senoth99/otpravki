@@ -20,8 +20,8 @@ const SLOT_H = 60;
 const SNAP_THRESHOLD = 12;
 const RACK_ROWS = 4;
 const POPOVER_W = 210;
-const MIN_USER_ZOOM = 0.5;
-const MAX_USER_ZOOM = 3;
+const MIN_ZOOM = 0.35;
+const MAX_ZOOM = 4;
 
 function normalizeRack(f: FurnitureItem): FurnitureItem {
   if (f.type !== "rack") return f;
@@ -84,15 +84,66 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
   const [popoverPos, setPopoverPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const [saved, setSaved] = useState(false);
   const [dragOver, setDragOver] = useState<string | null>(null);
+  const [baseScale, setBaseScale] = useState(1);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+
   const viewportRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLDivElement>(null);
   const slotAnchorRef = useRef<HTMLElement | null>(null);
   const dragDepthRef = useRef(0);
-  const scaleRef = useRef(1);
-  const [fitScale, setFitScale] = useState(1);
-  const [userZoom, setUserZoom] = useState(1);
-  const effectiveScale = fitScale * userZoom;
-  scaleRef.current = effectiveScale;
+  const baseScaleRef = useRef(1);
+  const zoomRef = useRef(1);
+  const panRef = useRef({ x: 0, y: 0 });
+  const panSessionRef = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
+
+  baseScaleRef.current = baseScale;
+  zoomRef.current = zoom;
+  panRef.current = pan;
+
+  const effectiveScale = baseScale * zoom;
+
+  const centerView = useCallback((scale: number, zoomLevel: number) => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const contentW = canvasSizeRef.current.w * scale * zoomLevel;
+    const contentH = canvasSizeRef.current.h * scale * zoomLevel;
+    setPan({
+      x: (viewport.clientWidth - contentW) / 2,
+      y: (viewport.clientHeight - contentH) / 2,
+    });
+  }, []);
+
+  const canvasSize = computeCanvasSize(furniture);
+  const canvasSizeRef = useRef(canvasSize);
+  canvasSizeRef.current = canvasSize;
+
+  const zoomAtPoint = useCallback((clientX: number, clientY: number, factor: number) => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const rect = viewport.getBoundingClientRect();
+    const anchorX = clientX - rect.left;
+    const anchorY = clientY - rect.top;
+
+    const oldScale = baseScaleRef.current * zoomRef.current;
+    const nextZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomRef.current * factor));
+    const newScale = baseScaleRef.current * nextZoom;
+
+    const worldX = (anchorX - panRef.current.x) / oldScale;
+    const worldY = (anchorY - panRef.current.y) / oldScale;
+
+    setZoom(nextZoom);
+    setPan({
+      x: anchorX - worldX * newScale,
+      y: anchorY - worldY * newScale,
+    });
+  }, []);
+
+  const resetView = useCallback(() => {
+    setZoom(1);
+    centerView(baseScaleRef.current, 1);
+  }, [centerView]);
 
   const updatePopoverPos = useCallback(() => {
     const el = slotAnchorRef.current;
@@ -116,23 +167,78 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
     if (!openSlot) return;
     updatePopoverPos();
     window.addEventListener("resize", updatePopoverPos);
-    window.addEventListener("scroll", updatePopoverPos, true);
-    return () => {
-      window.removeEventListener("resize", updatePopoverPos);
-      window.removeEventListener("scroll", updatePopoverPos, true);
+    return () => window.removeEventListener("resize", updatePopoverPos);
+  }, [openSlot, updatePopoverPos, pan, zoom, baseScale]);
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const updateBaseScale = () => {
+      const pad = 16;
+      const vw = viewport.clientWidth - pad;
+      const vh = viewport.clientHeight - pad;
+      if (vw <= 0 || vh <= 0) return;
+      const nextBase = Math.max(0.12, Math.min(vw / canvasSize.w, vh / canvasSize.h, 1));
+      setBaseScale(nextBase);
+      centerView(nextBase, zoomRef.current);
     };
-  }, [openSlot, updatePopoverPos]);
+
+    updateBaseScale();
+    const ro = new ResizeObserver(updateBaseScale);
+    ro.observe(viewport);
+    window.addEventListener("resize", updateBaseScale);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", updateBaseScale);
+    };
+  }, [canvasSize.w, canvasSize.h, centerView]);
 
   useEffect(() => {
     const el = viewportRef.current;
     if (!el) return;
+
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const delta = e.deltaY > 0 ? -0.12 : 0.12;
-      setUserZoom((z) => Math.min(MAX_USER_ZOOM, Math.max(MIN_USER_ZOOM, z + delta)));
+      const factor = e.deltaY > 0 ? 0.9 : 1.1;
+      zoomAtPoint(e.clientX, e.clientY, factor);
     };
+
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
+  }, [zoomAtPoint]);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest("[data-map-slot]")) return;
+
+    panSessionRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      panX: panRef.current.x,
+      panY: panRef.current.y,
+    };
+    setIsPanning(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }, []);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const session = panSessionRef.current;
+    if (!session) return;
+    setPan({
+      x: session.panX + e.clientX - session.startX,
+      y: session.panY + e.clientY - session.startY,
+    });
+  }, []);
+
+  const endPan = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!panSessionRef.current) return;
+    panSessionRef.current = null;
+    setIsPanning(false);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
   }, []);
 
   function handleCellSave(furnitureId: string, cellKey: string, cell: WarehouseCell) {
@@ -209,30 +315,12 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
     setEditModalTarget({ furnitureId, cellKey });
   }
 
-  const canvasSize = computeCanvasSize(furniture);
-
-  useLayoutEffect(() => {
+  function zoomFromToolbar(factor: number) {
     const viewport = viewportRef.current;
     if (!viewport) return;
-
-    const updateScale = () => {
-      const pad = 16;
-      const vw = viewport.clientWidth - pad;
-      const vh = viewport.clientHeight - pad;
-      if (vw <= 0 || vh <= 0) return;
-      const scale = Math.min(vw / canvasSize.w, vh / canvasSize.h, 1);
-      setFitScale(Math.max(0.12, scale));
-    };
-
-    updateScale();
-    const ro = new ResizeObserver(updateScale);
-    ro.observe(viewport);
-    window.addEventListener("resize", updateScale);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", updateScale);
-    };
-  }, [canvasSize.w, canvasSize.h]);
+    const rect = viewport.getBoundingClientRect();
+    zoomAtPoint(rect.left + rect.width / 2, rect.top + rect.height / 2, factor);
+  }
 
   const editModalFurniture = editModalTarget ? furniture.find((f) => f.id === editModalTarget.furnitureId) : null;
   const editModalCell = editModalFurniture ? (editModalFurniture.cells[editModalTarget!.cellKey] ?? {}) : null;
@@ -244,18 +332,18 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
         <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-white px-1 py-1 shadow-sm">
           <button
             type="button"
-            onClick={() => setUserZoom((z) => Math.max(MIN_USER_ZOOM, z - 0.25))}
+            onClick={() => zoomFromToolbar(0.8)}
             className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
             aria-label="Уменьшить"
           >
             −
           </button>
           <span className="min-w-[3.5rem] text-center text-xs font-medium text-gray-600">
-            {Math.round(userZoom * 100)}%
+            {Math.round(zoom * 100)}%
           </span>
           <button
             type="button"
-            onClick={() => setUserZoom((z) => Math.min(MAX_USER_ZOOM, z + 0.25))}
+            onClick={() => zoomFromToolbar(1.25)}
             className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
             aria-label="Увеличить"
           >
@@ -263,12 +351,13 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
           </button>
           <button
             type="button"
-            onClick={() => setUserZoom(1)}
+            onClick={resetView}
             className="rounded-lg px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-50"
           >
             Сброс
           </button>
         </div>
+        <span className="text-xs text-gray-400">Колёсико — зум · Перетаскивание — двигать</span>
         <button
           type="button"
           onClick={handleSaveMap}
@@ -281,90 +370,89 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
 
       <div
         ref={viewportRef}
-        className={`rounded-2xl border border-gray-200 bg-gray-100 ${userZoom > 1 ? "overflow-auto" : "overflow-hidden"}`}
+        className={`relative overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 touch-none select-none ${
+          isPanning ? "cursor-grabbing" : "cursor-grab"
+        }`}
         style={{ height: "min(calc(100dvh - 220px), 560px)" }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={endPan}
+        onPointerCancel={endPan}
       >
-        <div ref={canvasRef} className="flex h-full w-full items-center justify-center">
-          <div
-            style={{
-              width: canvasSize.w * effectiveScale,
-              height: canvasSize.h * effectiveScale,
-              flexShrink: 0,
-            }}
-          >
-            <div
-              className="canvas-inner relative"
-              style={{
-                width: canvasSize.w,
-                height: canvasSize.h,
-                transform: `scale(${effectiveScale})`,
-                transformOrigin: "top left",
-              }}
-            >
-              {furniture.map((f) => {
-                const isV = f.rotation === "v";
-                const fWidth = getFurnitureWidth(f);
-                const slotCount = f.cols;
+        <div
+          className="absolute left-0 top-0"
+          style={{
+            width: canvasSize.w,
+            height: canvasSize.h,
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${effectiveScale})`,
+            transformOrigin: "0 0",
+            willChange: "transform",
+          }}
+        >
+          {furniture.map((f) => {
+            const isV = f.rotation === "v";
+            const fWidth = getFurnitureWidth(f);
+            const slotCount = f.cols;
 
-                return (
-                  <div
-                    key={f.id}
-                    style={{ position: "absolute", left: f.x, top: f.y, zIndex: 2 }}
-                    className="rounded-xl border border-gray-200 bg-white shadow-md"
-                  >
-                    <div className={`p-2 ${isV ? "flex flex-col gap-1" : "flex flex-row gap-1"}`}>
-                      {Array.from({ length: slotCount }, (_, colIdx) => {
-                        const colNum = colIdx + 1;
-                        let filledCount = 0;
-                        for (let r = 1; r <= f.rows; r++) {
-                          if (f.cells[`r${r}c${colNum}`]?.productSlug) filledCount++;
-                        }
-                        const hasAny = filledCount > 0;
-                        const isOpen = openSlot?.furnitureId === f.id && openSlot?.col === colNum;
+            return (
+              <div
+                key={f.id}
+                style={{ position: "absolute", left: f.x, top: f.y, zIndex: 2 }}
+                className="rounded-xl border border-gray-200 bg-white shadow-md"
+              >
+                <div className={`p-2 ${isV ? "flex flex-col gap-1" : "flex flex-row gap-1"}`}>
+                  {Array.from({ length: slotCount }, (_, colIdx) => {
+                    const colNum = colIdx + 1;
+                    let filledCount = 0;
+                    for (let r = 1; r <= f.rows; r++) {
+                      if (f.cells[`r${r}c${colNum}`]?.productSlug) filledCount++;
+                    }
+                    const hasAny = filledCount > 0;
+                    const isOpen = openSlot?.furnitureId === f.id && openSlot?.col === colNum;
 
-                        return (
-                          <div
-                            key={colIdx}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (openSlot?.furnitureId === f.id && openSlot.col === colNum) {
-                                setOpenSlot(null);
-                                setEditModalTarget(null);
-                                return;
-                              }
-                              slotAnchorRef.current = e.currentTarget as HTMLElement;
-                              setEditModalTarget(null);
-                              setOpenSlot({ furnitureId: f.id, col: colNum });
-                            }}
-                            style={{ width: isV ? fWidth - 16 : SLOT_W, height: SLOT_H, position: "relative" }}
-                            className={`flex flex-col items-center justify-center rounded-lg border cursor-pointer transition-all select-none
-                              ${isOpen ? "ring-2 ring-blue-400 ring-offset-1" : ""}
-                              ${hasAny ? "bg-blue-50 border-blue-200 hover:shadow" : "border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100"}`}
+                    return (
+                      <div
+                        key={colIdx}
+                        data-map-slot
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (openSlot?.furnitureId === f.id && openSlot.col === colNum) {
+                            setOpenSlot(null);
+                            setEditModalTarget(null);
+                            return;
+                          }
+                          slotAnchorRef.current = e.currentTarget as HTMLElement;
+                          setEditModalTarget(null);
+                          setOpenSlot({ furnitureId: f.id, col: colNum });
+                        }}
+                        style={{ width: isV ? fWidth - 16 : SLOT_W, height: SLOT_H, position: "relative" }}
+                        className={`flex flex-col items-center justify-center rounded-lg border cursor-pointer transition-all select-none
+                          ${isOpen ? "ring-2 ring-blue-400 ring-offset-1" : ""}
+                          ${hasAny ? "bg-blue-50 border-blue-200 hover:shadow" : "border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100"}`}
+                      >
+                        {hasAny && (
+                          <span
+                            style={{ position: "absolute", top: 3, right: 5 }}
+                            className="text-[9px] font-semibold text-blue-500"
                           >
-                            {hasAny && (
-                              <span
-                                style={{ position: "absolute", top: 3, right: 5 }}
-                                className="text-[9px] font-semibold text-blue-500"
-                              >
-                                {filledCount}/{f.rows}
-                              </span>
-                            )}
-                            <span className="text-[10px] text-gray-400 font-medium mt-auto mb-1">Я{colNum}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {furniture.length === 0 && (
-                <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-400">
-                  Карта склада пуста
+                            {filledCount}/{f.rows}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-gray-400 font-medium mt-auto mb-1">Я{colNum}</span>
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
+            );
+          })}
+
+          {furniture.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-400">
+              Карта склада пуста
             </div>
-          </div>
+          )}
         </div>
       </div>
 
