@@ -18,7 +18,8 @@ interface WarehouseMapProps {
 const SLOT_W = 72;
 const SLOT_H = 60;
 const SNAP_THRESHOLD = 12;
-const LOCKED = true;
+/** Заблокировать редактирование: NEXT_PUBLIC_WAREHOUSE_MAP_LOCKED=true */
+const LOCKED = process.env.NEXT_PUBLIC_WAREHOUSE_MAP_LOCKED === "true";
 const POPOVER_W = 210;
 
 function autoAlign(items: FurnitureItem[]): FurnitureItem[] {
