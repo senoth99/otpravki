@@ -20,6 +20,10 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+.safe-top {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+}
+
 .safe-bottom {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }

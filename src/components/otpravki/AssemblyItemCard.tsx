@@ -101,6 +101,16 @@ export function AssemblyItemCard({
           map={warehouseMap}
           location={cellLocation}
           productName={item.productName}
+          stock={[
+            {
+              productSlug: item.productId,
+              productName: item.productName,
+              brand: item.brand,
+              imageUrl: item.imageUrl,
+              sizes: [{ id: 0, size: item.size, quantity: 0 }],
+              totalQuantity: 0,
+            },
+          ]}
           onClose={() => setNavOpen(false)}
         />
       )}

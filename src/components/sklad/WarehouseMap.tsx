@@ -23,6 +23,7 @@ const SLOT_H = 60;
 const SNAP_THRESHOLD = 12;
 const RACK_ROWS = 4;
 const POPOVER_W = 210;
+const RACK_LABEL_H = 28;
 const MIN_ZOOM = 0.35;
 const MAX_ZOOM = 4;
 
@@ -85,7 +86,8 @@ function getFurnitureWidth(f: FurnitureItem): number {
 function getFurnitureHeight(f: FurnitureItem): number {
   const isV = f.rotation === "v";
   const body = isV ? f.cols * (SLOT_H + 4) - 4 + 16 : SLOT_H + 16;
-  return body + 8;
+  const labelH = f.label?.trim() ? RACK_LABEL_H : 0;
+  return body + 8 + labelH;
 }
 
 function buildStockIndex(stock: ApiStockItem[]): Map<string, ApiStockItem> {
@@ -223,15 +225,16 @@ function getSlotWorldCenter(f: FurnitureItem, col: number): { x: number; y: numb
   const fWidth = getFurnitureWidth(f);
   const colIdx = isV ? slotCount - col : col - 1;
   const pad = 8;
+  const labelH = f.label?.trim() ? RACK_LABEL_H : 0;
   if (isV) {
     return {
       x: f.x + pad + (fWidth - 16) / 2,
-      y: f.y + pad + colIdx * (SLOT_H + 4) + SLOT_H / 2,
+      y: f.y + labelH + pad + colIdx * (SLOT_H + 4) + SLOT_H / 2,
     };
   }
   return {
     x: f.x + pad + colIdx * (SLOT_W + 4) + SLOT_W / 2,
-    y: f.y + pad + SLOT_H / 2,
+    y: f.y + labelH + pad + SLOT_H / 2,
   };
 }
 
@@ -340,17 +343,18 @@ export function WarehouseMap({
     if (!match) return false;
     const col = parseInt(match[2], 10);
     const center = getSlotWorldCenter(f, col);
-    const targetZoom = 1.6;
-    setZoom(targetZoom);
-    const scale = baseScaleRef.current * targetZoom;
     const vw = viewportRef.current.clientWidth;
     const vh = viewportRef.current.clientHeight;
+    const targetZoom = vw < 380 ? 1.2 : vw < 640 ? 1.45 : 1.7;
+    setZoom(targetZoom);
+    const scale = baseScaleRef.current * targetZoom;
+    const panelH = readOnly ? 112 : 0;
     setPan({
       x: vw / 2 - center.x * scale,
-      y: vh / 2 - center.y * scale,
+      y: (vh - panelH) / 2 - center.y * scale,
     });
     return true;
-  }, [navigateTarget, furniture]);
+  }, [navigateTarget, furniture, readOnly]);
 
   const resetView = useCallback(() => {
     if (navigateTarget && focusNavigateTarget()) return;
@@ -384,7 +388,7 @@ export function WarehouseMap({
   }, [navigateTarget]);
 
   useLayoutEffect(() => {
-    if (!openSlot) return;
+    if (readOnly || !openSlot) return;
     if (!slotAnchorRef.current && viewportRef.current) {
       const el = viewportRef.current.querySelector(
         `[data-map-slot][data-furniture-id="${openSlot.furnitureId}"][data-col="${openSlot.col}"]`,
@@ -394,7 +398,7 @@ export function WarehouseMap({
     updatePopoverPos();
     window.addEventListener("resize", updatePopoverPos);
     return () => window.removeEventListener("resize", updatePopoverPos);
-  }, [openSlot, updatePopoverPos, pan, zoom, baseScale]);
+  }, [openSlot, updatePopoverPos, pan, zoom, baseScale, readOnly]);
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
@@ -407,7 +411,9 @@ export function WarehouseMap({
       if (vw <= 0 || vh <= 0) return;
       const nextBase = Math.max(0.12, Math.min(vw / canvasSize.w, vh / canvasSize.h, 1));
       setBaseScale(nextBase);
-      if (!navigateTarget) {
+      if (navigateTarget) {
+        requestAnimationFrame(() => focusNavigateTarget());
+      } else {
         centerView(nextBase, zoomRef.current);
       }
     };
@@ -420,12 +426,7 @@ export function WarehouseMap({
       ro.disconnect();
       window.removeEventListener("resize", updateBaseScale);
     };
-  }, [canvasSize.w, canvasSize.h, centerView, navigateTarget]);
-
-  useLayoutEffect(() => {
-    if (!navigateTarget || baseScale <= 0) return;
-    focusNavigateTarget();
-  }, [navigateTarget, baseScale, focusNavigateTarget]);
+  }, [canvasSize.w, canvasSize.h, centerView, navigateTarget, focusNavigateTarget]);
 
   useEffect(() => {
     const el = viewportRef.current;
@@ -560,9 +561,13 @@ export function WarehouseMap({
   const openSlotFurniture = openSlot ? furniture.find((f) => f.id === openSlot.furnitureId) : null;
   const navigateCol = navigateTarget?.cellKey.match(/^r(\d+)c(\d+)$/)?.[2];
   const navigateRow = navigateTarget?.cellKey.match(/^r(\d+)c(\d+)$/)?.[1];
+  const navTargetCell =
+    readOnly && navigateTarget && openSlotFurniture
+      ? openSlotFurniture.cells[navigateTarget.cellKey]
+      : undefined;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className={`flex flex-col ${readOnly ? "gap-2 sm:gap-3" : "gap-4"}`}>
       <div className="flex flex-col gap-2">
         {!readOnly && (
           <div className="relative">
@@ -629,7 +634,11 @@ export function WarehouseMap({
         className={`relative overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 touch-none select-none ${
           isPanning ? "cursor-grabbing" : "cursor-grab"
         }`}
-        style={{ height: readOnly ? "min(380px, 48dvh)" : "min(calc(100dvh - 220px), 560px)" }}
+        style={{
+          height: readOnly
+            ? "min(52dvh, 520px)"
+            : "min(calc(100dvh - 220px), 560px)",
+        }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={endPan}
@@ -650,12 +659,41 @@ export function WarehouseMap({
             const fWidth = getFurnitureWidth(f);
             const slotCount = Math.max(1, Number(f.cols) || 1);
 
+            const isNavRack = navigateTarget?.furnitureId === f.id;
+            const isDimmedRack = Boolean(navigateTarget && !isNavRack);
+
             return (
               <div
                 key={f.id}
-                style={{ position: "absolute", left: f.x, top: f.y, zIndex: 2 }}
-                className="rounded-xl border border-gray-200 bg-white shadow-md"
+                style={{ position: "absolute", left: f.x, top: f.y, zIndex: isNavRack ? 10 : 2 }}
+                className={`overflow-hidden rounded-xl border bg-white shadow-md transition-opacity duration-200 ${
+                  isNavRack
+                    ? "border-amber-300 ring-2 ring-amber-200"
+                    : "border-gray-200"
+                } ${isDimmedRack ? "opacity-20 saturate-50" : "opacity-100"}`}
               >
+                {f.label?.trim() && (
+                  <div
+                    className={`flex items-center justify-center gap-1.5 border-b px-2 py-1.5 sm:px-3 ${
+                      isNavRack
+                        ? "border-amber-200 bg-gradient-to-b from-amber-50 to-white"
+                        : "border-gray-100 bg-gradient-to-b from-slate-50 to-white"
+                    }`}
+                  >
+                    <span
+                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                        isNavRack ? "bg-amber-400" : "bg-blue-400"
+                      }`}
+                    />
+                    <span
+                      className={`truncate text-[10px] font-semibold uppercase tracking-wider sm:text-[11px] ${
+                        isNavRack ? "text-amber-900" : "text-gray-700"
+                      }`}
+                    >
+                      {f.label.trim()}
+                    </span>
+                  </div>
+                )}
                 <div className={`p-2 ${isV ? "flex flex-col gap-1" : "flex flex-row gap-1"}`}>
                   {Array.from({ length: slotCount }, (_, colIdx) => {
                     const colNum = isV ? slotCount - colIdx : colIdx + 1;
@@ -726,9 +764,45 @@ export function WarehouseMap({
             </div>
           )}
         </div>
+
+        {readOnly && navigateTarget && openSlotFurniture && navigateCol && (
+          <div className="absolute inset-x-0 bottom-0 z-20 border-t border-gray-200 bg-white/95 px-3 py-2.5 backdrop-blur-sm sm:px-4 sm:py-3">
+            <p className="text-[11px] font-semibold text-gray-900 sm:text-xs">
+              {openSlotFurniture.label?.trim() || "Стеллаж"} · Я{navigateCol} · Р{navigateRow}
+            </p>
+            <p className="mt-0.5 line-clamp-1 text-[11px] text-gray-500 sm:text-xs">
+              {navTargetCell?.productName ?? "Возьмите товар с подсвеченного ряда"}
+            </p>
+            <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {Array.from({ length: openSlotFurniture.rows }, (_, rowIdx) => {
+                const rowNum = openSlotFurniture.rows - rowIdx;
+                const cellKey = `r${rowNum}c${navigateCol}`;
+                const cell = openSlotFurniture.cells[cellKey];
+                const isTarget = navigateRow === String(rowNum);
+                return (
+                  <div
+                    key={rowNum}
+                    className={`flex min-w-[3.25rem] shrink-0 flex-col items-center rounded-lg border px-2 py-1.5 text-center ${
+                      isTarget
+                        ? "border-amber-400 bg-amber-50 ring-2 ring-amber-300"
+                        : "border-gray-200 bg-gray-50"
+                    }`}
+                  >
+                    <span className={`text-[10px] font-semibold ${isTarget ? "text-amber-900" : "text-gray-500"}`}>
+                      Р{rowNum}
+                    </span>
+                    <span className="mt-0.5 text-[9px] text-gray-400">
+                      {cell?.productSlug ? "●" : "○"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
-      {openSlot && openSlotFurniture && typeof document !== "undefined" && createPortal(
+      {!readOnly && openSlot && openSlotFurniture && typeof document !== "undefined" && createPortal(
         <>
           {!readOnly && (
             <div
