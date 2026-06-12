@@ -3,12 +3,23 @@
 import { useCallback } from "react";
 import type { AssemblyViewSections } from "@/lib/assembly-demand";
 import type { AssemblyItem } from "@/types/shipping";
+import type { WarehouseMapConfig } from "@/types/stock";
 import { AssemblyItemCard } from "./AssemblyItemCard";
 
 interface AssemblyViewProps {
   sections: AssemblyViewSections;
   allItems: AssemblyItem[];
   onItemsChange: (items: AssemblyItem[]) => void;
+  warehouseMap?: WarehouseMapConfig;
+}
+
+function findCellHint(item: AssemblyItem, map: WarehouseMapConfig): string | undefined {
+  const cell = map.cells.find(
+    (c) => c.productSlug === item.productId && c.sizes?.includes(item.size),
+  );
+  if (!cell) return undefined;
+  const zoneLabel = cell.zone === "rack" ? "Стеллаж" : "Стол";
+  return `${zoneLabel} Р${cell.row}Я${cell.col}`;
 }
 
 function totalUnits(sections: AssemblyViewSections) {
@@ -21,7 +32,7 @@ function collectedUnits(sections: AssemblyViewSections) {
   return all.reduce((sum, item) => sum + item.collectedCount, 0);
 }
 
-export function AssemblyView({ sections, allItems, onItemsChange }: AssemblyViewProps) {
+export function AssemblyView({ sections, allItems, onItemsChange, warehouseMap }: AssemblyViewProps) {
   const visibleItems = [...sections.pending, ...sections.completed];
 
   const findVisibleItem = useCallback(
@@ -91,6 +102,7 @@ export function AssemblyView({ sections, allItems, onItemsChange }: AssemblyView
                   item={item}
                   onIncrement={handleIncrement}
                   onDecrement={handleDecrement}
+                  cellHint={warehouseMap ? findCellHint(item, warehouseMap) : undefined}
                 />
               ))}
             </div>
@@ -109,6 +121,7 @@ export function AssemblyView({ sections, allItems, onItemsChange }: AssemblyView
                     item={item}
                     onIncrement={handleIncrement}
                     onDecrement={handleDecrement}
+                    cellHint={warehouseMap ? findCellHint(item, warehouseMap) : undefined}
                   />
                 ))}
               </div>

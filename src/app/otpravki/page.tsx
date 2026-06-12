@@ -4,7 +4,9 @@ import { describeCasherLoadError } from "@/lib/casher-error";
 import { buildInitialWorkspace } from "@/lib/build-workspace";
 import { getMockResetToken } from "@/lib/server/mock-reset";
 import { fetchAndSyncWorkspaceFromApi } from "@/lib/server/workspace-api-sync";
+import { getWarehouseMap } from "@/lib/server/warehouse-map-store";
 import { getSharedWorkspace, initSharedWorkspace } from "@/lib/server/workspace-store";
+import type { WarehouseMapConfig } from "@/types/stock";
 
 export const dynamic = "force-dynamic";
 
@@ -29,12 +31,14 @@ function OtpravkiShell({
   apiOrderIds,
   shippedArchive,
   initialRevision,
+  warehouseMap,
 }: {
   assemblyItems: Parameters<typeof ShippingPanel>[0]["assemblyItems"];
   orders: Parameters<typeof ShippingPanel>[0]["orders"];
   apiOrderIds?: string[];
   shippedArchive?: Parameters<typeof ShippingPanel>[0]["shippedArchive"];
   initialRevision?: number;
+  warehouseMap?: WarehouseMapConfig;
 }) {
   return (
     <div className="min-h-screen overflow-x-hidden bg-gray-50 px-3 py-3 sm:p-6">
@@ -44,13 +48,17 @@ function OtpravkiShell({
         apiOrderIds={apiOrderIds}
         shippedArchive={shippedArchive}
         initialRevision={initialRevision}
+        warehouseMap={warehouseMap}
       />
     </div>
   );
 }
 
 export default async function OtpravkiPage() {
-  const resetToken = await getMockResetToken();
+  const [resetToken, warehouseMap] = await Promise.all([
+    getMockResetToken(),
+    getWarehouseMap().catch(() => ({ cells: [], updatedAt: 0 })),
+  ]);
 
   if (!USE_MOCK_ORDERS) {
     try {
@@ -62,6 +70,7 @@ export default async function OtpravkiPage() {
           apiOrderIds={workspace.apiOrderIds}
           shippedArchive={workspace.shippedArchive}
           initialRevision={workspace.revision}
+          warehouseMap={warehouseMap}
         />
       );
     } catch (error) {
@@ -82,6 +91,7 @@ export default async function OtpravkiPage() {
         apiOrderIds={existing.apiOrderIds}
         shippedArchive={existing.shippedArchive}
         initialRevision={existing.revision}
+        warehouseMap={warehouseMap}
       />
     );
   }
@@ -116,6 +126,7 @@ export default async function OtpravkiPage() {
       apiOrderIds={shared.apiOrderIds}
       shippedArchive={shared.shippedArchive}
       initialRevision={shared.revision}
+      warehouseMap={warehouseMap}
     />
   );
 }

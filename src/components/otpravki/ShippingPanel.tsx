@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { computeCompletedAssemblyIds, getAssemblyViewSections } from "@/lib/assembly-demand";
 import type { AssemblyItem, ShippingOrder, ShippingTab } from "@/types/shipping";
+import type { WarehouseMapConfig } from "@/types/stock";
 import { ArchiveView } from "./ArchiveView";
 import { AssemblyView } from "./AssemblyView";
 import { ShippingView } from "./ShippingView";
@@ -15,6 +16,7 @@ interface ShippingPanelProps {
   apiOrderIds?: string[];
   shippedArchive?: ShippingOrder[];
   initialRevision?: number;
+  warehouseMap?: WarehouseMapConfig;
 }
 
 export function ShippingPanel({
@@ -23,6 +25,7 @@ export function ShippingPanel({
   apiOrderIds: initialApiOrderIds = [],
   shippedArchive: initialShippedArchive = [],
   initialRevision = 0,
+  warehouseMap,
 }: ShippingPanelProps) {
   const [tab, setTab] = useState<ShippingTab>("assembly");
   const [assemblySettled, setAssemblySettled] = useState(false);
@@ -96,6 +99,7 @@ export function ShippingPanel({
             sections={assemblySections}
             allItems={assemblyItems}
             onItemsChange={updateAssembly}
+            warehouseMap={warehouseMap}
           />
         </div>
       ) : tab === "shipping" ? (

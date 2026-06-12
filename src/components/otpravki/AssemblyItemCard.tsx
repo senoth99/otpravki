@@ -10,9 +10,10 @@ interface AssemblyItemCardProps {
   item: AssemblyItem;
   onIncrement: (id: string) => void;
   onDecrement: (id: string) => void;
+  cellHint?: string;
 }
 
-export function AssemblyItemCard({ item, onIncrement, onDecrement }: AssemblyItemCardProps) {
+export function AssemblyItemCard({ item, onIncrement, onDecrement, cellHint }: AssemblyItemCardProps) {
   const isComplete = item.collectedCount >= item.quantity;
 
   return (
@@ -61,6 +62,11 @@ export function AssemblyItemCard({ item, onIncrement, onDecrement }: AssemblyIte
               {formatSize(item.size)}
             </span>
             {item.isBlogger && <BloggerBadge />}
+            {cellHint && (
+              <span className="rounded-lg bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+                {cellHint}
+              </span>
+            )}
           </div>
         </div>
       </div>
