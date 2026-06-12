@@ -1,7 +1,11 @@
 "use client";
 
+import { useState } from "react";
+import { WarehouseLocationModal } from "@/components/sklad/WarehouseLocationModal";
 import { formatSize } from "@/lib/format";
+import type { WarehouseCellLocation } from "@/lib/warehouse-location";
 import type { AssemblyItem } from "@/types/shipping";
+import type { WarehouseMapConfig } from "@/types/stock";
 import { BloggerBadge } from "./BloggerBadge";
 import { ProductImage } from "./ProductImage";
 import { QuantityTracker } from "./QuantityTracker";
@@ -10,10 +14,18 @@ interface AssemblyItemCardProps {
   item: AssemblyItem;
   onIncrement: (id: string) => void;
   onDecrement: (id: string) => void;
-  cellHint?: string;
+  cellLocation?: WarehouseCellLocation;
+  warehouseMap?: WarehouseMapConfig;
 }
 
-export function AssemblyItemCard({ item, onIncrement, onDecrement, cellHint }: AssemblyItemCardProps) {
+export function AssemblyItemCard({
+  item,
+  onIncrement,
+  onDecrement,
+  cellLocation,
+  warehouseMap,
+}: AssemblyItemCardProps) {
+  const [navOpen, setNavOpen] = useState(false);
   const isComplete = item.collectedCount >= item.quantity;
 
   return (
@@ -62,10 +74,14 @@ export function AssemblyItemCard({ item, onIncrement, onDecrement, cellHint }: A
               {formatSize(item.size)}
             </span>
             {item.isBlogger && <BloggerBadge />}
-            {cellHint && (
-              <span className="rounded-lg bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-                {cellHint}
-              </span>
+            {cellLocation && (
+              <button
+                type="button"
+                onClick={() => setNavOpen(true)}
+                className="rounded-lg bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 active:bg-blue-200"
+              >
+                {cellLocation.hint}
+              </button>
             )}
           </div>
         </div>
@@ -79,6 +95,15 @@ export function AssemblyItemCard({ item, onIncrement, onDecrement, cellHint }: A
           onDecrement={() => onDecrement(item.id)}
         />
       </div>
+
+      {navOpen && warehouseMap && cellLocation && (
+        <WarehouseLocationModal
+          map={warehouseMap}
+          location={cellLocation}
+          productName={item.productName}
+          onClose={() => setNavOpen(false)}
+        />
+      )}
     </div>
   );
 }

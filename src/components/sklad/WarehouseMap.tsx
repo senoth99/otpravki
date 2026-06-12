@@ -14,6 +14,8 @@ import { CellModal } from "./CellModal";
 interface WarehouseMapProps {
   initialMap: WarehouseMapConfig;
   stock: ApiStockItem[];
+  readOnly?: boolean;
+  navigateTarget?: { furnitureId: string; cellKey: string };
 }
 
 const SLOT_W = 72;
@@ -215,6 +217,24 @@ function MapProductIcons({
   );
 }
 
+function getSlotWorldCenter(f: FurnitureItem, col: number): { x: number; y: number } {
+  const isV = f.rotation === "v";
+  const slotCount = Math.max(1, Number(f.cols) || 1);
+  const fWidth = getFurnitureWidth(f);
+  const colIdx = isV ? slotCount - col : col - 1;
+  const pad = 8;
+  if (isV) {
+    return {
+      x: f.x + pad + (fWidth - 16) / 2,
+      y: f.y + pad + colIdx * (SLOT_H + 4) + SLOT_H / 2,
+    };
+  }
+  return {
+    x: f.x + pad + colIdx * (SLOT_W + 4) + SLOT_W / 2,
+    y: f.y + pad + SLOT_H / 2,
+  };
+}
+
 function computeCanvasSize(items: FurnitureItem[]): { w: number; h: number } {
   if (items.length === 0) return { w: 800, h: 500 };
   let maxX = 0;
@@ -226,7 +246,12 @@ function computeCanvasSize(items: FurnitureItem[]): { w: number; h: number } {
   return { w: maxX + 40, h: maxY + 40 };
 }
 
-export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
+export function WarehouseMap({
+  initialMap,
+  stock,
+  readOnly = false,
+  navigateTarget,
+}: WarehouseMapProps) {
   const [furniture, setFurniture] = useState<FurnitureItem[]>(() =>
     autoAlign((initialMap.furniture ?? []).map(normalizeFurnitureItem)),
   );
@@ -307,10 +332,31 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
     });
   }, []);
 
+  const focusNavigateTarget = useCallback(() => {
+    if (!navigateTarget || !viewportRef.current) return false;
+    const f = furniture.find((item) => item.id === navigateTarget.furnitureId);
+    if (!f) return false;
+    const match = navigateTarget.cellKey.match(/^r(\d+)c(\d+)$/);
+    if (!match) return false;
+    const col = parseInt(match[2], 10);
+    const center = getSlotWorldCenter(f, col);
+    const targetZoom = 1.6;
+    setZoom(targetZoom);
+    const scale = baseScaleRef.current * targetZoom;
+    const vw = viewportRef.current.clientWidth;
+    const vh = viewportRef.current.clientHeight;
+    setPan({
+      x: vw / 2 - center.x * scale,
+      y: vh / 2 - center.y * scale,
+    });
+    return true;
+  }, [navigateTarget, furniture]);
+
   const resetView = useCallback(() => {
+    if (navigateTarget && focusNavigateTarget()) return;
     setZoom(1);
     centerView(baseScaleRef.current, 1);
-  }, [centerView]);
+  }, [centerView, navigateTarget, focusNavigateTarget]);
 
   const updatePopoverPos = useCallback(() => {
     const el = slotAnchorRef.current;
@@ -330,8 +376,21 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
     setPopoverPos({ top, left });
   }, [openSlot, furniture]);
 
+  useEffect(() => {
+    if (!navigateTarget) return;
+    const match = navigateTarget.cellKey.match(/^r(\d+)c(\d+)$/);
+    if (!match) return;
+    setOpenSlot({ furnitureId: navigateTarget.furnitureId, col: parseInt(match[2], 10) });
+  }, [navigateTarget]);
+
   useLayoutEffect(() => {
     if (!openSlot) return;
+    if (!slotAnchorRef.current && viewportRef.current) {
+      const el = viewportRef.current.querySelector(
+        `[data-map-slot][data-furniture-id="${openSlot.furnitureId}"][data-col="${openSlot.col}"]`,
+      ) as HTMLElement | null;
+      if (el) slotAnchorRef.current = el;
+    }
     updatePopoverPos();
     window.addEventListener("resize", updatePopoverPos);
     return () => window.removeEventListener("resize", updatePopoverPos);
@@ -348,7 +407,9 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
       if (vw <= 0 || vh <= 0) return;
       const nextBase = Math.max(0.12, Math.min(vw / canvasSize.w, vh / canvasSize.h, 1));
       setBaseScale(nextBase);
-      centerView(nextBase, zoomRef.current);
+      if (!navigateTarget) {
+        centerView(nextBase, zoomRef.current);
+      }
     };
 
     updateBaseScale();
@@ -359,7 +420,12 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
       ro.disconnect();
       window.removeEventListener("resize", updateBaseScale);
     };
-  }, [canvasSize.w, canvasSize.h, centerView]);
+  }, [canvasSize.w, canvasSize.h, centerView, navigateTarget]);
+
+  useLayoutEffect(() => {
+    if (!navigateTarget || baseScale <= 0) return;
+    focusNavigateTarget();
+  }, [navigateTarget, baseScale, focusNavigateTarget]);
 
   useEffect(() => {
     const el = viewportRef.current;
@@ -492,24 +558,28 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
   const editModalFurniture = editModalTarget ? furniture.find((f) => f.id === editModalTarget.furnitureId) : null;
   const editModalCell = editModalFurniture ? (editModalFurniture.cells[editModalTarget!.cellKey] ?? {}) : null;
   const openSlotFurniture = openSlot ? furniture.find((f) => f.id === openSlot.furnitureId) : null;
+  const navigateCol = navigateTarget?.cellKey.match(/^r(\d+)c(\d+)$/)?.[2];
+  const navigateRow = navigateTarget?.cellKey.match(/^r(\d+)c(\d+)$/)?.[1];
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <div className="relative">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Поиск товара на карте..."
-            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 pr-20 text-sm outline-none placeholder:text-gray-400 focus:border-gray-400"
-          />
-          {searchActive && (
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
-              {matchCount > 0 ? `${matchCount} яч.` : "нет"}
-            </span>
-          )}
-        </div>
+        {!readOnly && (
+          <div className="relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Поиск товара на карте..."
+              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 pr-20 text-sm outline-none placeholder:text-gray-400 focus:border-gray-400"
+            />
+            {searchActive && (
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                {matchCount > 0 ? `${matchCount} яч.` : "нет"}
+              </span>
+            )}
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-white px-1 py-1 shadow-sm">
           <button
@@ -539,14 +609,18 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
             Сброс
           </button>
         </div>
-        <button
-          type="button"
-          onClick={handleSaveMap}
-          className="rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-opacity"
-        >
-          Сохранить карту
-        </button>
-        {saved && <span className="text-xs text-green-600 font-medium">Сохранено!</span>}
+        {!readOnly && (
+          <>
+            <button
+              type="button"
+              onClick={handleSaveMap}
+              className="rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-opacity"
+            >
+              Сохранить карту
+            </button>
+            {saved && <span className="text-xs text-green-600 font-medium">Сохранено!</span>}
+          </>
+        )}
         </div>
       </div>
 
@@ -555,7 +629,7 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
         className={`relative overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 touch-none select-none ${
           isPanning ? "cursor-grabbing" : "cursor-grab"
         }`}
-        style={{ height: "min(calc(100dvh - 220px), 560px)" }}
+        style={{ height: readOnly ? "min(380px, 48dvh)" : "min(calc(100dvh - 220px), 560px)" }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={endPan}
@@ -594,14 +668,19 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
                     const productSlugs = getColumnProductSlugs(f, colNum);
                     const colMatches = columnMatchesSearch(f, colNum, searchQuery, stockBySlug);
                     const dimmed = searchActive && !colMatches;
+                    const isNavTarget =
+                      navigateTarget?.furnitureId === f.id && navigateCol === String(colNum);
 
                     return (
                       <div
                         key={colIdx}
                         data-map-slot
+                        data-furniture-id={f.id}
+                        data-col={colNum}
                         onPointerDown={(e) => e.stopPropagation()}
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (readOnly) return;
                           if (openSlot?.furnitureId === f.id && openSlot.col === colNum) {
                             setOpenSlot(null);
                             setEditModalTarget(null);
@@ -612,8 +691,10 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
                           setOpenSlot({ furnitureId: f.id, col: colNum });
                         }}
                         style={{ width: isV ? fWidth - 16 : SLOT_W, height: SLOT_H, position: "relative" }}
-                        className={`flex flex-col items-center justify-center overflow-hidden rounded-lg border cursor-pointer transition-all duration-150 select-none
+                        className={`flex flex-col items-center justify-center overflow-hidden rounded-lg border transition-all duration-150 select-none
+                          ${readOnly ? "cursor-default" : "cursor-pointer"}
                           ${isOpen ? "ring-2 ring-blue-400 ring-offset-1" : ""}
+                          ${isNavTarget ? "ring-4 ring-amber-400 ring-offset-2 z-20 shadow-lg" : ""}
                           ${searchActive && colMatches ? "ring-2 ring-amber-400 ring-offset-1 z-10" : ""}
                           ${dimmed ? "opacity-25 saturate-50" : "opacity-100"}
                           ${hasAny ? "bg-blue-50 border-blue-200 hover:shadow" : "border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100"}`}
@@ -649,14 +730,16 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
 
       {openSlot && openSlotFurniture && typeof document !== "undefined" && createPortal(
         <>
-          <div
-            className="fixed inset-0"
-            style={{ zIndex: 9998 }}
-            onClick={() => {
-              setEditModalTarget(null);
-              setOpenSlot(null);
-            }}
-          />
+          {!readOnly && (
+            <div
+              className="fixed inset-0"
+              style={{ zIndex: 9998 }}
+              onClick={() => {
+                setEditModalTarget(null);
+                setOpenSlot(null);
+              }}
+            />
+          )}
           <div
             style={{ position: "fixed", top: popoverPos.top, left: popoverPos.left, width: POPOVER_W, zIndex: 9999 }}
             className="bg-white rounded-xl shadow-xl border border-gray-200"
@@ -664,16 +747,18 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
           >
             <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100">
               <span className="text-xs font-semibold text-gray-800">Я{openSlot.col}</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditModalTarget(null);
-                  setOpenSlot(null);
-                }}
-                className="text-gray-400 hover:text-gray-600 text-sm px-1"
-              >
-                ×
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditModalTarget(null);
+                    setOpenSlot(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 text-sm px-1"
+                >
+                  ×
+                </button>
+              )}
             </div>
             <div className="flex flex-col gap-1.5 p-2 max-h-[min(420px,calc(100vh-80px))] overflow-y-auto">
               {Array.from({ length: openSlotFurniture.rows }, (_, rowIdx) => {
@@ -685,33 +770,38 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
                 const dragKey = `${openSlotFurniture.id}:${cellKey}`;
                 const rowMatches = cellMatchesSearch(cell, searchQuery, stockBySlug);
                 const rowDimmed = searchActive && !rowMatches;
+                const isNavRow =
+                  navigateTarget?.furnitureId === openSlotFurniture.id &&
+                  navigateRow === String(rowNum);
 
                 return (
                   <div key={rowIdx} className={`flex items-center gap-1.5 transition-opacity duration-150 ${rowDimmed ? "opacity-25" : ""}`}>
                     <div className="w-6 shrink-0 text-center text-[10px] font-medium text-gray-400">Р{rowNum}</div>
                     <div style={{ flex: 1 }}>
                       <div
-                        draggable={hasProduct}
-                        onDragStart={hasProduct ? (e) => handleCellDragStart(e, openSlotFurniture.id, cellKey) : undefined}
-                        onDragEnter={(e) => {
+                        draggable={!readOnly && hasProduct}
+                        onDragStart={!readOnly && hasProduct ? (e) => handleCellDragStart(e, openSlotFurniture.id, cellKey) : undefined}
+                        onDragEnter={readOnly ? undefined : (e) => {
                           e.preventDefault();
                           dragDepthRef.current += 1;
                           setDragOver(dragKey);
                         }}
-                        onDragOver={(e) => {
+                        onDragOver={readOnly ? undefined : (e) => {
                           e.preventDefault();
                           setDragOver(dragKey);
                         }}
-                        onDragLeave={() => {
+                        onDragLeave={readOnly ? undefined : () => {
                           dragDepthRef.current -= 1;
                           if (dragDepthRef.current <= 0) {
                             dragDepthRef.current = 0;
                             setDragOver(null);
                           }
                         }}
-                        onDrop={(e) => handleCellDrop(e, openSlotFurniture.id, cellKey)}
-                        onClick={() => openCellEditor(openSlotFurniture.id, cellKey)}
-                        className={`flex flex-col justify-center gap-0.5 rounded-lg border p-2 cursor-pointer transition-all w-full
+                        onDrop={readOnly ? undefined : (e) => handleCellDrop(e, openSlotFurniture.id, cellKey)}
+                        onClick={readOnly ? undefined : () => openCellEditor(openSlotFurniture.id, cellKey)}
+                        className={`flex flex-col justify-center gap-0.5 rounded-lg border p-2 transition-all w-full
+                          ${readOnly ? "cursor-default" : "cursor-pointer"}
+                          ${isNavRow ? "ring-2 ring-amber-400 ring-offset-1 bg-amber-50" : ""}
                           ${searchActive && rowMatches ? "ring-2 ring-amber-400 ring-offset-1" : ""}
                           ${isDragOverThis ? "border-2 border-blue-400 bg-blue-100"
                             : hasProduct ? "border-blue-200 bg-blue-50 hover:shadow-sm"
@@ -754,7 +844,7 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
         document.body,
       )}
 
-      {editModalTarget && editModalFurniture && editModalCell !== null && (
+      {!readOnly && editModalTarget && editModalFurniture && editModalCell !== null && (
         <CellModal
           furnitureId={editModalTarget.furnitureId}
           cellKey={editModalTarget.cellKey}

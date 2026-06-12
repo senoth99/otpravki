@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import type { AssemblyViewSections } from "@/lib/assembly-demand";
+import { findCellLocation } from "@/lib/warehouse-location";
 import type { AssemblyItem } from "@/types/shipping";
 import type { WarehouseMapConfig } from "@/types/stock";
 import { AssemblyItemCard } from "./AssemblyItemCard";
@@ -11,23 +12,6 @@ interface AssemblyViewProps {
   allItems: AssemblyItem[];
   onItemsChange: (items: AssemblyItem[]) => void;
   warehouseMap?: WarehouseMapConfig;
-}
-
-function findCellHint(item: AssemblyItem, map: WarehouseMapConfig): string | undefined {
-  for (const furniture of map.furniture) {
-    for (const [key, cell] of Object.entries(furniture.cells)) {
-      if (
-        cell.productSlug === item.productId &&
-        cell.sizes?.some((s) => s.toLowerCase() === item.size.toLowerCase())
-      ) {
-        const match = key.match(/^r(\d+)c(\d+)$/);
-        if (match) {
-          return `${furniture.label} Р${match[1]}Я${match[2]}`;
-        }
-      }
-    }
-  }
-  return undefined;
 }
 
 function totalUnits(sections: AssemblyViewSections) {
@@ -110,7 +94,8 @@ export function AssemblyView({ sections, allItems, onItemsChange, warehouseMap }
                   item={item}
                   onIncrement={handleIncrement}
                   onDecrement={handleDecrement}
-                  cellHint={warehouseMap ? findCellHint(item, warehouseMap) : undefined}
+                  cellLocation={warehouseMap ? findCellLocation(item, warehouseMap) : undefined}
+                  warehouseMap={warehouseMap}
                 />
               ))}
             </div>
@@ -129,7 +114,8 @@ export function AssemblyView({ sections, allItems, onItemsChange, warehouseMap }
                     item={item}
                     onIncrement={handleIncrement}
                     onDecrement={handleDecrement}
-                    cellHint={warehouseMap ? findCellHint(item, warehouseMap) : undefined}
+                    cellLocation={warehouseMap ? findCellLocation(item, warehouseMap) : undefined}
+                  warehouseMap={warehouseMap}
                   />
                 ))}
               </div>
