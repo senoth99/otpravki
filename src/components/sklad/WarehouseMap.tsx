@@ -41,6 +41,10 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
     furnitureId: string;
     cellKey: string;
   } | null>(null);
+  const [openSlot, setOpenSlot] = useState<{
+    furnitureId: string;
+    col: number;
+  } | null>(null);
   const [saved, setSaved] = useState(false);
   const [dragOver, setDragOver] = useState<string | null>(null); // "furnitureId:cellKey"
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
@@ -290,8 +294,16 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
         {furniture.map((f) => {
           const isDraggingThis = dragging?.id === f.id;
           const isResizingThis = resizing?.id === f.id;
-          // Width = row-label column (28px) + cols * CELL_W + padding
-          const bodyWidth = 28 + f.cols * CELL_W + (f.cols - 1) * 4 + 16; // 16 for padding
+          // Width = cols * CELL_W + gaps + padding
+          const bodyWidth = f.cols * CELL_W + (f.cols - 1) * 4 + 16;
+          const furnitureWidth = bodyWidth;
+          const isSlotOpen =
+            openSlot?.furnitureId === f.id;
+          const openCol = isSlotOpen ? openSlot!.col : null;
+
+          // Popover position: right or left depending on available space
+          const popoverOnLeft = f.x + furnitureWidth + 220 > 1400;
+
           return (
             <div
               key={f.id}
@@ -362,40 +374,122 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
                 </button>
               </div>
 
-              {/* Grid body */}
+              {/* Top-view body: single horizontal row of column slots */}
               <div
-                className="p-2"
+                className="p-2 flex items-center gap-1"
                 style={{
                   pointerEvents:
                     isDraggingThis || isResizingThis ? "none" : undefined,
                 }}
               >
-                {Array.from({ length: f.rows }, (_, rowIdx) => {
-                  const rowNum = rowIdx + 1;
+                {Array.from({ length: f.cols }, (_, colIdx) => {
+                  const colNum = colIdx + 1;
+                  // Count how many rows have a product in this column
+                  let filledCount = 0;
+                  for (let r = 1; r <= f.rows; r++) {
+                    if (f.cells[`r${r}c${colNum}`]?.productSlug) {
+                      filledCount++;
+                    }
+                  }
+                  const hasAnyProduct = filledCount > 0;
+                  const isThisSlotOpen =
+                    openSlot?.furnitureId === f.id &&
+                    openSlot?.col === colNum;
+
                   return (
-                    <div key={rowIdx} className="flex items-center gap-1 mb-1">
-                      {/* Row label */}
-                      <div className="w-7 flex-shrink-0 text-center text-[10px] font-medium text-gray-400">
-                        Р{rowNum}
-                      </div>
-                      {/* Cells */}
-                      {Array.from({ length: f.cols }, (_, colIdx) => {
-                        const colNum = colIdx + 1;
-                        const cellKey = `r${rowNum}c${colNum}`;
-                        const cell = f.cells[cellKey];
-                        const hasProduct = Boolean(cell?.productSlug);
-                        const isDragOverThis =
-                          dragOver === `${f.id}:${cellKey}`;
+                    <div
+                      key={colIdx}
+                      onClick={() =>
+                        setOpenSlot({ furnitureId: f.id, col: colNum })
+                      }
+                      style={{ width: CELL_W, height: 56, position: "relative" }}
+                      className={`flex flex-col items-center justify-center rounded-lg border cursor-pointer transition-all select-none
+                        ${
+                          isThisSlotOpen
+                            ? "ring-2 ring-blue-400"
+                            : ""
+                        }
+                        ${
+                          hasAnyProduct
+                            ? "bg-blue-50 border-blue-200 hover:shadow-sm"
+                            : "border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100"
+                        }`}
+                    >
+                      {hasAnyProduct && (
+                        <span
+                          style={{ position: "absolute", top: 4, right: 6 }}
+                          className="text-[9px] font-semibold text-blue-500"
+                        >
+                          {filledCount}/{f.rows}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-gray-400 mt-auto mb-1">
+                        Я{colNum}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
 
-                        const isPopoverOpen =
-                          modalTarget?.furnitureId === f.id &&
-                          modalTarget?.cellKey === cellKey;
+              {/* Column popover */}
+              {isSlotOpen && openCol !== null && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 40,
+                    ...(popoverOnLeft
+                      ? { right: furnitureWidth + 8 }
+                      : { left: furnitureWidth + 8 }),
+                    width: 200,
+                    zIndex: 200,
+                  }}
+                  className="bg-white rounded-xl shadow-xl border border-gray-200"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Popover header */}
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100">
+                    <span className="text-xs font-semibold text-gray-800">
+                      Колонка Я{openCol}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setOpenSlot(null)}
+                      className="text-gray-400 hover:text-gray-600 text-sm leading-none px-1"
+                    >
+                      ×
+                    </button>
+                  </div>
 
-                        return (
+                  {/* Popover cell list: rows top to bottom */}
+                  <div className="flex flex-col gap-1 p-2">
+                    {Array.from({ length: f.rows }, (_, rowIdx) => {
+                      const rowNum = rowIdx + 1;
+                      const cellKey = `r${rowNum}c${openCol}`;
+                      const cell = f.cells[cellKey];
+                      const hasProduct = Boolean(cell?.productSlug);
+                      const isDragOverThis =
+                        dragOver === `${f.id}:${cellKey}`;
+
+                      const isPopoverOpen =
+                        modalTarget?.furnitureId === f.id &&
+                        modalTarget?.cellKey === cellKey;
+
+                      return (
+                        <div
+                          key={rowIdx}
+                          style={{ position: "relative" }}
+                          className="flex items-center gap-1"
+                        >
+                          {/* Row label */}
                           <div
-                            key={colIdx}
-                            style={{ position: "relative", width: CELL_W - 4, height: CELL_H - 12 }}
+                            style={{ width: 24, flexShrink: 0 }}
+                            className="text-center text-[10px] font-medium text-gray-400"
                           >
+                            Р{rowNum}
+                          </div>
+
+                          {/* Cell */}
+                          <div style={{ position: "relative", flex: 1 }}>
                             <div
                               draggable={hasProduct}
                               onDragStart={
@@ -418,14 +512,14 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
                                   cellKey,
                                 })
                               }
-                              style={{ width: "100%", height: "100%" }}
-                              className={`flex flex-col items-start justify-center gap-0.5 rounded-lg border p-1.5 transition-all cursor-pointer
+                              style={{ height: 56 }}
+                              className={`flex flex-col items-start justify-center gap-0.5 rounded-lg border p-2 transition-all cursor-pointer w-full
                                 ${
                                   isDragOverThis
                                     ? "border-2 border-blue-400 bg-blue-100"
                                     : hasProduct
                                     ? "border-blue-200 bg-blue-50 hover:shadow-sm cursor-grab"
-                                    : "border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100"
+                                    : "border-dashed border-gray-200 bg-gray-50 hover:bg-gray-100"
                                 }`}
                             >
                               {hasProduct ? (
@@ -445,9 +539,16 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
                                 </span>
                               )}
                             </div>
+
+                            {/* Inline action popover (from modalTarget) */}
                             {isPopoverOpen && (
                               <div
-                                style={{ position: "absolute", bottom: "100%", left: 0, zIndex: 200 }}
+                                style={{
+                                  position: "absolute",
+                                  bottom: "100%",
+                                  left: 0,
+                                  zIndex: 210,
+                                }}
                                 className="bg-white rounded-xl shadow-xl border border-gray-200 p-3 w-48 flex flex-col gap-2"
                                 onClick={(e) => e.stopPropagation()}
                               >
@@ -459,7 +560,10 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
                                     {cell!.sizes && cell!.sizes.length > 0 && (
                                       <div className="flex flex-wrap gap-1">
                                         {cell!.sizes.map((s) => (
-                                          <span key={s} className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500">
+                                          <span
+                                            key={s}
+                                            className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500"
+                                          >
                                             {s}
                                           </span>
                                         ))}
@@ -470,6 +574,7 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
                                       onClick={() => {
                                         setEditModalTarget(modalTarget);
                                         setModalTarget(null);
+                                        setOpenSlot(null);
                                       }}
                                       className="w-full rounded-lg bg-gray-900 px-2 py-1.5 text-xs font-medium text-white hover:opacity-90"
                                     >
@@ -477,7 +582,9 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => handleCellClear(f.id, cellKey)}
+                                      onClick={() =>
+                                        handleCellClear(f.id, cellKey)
+                                      }
                                       className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
                                     >
                                       Очистить
@@ -485,12 +592,15 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
                                   </>
                                 ) : (
                                   <>
-                                    <span className="text-xs text-gray-400">Нет товара</span>
+                                    <span className="text-xs text-gray-400">
+                                      Нет товара
+                                    </span>
                                     <button
                                       type="button"
                                       onClick={() => {
                                         setEditModalTarget(modalTarget);
                                         setModalTarget(null);
+                                        setOpenSlot(null);
                                       }}
                                       className="w-full rounded-lg bg-gray-900 px-2 py-1.5 text-xs font-medium text-white hover:opacity-90"
                                     >
@@ -501,12 +611,12 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
                               </div>
                             )}
                           </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
-              </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Resize handle */}
               <div
@@ -536,11 +646,14 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
           );
         })}
 
-        {modalTarget && (
+        {(modalTarget !== null || openSlot !== null) && (
           <div
             className="fixed inset-0"
             style={{ zIndex: 199 }}
-            onClick={() => setModalTarget(null)}
+            onClick={() => {
+              setModalTarget(null);
+              setOpenSlot(null);
+            }}
           />
         )}
 
