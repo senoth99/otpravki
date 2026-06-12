@@ -121,7 +121,9 @@ export function ArchiveView({ orders, shippedArchive, apiOrderIds, onUnship }: A
                     </span>
                   </div>
                   <p className="mt-1 text-sm text-gray-700">{order.customerName}</p>
-                  {order.city && <p className="text-xs text-gray-500">{order.city}</p>}
+                  {order.city && order.city !== "—" && order.city !== "-" && (
+                    <p className="text-xs text-gray-500">{order.city}</p>
+                  )}
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400">

@@ -17,6 +17,12 @@ function assemblyKey(productSlug: string, size: string, isBlogger: boolean) {
   return isBlogger ? `${base}-blogger` : base;
 }
 
+function normalizeCity(city: string | undefined | null): string | undefined {
+  const trimmed = city?.trim();
+  if (!trimmed || trimmed === "—" || trimmed === "-") return undefined;
+  return trimmed;
+}
+
 function deriveUrgency(createdAt: string, allInStock: boolean): OrderUrgency {
   const ageHours = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60);
 
@@ -138,7 +144,7 @@ export function mapUnshippedOrdersToWorkspace(
       barcodeUrl: order.barcodeUrl,
       barcodePrinted: false,
       allInStockAtWarehouse: true,
-      city: order.city,
+      city: normalizeCity(order.city),
       trackingNumber: order.trackingNumber ?? undefined,
     });
   }
