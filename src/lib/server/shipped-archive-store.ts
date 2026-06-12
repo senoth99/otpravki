@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdir, readFile, rename, writeFile } from "fs/promises";
 import path from "path";
 import { mergeShippedArchives } from "@/lib/shipped-archive";
 import type { ShippingOrder } from "@/types/shipping";
@@ -58,7 +58,9 @@ export async function savePersistedArchive(orders: ShippingOrder[]): Promise<Shi
     orders: capped,
   };
   await mkdir(ARCHIVE_DIR, { recursive: true });
-  await writeFile(ARCHIVE_FILE, JSON.stringify(payload), "utf-8");
+  const tmp = `${ARCHIVE_FILE}.${process.pid}.${Date.now()}.tmp`;
+  await writeFile(tmp, JSON.stringify(payload), "utf-8");
+  await rename(tmp, ARCHIVE_FILE);
   return capped;
 }
 

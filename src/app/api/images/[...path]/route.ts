@@ -1,4 +1,4 @@
-import { readFile } from "fs/promises";
+import { readFile, realpath } from "fs/promises";
 import path from "path";
 import { NextResponse } from "next/server";
 import { getImageContentType, getImagesCacheDir } from "@/lib/server/image-cache";
@@ -16,8 +16,19 @@ export async function GET(
     return NextResponse.json({ error: "Invalid path" }, { status: 400 });
   }
 
-  const imagesDir = path.resolve(getImagesCacheDir());
-  const filePath = path.resolve(imagesDir, relative);
+  const imagesDir = await realpath(path.resolve(getImagesCacheDir()));
+  const candidate = path.resolve(imagesDir, relative);
+
+  if (!candidate.startsWith(`${imagesDir}${path.sep}`) && candidate !== imagesDir) {
+    return NextResponse.json({ error: "Invalid path" }, { status: 400 });
+  }
+
+  let filePath: string;
+  try {
+    filePath = await realpath(candidate);
+  } catch {
+    return new NextResponse(null, { status: 404 });
+  }
 
   if (!filePath.startsWith(`${imagesDir}${path.sep}`) && filePath !== imagesDir) {
     return NextResponse.json({ error: "Invalid path" }, { status: 400 });

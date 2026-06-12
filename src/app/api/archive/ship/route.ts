@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
-import { mergePersistedArchive } from "@/lib/server/shipped-archive-store";
-import { getSharedWorkspace, replaceSessionArchive } from "@/lib/server/workspace-store";
+import { requireMutatingAuth } from "@/lib/server/api-auth";
+import { getSharedWorkspace, persistAndReplaceArchive } from "@/lib/server/workspace-store";
 import type { ShippingOrder } from "@/types/shipping";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const authError = requireMutatingAuth(request);
+  if (authError) return authError;
+
   try {
     const body = (await request.json()) as { orders?: ShippingOrder[] };
     const incoming = body.orders?.filter((order) => order?.id && order.barcodePrinted) ?? [];
@@ -14,8 +17,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Нет отправленных заказов" }, { status: 400 });
     }
 
-    const archive = await mergePersistedArchive(incoming);
-    await replaceSessionArchive(archive);
+    const archive = await persistAndReplaceArchive(incoming);
 
     const workspace = await getSharedWorkspace();
     return NextResponse.json({

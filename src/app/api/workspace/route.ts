@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireMutatingAuth } from "@/lib/server/api-auth";
 import { logSync } from "@/lib/server/sync-log";
 import { applyWorkspaceUpdate, getSharedWorkspace } from "@/lib/server/workspace-store";
 import type { WorkspaceState } from "@/types/workspace";
@@ -14,6 +15,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const authError = requireMutatingAuth(request);
+  if (authError) return authError;
+
   try {
     const body = (await request.json()) as {
       workspace: WorkspaceState;

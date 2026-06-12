@@ -1,9 +1,9 @@
 import { io, type Socket } from "socket.io-client";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState, WorkspaceState } from "@/types/workspace";
+import { mutatingApiHeaders } from "@/lib/api-headers";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
-import { mergeShippedArchives, unionPermanentArchive } from "@/lib/shipped-archive";
-import { mergeWorkspaces } from "@/lib/workspace-merge";
+import { mergeShippedArchives } from "@/lib/shipped-archive";
 
 const CLIENT_ID_KEY = "otpravki-client-id";
 
@@ -46,7 +46,7 @@ export function logClientSync(
 ) {
   void fetch("/api/sync/log", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: mutatingApiHeaders(),
     body: JSON.stringify({
       type,
       clientId: getClientId(),
@@ -72,7 +72,7 @@ export async function pushWorkspace(workspace: WorkspaceState): Promise<{
   try {
     const res = await fetchWithTimeout("/api/workspace", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: mutatingApiHeaders(),
       body: JSON.stringify(payload),
       cache: "no-store",
       timeoutMs: SYNC_TIMEOUT_MS,
@@ -98,25 +98,6 @@ export async function pushWorkspace(workspace: WorkspaceState): Promise<{
     });
     return { ok: false };
   }
-}
-
-export function applySharedWorkspace(
-  current: WorkspaceState,
-  remote: SharedWorkspaceState,
-): SharedWorkspaceState {
-  const merged = mergeWorkspaces(current, remote);
-  return {
-    ...merged,
-    revision: remote.revision,
-    updatedBy: remote.updatedBy,
-    apiOrderIds: remote.apiOrderIds ?? merged.apiOrderIds,
-    shippedArchive: unionPermanentArchive(
-      merged.shippedArchive ?? [],
-      remote.shippedArchive ?? [],
-      merged.orders,
-      remote.orders,
-    ),
-  };
 }
 
 export function createWorkspace(
@@ -155,12 +136,14 @@ export function subscribeWorkspaceStream({
     onConnectionChange?.(next);
   };
 
+  const apiSecret = process.env.NEXT_PUBLIC_OTPRAVKI_API_SECRET?.trim();
   const socket = io({
     path: "/socket.io",
     transports: ["polling", "websocket"],
     reconnection: true,
     reconnectionDelay: SOCKET_RECONNECT_MS,
     reconnectionAttempts: Infinity,
+    auth: apiSecret ? { secret: apiSecret } : undefined,
   });
   activeSocket = socket;
 

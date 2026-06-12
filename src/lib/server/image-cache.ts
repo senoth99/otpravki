@@ -1,4 +1,4 @@
-import { mkdir, readFile, stat, writeFile } from "fs/promises";
+import { mkdir, readFile, rename, stat, writeFile } from "fs/promises";
 import path from "path";
 import { externalFetch } from "@/lib/server/external-fetch";
 import type { ApiProduct } from "@/types/shipping";
@@ -80,6 +80,24 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
+function isValidImageBuffer(buffer: Buffer): boolean {
+  if (buffer.length < 4) return false;
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return true;
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
+    return true;
+  }
+  if (buffer.slice(0, 3).toString() === "GIF") return true;
+  if (
+    buffer.length >= 12 &&
+    buffer.slice(0, 4).toString() === "RIFF" &&
+    buffer.slice(8, 12).toString() === "WEBP"
+  ) {
+    return true;
+  }
+  const start = buffer.slice(0, 100).toString("utf8").trimStart();
+  return start.startsWith("<svg") || start.startsWith("<?xml");
+}
+
 async function downloadImage(relativePath: string): Promise<void> {
   const remoteUrl = `${API_BASE.replace(/\/$/, "")}/${relativePath}`;
   const localPath = path.join(IMAGES_DIR, relativePath);
@@ -93,9 +111,14 @@ async function downloadImage(relativePath: string): Promise<void> {
   if (buffer.length === 0) {
     throw new Error("empty response");
   }
+  if (!isValidImageBuffer(buffer)) {
+    throw new Error("invalid image data");
+  }
 
   await mkdir(path.dirname(localPath), { recursive: true });
-  await writeFile(localPath, buffer);
+  const tmpPath = `${localPath}.${process.pid}.${Date.now()}.tmp`;
+  await writeFile(tmpPath, buffer);
+  await rename(tmpPath, localPath);
 }
 
 export async function syncProductImages(

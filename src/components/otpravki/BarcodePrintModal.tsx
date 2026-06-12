@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { printOrderBarcode } from "@/lib/print-barcode";
 import type { ShippingOrder } from "@/types/shipping";
 
@@ -17,6 +17,14 @@ export function BarcodePrintModal({
 }: BarcodePrintModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const handlePrint = async () => {
     setPrinting(true);
@@ -26,6 +34,7 @@ export function BarcodePrintModal({
       barcodeUrl: order.barcodeUrl,
       order,
     });
+    if (!mountedRef.current) return;
     setPrinting(false);
     if (!result.ok) {
       setError(result.message ?? "Не удалось напечатать");

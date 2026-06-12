@@ -120,17 +120,60 @@ export function consumeAssemblyForOrder(
   });
 }
 
+/** Возвращает собранные единицы после отмены отправки */
+export function restoreAssemblyForOrder(
+  assemblyItems: AssemblyItem[],
+  order: ShippingOrder,
+): AssemblyItem[] {
+  const isBlogger = orderIsBlogger(order);
+
+  return assemblyItems.map((assemblyItem) => {
+    const key = itemPoolKey(assemblyItem);
+    const line = order.items.find(
+      (item) => assemblyItemKey(item.productId, item.sizeId, isBlogger) === key,
+    );
+    if (!line) return assemblyItem;
+
+    const nextCount = Math.min(assemblyItem.quantity, assemblyItem.collectedCount + line.quantity);
+    if (nextCount === assemblyItem.collectedCount) return assemblyItem;
+
+    return {
+      ...assemblyItem,
+      collectedCount: nextCount,
+      collectedAt: Date.now(),
+    };
+  });
+}
+
 export function reconcileAssemblyOnShip(
   prevOrders: ShippingOrder[],
   nextOrders: ShippingOrder[],
   assemblyItems: AssemblyItem[],
 ): AssemblyItem[] {
-  const prevShipped = new Set(prevOrders.filter((order) => order.barcodePrinted).map((order) => order.id));
+  return reconcileAssemblyChanges(prevOrders, nextOrders, assemblyItems);
+}
+
+/** Списывает/восстанавливает сборку при ship/unship */
+export function reconcileAssemblyChanges(
+  prevOrders: ShippingOrder[],
+  nextOrders: ShippingOrder[],
+  assemblyItems: AssemblyItem[],
+): AssemblyItem[] {
+  const prevShipped = new Map(
+    prevOrders.filter((order) => order.barcodePrinted).map((order) => [order.id, order]),
+  );
   let items = assemblyItems;
 
   for (const order of nextOrders) {
     if (order.barcodePrinted && !prevShipped.has(order.id)) {
       items = consumeAssemblyForOrder(items, order);
+    }
+  }
+
+  for (const [orderId, prevOrder] of prevShipped) {
+    const next = nextOrders.find((order) => order.id === orderId);
+    if (next && !next.barcodePrinted) {
+      items = restoreAssemblyForOrder(items, prevOrder);
     }
   }
 

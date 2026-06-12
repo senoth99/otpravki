@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
-import {
-  applySessionProgress,
-  loadSessionProgress,
-  saveSessionProgress,
-} from "@/lib/server/session-progress-store";
-import { getSharedWorkspace } from "@/lib/server/workspace-store";
+import { requireMutatingAuth } from "@/lib/server/api-auth";
+import { saveSessionProgress } from "@/lib/server/session-progress-store";
+import { applySessionProgressToMemory } from "@/lib/server/workspace-store";
 import type { SharedWorkspaceState } from "@/types/workspace";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const authError = requireMutatingAuth(request);
+  if (authError) return authError;
+
   try {
     const body = (await request.json()) as { workspace?: SharedWorkspaceState };
     if (!body.workspace?.assemblyItems || !body.workspace?.orders) {
@@ -18,14 +18,12 @@ export async function POST(request: Request) {
 
     await saveSessionProgress(body.workspace);
 
-    const current = await getSharedWorkspace();
-    if (current) {
-      const progress = await loadSessionProgress();
-      const merged = applySessionProgress(
-        { ...current, assemblyItems: body.workspace.assemblyItems, orders: body.workspace.orders },
-        progress,
-      );
-      return NextResponse.json({ ok: true, revision: current.revision });
+    const updated = await applySessionProgressToMemory(
+      body.workspace.assemblyItems,
+      body.workspace.orders,
+    );
+    if (updated) {
+      return NextResponse.json({ ok: true, revision: updated.revision });
     }
 
     return NextResponse.json({ ok: true });

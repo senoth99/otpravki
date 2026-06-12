@@ -19,9 +19,10 @@ export async function printOrderBarcode(
   options: PrintOrderOptions = {},
 ): Promise<PrintResult> {
   try {
+    const { mutatingApiHeaders } = await import("@/lib/api-headers");
     const res = await fetch("/api/print", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: mutatingApiHeaders(),
       body: JSON.stringify({
         orderNumber,
         orderId: options.orderId,

@@ -4,7 +4,7 @@ import { fetchUnshippedOrders } from "@/lib/server/orders-api";
 import { externalFetch } from "@/lib/server/external-fetch";
 import { syncProductImages } from "@/lib/server/image-cache";
 import { logSync } from "@/lib/server/sync-log";
-import { replaceWorkspaceFromApi } from "@/lib/server/workspace-store";
+import { getSharedWorkspace, replaceWorkspaceFromApi } from "@/lib/server/workspace-store";
 import type { ApiProduct } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
 
@@ -39,10 +39,23 @@ async function fetchProductsLive(): Promise<ApiProduct[]> {
 export async function fetchAndSyncWorkspaceFromApi(): Promise<WorkspaceApiSyncResult> {
   const [products, apiOrders] = await Promise.all([fetchProductsLive(), fetchUnshippedOrders()]);
 
-  const fresh =
-    apiOrders.length === 0
-      ? { assemblyItems: [], orders: [] }
-      : mapUnshippedOrdersToWorkspace(apiOrders, products);
+  if (apiOrders.length === 0) {
+    const workspace = await getSharedWorkspace();
+    if (workspace) {
+      void logSync("api.sync.empty", { keptOrders: workspace.orders.length });
+      return {
+        workspace,
+        ordersCount: workspace.orders.length,
+        assemblyCount: workspace.assemblyItems.length,
+        apiOrdersCount: 0,
+      };
+    }
+  }
+
+  const fresh = {
+    ...mapUnshippedOrdersToWorkspace(apiOrders, products),
+    apiOrderIds: apiOrders.map((order) => String(order.id)),
+  };
 
   const workspace = await replaceWorkspaceFromApi(fresh);
 

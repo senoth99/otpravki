@@ -20,9 +20,9 @@ export function getOrderDisplayStatus(
   assemblyItems: AssemblyItem[],
   allocation?: AssemblyAllocation,
 ): OrderDisplayStatus {
+  if (order.barcodePrinted) return "shipped";
   const { ready } = getOrderAssemblyStatus(order, assemblyItems, allocation);
   if (!ready) return "awaiting-assembly";
-  if (order.barcodePrinted) return "shipped";
 
   const allScanned = order.items.every((item) => item.scannedCount >= item.quantity);
   if (allScanned) return "assembled";

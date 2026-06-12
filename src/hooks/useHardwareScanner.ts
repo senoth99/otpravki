@@ -15,8 +15,17 @@ export function useHardwareScanner(onScan: (code: string) => void, enabled = tru
     if (!enabled) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+      const target = e.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.closest('[contenteditable="true"]'))
+      ) {
+        return;
+      }
 
       if (e.key === "Enter") {
         const code = bufferRef.current.trim();

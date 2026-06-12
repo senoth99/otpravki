@@ -28,10 +28,22 @@ async function readWorkspaceState() {
   }
 }
 
+function getSocketCorsOrigin() {
+  const fromEnv = process.env.OTPRAVKI_CORS_ORIGIN?.trim();
+  if (fromEnv) return fromEnv.split(",").map((s) => s.trim()).filter(Boolean);
+  return dev ? true : false;
+}
+
+function isAuthorizedSocket(socket) {
+  const secret = process.env.OTPRAVKI_API_SECRET?.trim();
+  if (!secret) return true;
+  return socket.handshake.auth?.secret === secret;
+}
+
 function attachWorkspaceSocket(httpServer) {
   const { Server } = require("socket.io");
   const io = new Server(httpServer, {
-    cors: { origin: "*" },
+    cors: { origin: getSocketCorsOrigin() },
     transports: ["polling", "websocket"],
     pingInterval: 10_000,
     pingTimeout: 20_000,
@@ -40,6 +52,12 @@ function attachWorkspaceSocket(httpServer) {
   global.__workspaceIo = io;
 
   io.on("connection", async (socket) => {
+    if (!isAuthorizedSocket(socket)) {
+      void logSync("socket.reject", { socketId: socket.id, reason: "unauthorized" });
+      socket.disconnect(true);
+      return;
+    }
+
     const workspace = await readWorkspaceState();
     void logSync("socket.connect", {
       socketId: socket.id,
@@ -65,7 +83,8 @@ function attachWorkspaceSocket(httpServer) {
     });
 
     socket.on("workspace:set", async (data) => {
-      if (!data?.workspace) return;
+      if (!isAuthorizedSocket(socket)) return;
+      if (!data?.workspace?.assemblyItems || !data?.workspace?.orders) return;
 
       void logSync("socket.set", {
         socketId: socket.id,
@@ -76,9 +95,13 @@ function attachWorkspaceSocket(httpServer) {
 
       try {
         const host = hostname === "0.0.0.0" ? "127.0.0.1" : hostname;
+        const headers = { "Content-Type": "application/json" };
+        const secret = process.env.OTPRAVKI_API_SECRET?.trim();
+        if (secret) headers["X-Otpravki-Secret"] = secret;
+
         const res = await fetch(`http://${host}:${port}/api/workspace`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify(data),
         });
         if (!res.ok) {

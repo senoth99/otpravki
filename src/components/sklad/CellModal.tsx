@@ -56,10 +56,13 @@ export function CellModal({
   }
 
   function handleSave() {
+    const stockProduct = selectedSlug
+      ? sortedStock.find((s) => s.productSlug === selectedSlug)
+      : undefined;
     const updated: WarehouseCell = {
       productSlug: selectedSlug || undefined,
-      productName: selectedProduct?.productName,
-      brand: selectedProduct?.brand,
+      productName: stockProduct?.productName,
+      brand: stockProduct?.brand,
       sizes: selectedSizes.length > 0 ? selectedSizes : undefined,
       label: label.trim() || undefined,
     };
@@ -115,11 +118,11 @@ export function CellModal({
                 Размеры
               </label>
               <div className="flex flex-wrap gap-2">
-                {selectedProduct.sizes.map((sizeEntry) => {
+                {selectedProduct.sizes.map((sizeEntry, sizeIdx) => {
                   const checked = selectedSizes.includes(sizeEntry.size);
                   return (
                     <label
-                      key={sizeEntry.id}
+                      key={`${sizeEntry.size}-${sizeIdx}`}
                       className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                         checked
                           ? "border-gray-900 bg-gray-900 text-white"

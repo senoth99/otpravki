@@ -61,16 +61,22 @@ export function generateOrdersFromAssembly(assemblyItems: AssemblyItem[], count 
   if (assemblyItems.length === 0) return [];
 
   const orders: ShippingOrder[] = [];
+  const remaining = new Map(assemblyItems.map((item) => [item.id, item.quantity]));
 
   for (let i = 0; i < count; i++) {
     const urgency = URGENCIES[i % URGENCIES.length];
-    const itemCount = Math.min(1 + (i % 3), assemblyItems.length);
-    const shuffled = [...assemblyItems].sort(() => Math.random() - 0.5).slice(0, itemCount);
+    const available = assemblyItems.filter((item) => (remaining.get(item.id) ?? 0) > 0);
+    if (available.length === 0) break;
+
+    const itemCount = Math.min(1 + (i % 3), available.length);
+    const shuffled = [...available].sort(() => Math.random() - 0.5).slice(0, itemCount);
 
     const items = shuffled.map((assemblyItem, idx) => {
-      const maxQty = Math.min(assemblyItem.quantity, idx === 0 ? 2 : 1);
-      const quantity = i === 0 && idx === 0 ? Math.min(2, assemblyItem.quantity) : maxQty;
-      return toOrderItem(assemblyItem, Math.max(1, quantity));
+      const pool = remaining.get(assemblyItem.id) ?? 0;
+      const maxQty = Math.min(pool, idx === 0 ? 2 : 1);
+      const quantity = Math.max(1, i === 0 && idx === 0 ? Math.min(2, pool) : maxQty);
+      remaining.set(assemblyItem.id, pool - quantity);
+      return toOrderItem(assemblyItem, quantity);
     });
 
     const ageDays =

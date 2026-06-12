@@ -31,6 +31,7 @@ export async function forwardToRemote(payload: unknown): Promise<boolean> {
 export async function getSyncLogTail(lines = 20): Promise<string[]> {
   try {
     const raw = await readFile(LOG_FILE, "utf-8");
+    if (!raw.trim()) return [];
     return raw.trim().split("\n").slice(-lines);
   } catch {
     return [];

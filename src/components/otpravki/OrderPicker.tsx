@@ -101,8 +101,9 @@ function CompactOrderPicker({
   statuses,
   onSelect,
   sortedIndices,
+  poolIndices,
   locked,
-}: OrderPickerProps & { sortedIndices: number[] }) {
+}: OrderPickerProps & { sortedIndices: number[]; poolIndices: number[] }) {
   const [search, setSearch] = useState("");
   const currentOrder = orders[currentIndex];
   const currentStatus = statuses[currentIndex];
@@ -129,7 +130,8 @@ function CompactOrderPicker({
     const query = value.trim().toLowerCase();
     if (query.length < 2) return;
 
-    const idx = orders.findIndex((order) => {
+    const matchedIndex = poolIndices.find((index) => {
+      const order = orders[index];
       const short = formatOrderNumberShort(order.orderNumber).toLowerCase();
       return (
         short.includes(query) ||
@@ -138,7 +140,7 @@ function CompactOrderPicker({
       );
     });
 
-    if (idx >= 0) onSelect(idx);
+    if (matchedIndex !== undefined) onSelect(matchedIndex);
   };
 
   if (!currentOrder) return null;
@@ -179,7 +181,7 @@ function CompactOrderPicker({
 
       <div className="flex items-center justify-between gap-3 px-1">
         <p className="text-xs text-gray-500">
-          {(positionInSorted >= 0 ? positionInSorted : currentIndex) + 1} / {orders.length}
+          {(positionInSorted >= 0 ? positionInSorted : 0) + 1} / {poolIndices.length}
           {pendingCount < orders.length && (
             <span className="ml-1.5 text-gray-400">· осталось {pendingCount}</span>
           )}
@@ -189,7 +191,8 @@ function CompactOrderPicker({
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
           placeholder="Поиск CSH…"
-          className="h-8 w-36 rounded-lg border border-gray-200 bg-white px-2.5 text-xs text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none sm:w-44"
+          disabled={locked}
+          className="h-8 w-36 rounded-lg border border-gray-200 bg-white px-2.5 text-xs text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40 sm:w-44"
         />
       </div>
     </div>
@@ -216,7 +219,7 @@ export function OrderPicker(props: OrderPickerProps) {
   }
 
   if (poolIndices.length > COMPACT_THRESHOLD) {
-    return <CompactOrderPicker {...props} sortedIndices={sortedIndices} />;
+    return <CompactOrderPicker {...props} sortedIndices={sortedIndices} poolIndices={poolIndices} />;
   }
 
   return (

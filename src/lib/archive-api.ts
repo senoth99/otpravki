@@ -1,5 +1,6 @@
 import type { ShippingOrder } from "@/types/shipping";
 import type { WorkspaceState } from "@/types/workspace";
+import { mutatingApiHeaders } from "@/lib/api-headers";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
 /** Сохраняет прогресс сборки и сканов на сервере */
@@ -7,7 +8,7 @@ export async function persistSessionProgress(workspace: WorkspaceState): Promise
   try {
     await fetchWithTimeout("/api/session/progress", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: mutatingApiHeaders(),
       body: JSON.stringify({ workspace }),
       cache: "no-store",
       timeoutMs: 10_000,
@@ -25,7 +26,7 @@ export async function persistShippedOrders(orders: ShippingOrder[]): Promise<boo
   try {
     const res = await fetchWithTimeout("/api/archive/ship", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: mutatingApiHeaders(),
       body: JSON.stringify({ orders: shipped }),
       cache: "no-store",
       timeoutMs: 15_000,

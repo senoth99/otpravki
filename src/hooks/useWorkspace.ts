@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
 import { canUnshipFromArchive } from "@/lib/archive-status";
-import { reconcileAssemblyOnShip } from "@/lib/assembly-demand";
+import { reconcileAssemblyChanges } from "@/lib/assembly-demand";
 import { collectShippedArchive, normalizeWorkspaceState } from "@/lib/shipped-archive";
 import { checkServerReachable, subscribeServerReachability } from "@/lib/server-reachability";
 import { persistSessionProgress, persistShippedOrders } from "@/lib/archive-api";
@@ -72,9 +72,12 @@ export function useWorkspace({
       setIsSyncing(true);
       void pushWorkspace(workspace)
         .then((result) => {
-          if (result.workspace) {
+          if (
+            result.workspace &&
+            result.workspace.revision >= revisionRef.current
+          ) {
             applyWorkspaceState(result.workspace);
-          } else {
+          } else if (!result.workspace) {
             setIsServerReachable(false);
           }
         })
@@ -116,7 +119,7 @@ export function useWorkspace({
 
   useEffect(() => {
     return subscribeWorkspaceStream({
-      onSync: applyWorkspaceState,
+      onSync: applyFromServer,
       onWorkspace: applyFromServer,
       onConnectionChange: setIsStreamConnected,
     });
@@ -157,7 +160,7 @@ export function useWorkspace({
     (next: ShippingOrder[] | ((prev: ShippingOrder[]) => ShippingOrder[])) => {
       const prev = ordersRef.current;
       const resolved = typeof next === "function" ? next(prev) : next;
-      const assembly = reconcileAssemblyOnShip(prev, resolved, assemblyRef.current);
+      const assembly = reconcileAssemblyChanges(prev, resolved, assemblyRef.current);
 
       ordersRef.current = resolved;
       assemblyRef.current = assembly;
@@ -203,9 +206,13 @@ export function useWorkspace({
         unshipped,
       ];
 
+      const prevOrders = ordersRef.current;
+      const assembly = reconcileAssemblyChanges(prevOrders, nextOrders, assemblyRef.current);
       ordersRef.current = nextOrders;
+      assemblyRef.current = assembly;
       setOrders(nextOrders);
-      persist(assemblyRef.current, nextOrders);
+      setAssemblyItems(assembly);
+      persist(assembly, nextOrders);
 
       return { ok: true };
     },

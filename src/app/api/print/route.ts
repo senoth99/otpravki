@@ -3,9 +3,9 @@ import {
   getPrinterDiagnostics,
   printToBarcodePrinter,
 } from "@/lib/server/barcode-printer";
-import { mergePersistedArchive } from "@/lib/server/shipped-archive-store";
+import { requireMutatingAuth } from "@/lib/server/api-auth";
 import { markOrderShipped } from "@/lib/server/orders-api";
-import { getSharedWorkspace, replaceSessionArchive } from "@/lib/server/workspace-store";
+import { getSharedWorkspace, persistAndReplaceArchive } from "@/lib/server/workspace-store";
 import type { ShippingOrder } from "@/types/shipping";
 
 export const maxDuration = 60;
@@ -23,6 +23,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const authError = requireMutatingAuth(request);
+  if (authError) return authError;
+
   try {
     const body = (await request.json()) as {
       orderNumber?: string;
@@ -46,6 +49,23 @@ export async function POST(request: Request) {
       );
     }
 
+    const result = await printToBarcodePrinter(body.orderNumber, {
+      orderId: body.orderId,
+      barcodeUrl: body.barcodeUrl,
+      barcodeData: body.barcodeData,
+    });
+    if (!result.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          reason: "print_failed",
+          message: result.error ?? "Не удалось напечатать",
+          printer: result.printer ?? null,
+        },
+        { status: 500 },
+      );
+    }
+
     try {
       await markOrderShipped(body.orderId.trim());
     } catch (error) {
@@ -56,7 +76,8 @@ export async function POST(request: Request) {
           message:
             error instanceof Error
               ? error.message
-              : "Не удалось отметить заказ отправленным в Casher",
+              : "Баркод напечатан, но не удалось отметить заказ отправленным в Casher",
+          printed: true,
         },
         { status: 502 },
       );
@@ -75,25 +96,7 @@ export async function POST(request: Request) {
         barcodePrinted: true,
         barcodePrintedAt: fromSession.barcodePrintedAt ?? Date.now(),
       };
-      const nextArchive = await mergePersistedArchive([archived]);
-      await replaceSessionArchive(nextArchive);
-    }
-
-    const result = await printToBarcodePrinter(body.orderNumber, {
-      orderId: body.orderId,
-      barcodeUrl: body.barcodeUrl,
-      barcodeData: body.barcodeData,
-    });
-    if (!result.ok) {
-      return NextResponse.json(
-        {
-          ok: false,
-          reason: "print_failed",
-          message: result.error ?? "Не удалось напечатать",
-          printer: result.printer ?? null,
-        },
-        { status: 500 },
-      );
+      await persistAndReplaceArchive([archived]);
     }
 
     return NextResponse.json({

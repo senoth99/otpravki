@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { USE_MOCK_ORDERS } from "@/lib/app-config";
+import { requireMutatingAuth } from "@/lib/server/api-auth";
 import { formatApiFetchError } from "@/lib/server/api-fetch-error";
 import { logSync } from "@/lib/server/sync-log";
 import { fetchAndSyncWorkspaceFromApi } from "@/lib/server/workspace-api-sync";
@@ -7,7 +8,10 @@ import { fetchAndSyncWorkspaceFromApi } from "@/lib/server/workspace-api-sync";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-export async function POST() {
+export async function POST(request: Request) {
+  const authError = requireMutatingAuth(request);
+  if (authError) return authError;
+
   if (USE_MOCK_ORDERS) {
     return NextResponse.json(
       { ok: false, error: "Обновление через API недоступно в режиме мок-заказов" },

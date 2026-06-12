@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toLocalImageUrl } from "@/lib/image-url";
 
 interface ProductImageProps {
@@ -14,6 +14,10 @@ interface ProductImageProps {
 export function ProductImage({ src, alt, className, sizes }: ProductImageProps) {
   const [failed, setFailed] = useState(false);
   const imageSrc = toLocalImageUrl(src);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
 
   if (!imageSrc || failed) {
     return (

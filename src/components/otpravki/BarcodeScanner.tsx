@@ -32,6 +32,8 @@ async function safeStopScanner(scanner: ScannerInstance | null) {
 export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
   const scannerRef = useRef<ScannerInstance | null>(null);
   const onScanRef = useRef(onScan);
+  const lastScanRef = useRef(0);
+  const scannedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const scannerRegionId = useId().replace(/:/g, "");
 
@@ -61,7 +63,13 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
             }),
           },
           (decodedText) => {
-            if (mounted) onScanRef.current(decodedText);
+            if (!mounted || scannedRef.current) return;
+            const now = Date.now();
+            if (now - lastScanRef.current < 300) return;
+            lastScanRef.current = now;
+            scannedRef.current = true;
+            onScanRef.current(decodedText);
+            void safeStopScanner(scannerRef.current);
           },
           () => {},
         );

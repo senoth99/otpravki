@@ -1,5 +1,6 @@
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
+import { reconcileAssemblyChanges } from "@/lib/assembly-demand";
 import { mergeShippedArchives, normalizeWorkspaceState } from "@/lib/shipped-archive";
 import { mergeWorkspaces } from "@/lib/workspace-merge";
 import type { WorkspaceData } from "@/lib/build-workspace";
@@ -44,7 +45,7 @@ function broadcast(state: SharedWorkspaceState) {
 
 let updateChain = Promise.resolve();
 
-function enqueueWorkspaceUpdate<T>(task: () => Promise<T>): Promise<T> {
+export function enqueueWorkspaceUpdate<T>(task: () => Promise<T>): Promise<T> {
   const run = updateChain.then(task, task);
   updateChain = run.then(
     () => undefined,
@@ -67,6 +68,35 @@ export async function getSharedWorkspace(): Promise<SharedWorkspaceState | null>
   return memoryState;
 }
 
+async function applySessionProgressToMemoryInner(
+  assemblyItems: AssemblyItem[],
+  orders: ShippingOrder[],
+): Promise<SharedWorkspaceState | null> {
+  const current = memoryState;
+  if (!current) return null;
+
+  const progress = await loadSessionProgress();
+  const merged = applySessionProgress({ ...current, assemblyItems, orders }, progress);
+  const next: SharedWorkspaceState = {
+    ...merged,
+    revision: current.revision + 1,
+    updatedAt: Date.now(),
+    updatedBy: "session-progress",
+  };
+
+  await saveSessionProgress(next);
+  memoryState = next;
+  broadcast(next);
+  return next;
+}
+
+export function applySessionProgressToMemory(
+  assemblyItems: AssemblyItem[],
+  orders: ShippingOrder[],
+): Promise<SharedWorkspaceState | null> {
+  return enqueueWorkspaceUpdate(() => applySessionProgressToMemoryInner(assemblyItems, orders));
+}
+
 function isStaleMockWorkspace(
   existing: SharedWorkspaceState,
   resetToken: string | null,
@@ -75,51 +105,98 @@ function isStaleMockWorkspace(
   return existing.resetToken !== resetToken;
 }
 
-export async function resetSharedWorkspace(
+async function resetSharedWorkspaceInner(
   assemblyItems: AssemblyItem[],
   orders: ShippingOrder[],
   resetToken?: string,
 ): Promise<SharedWorkspaceState> {
-  const state: SharedWorkspaceState = {
+  let shippedArchive = mergeShippedArchives(orders);
+  try {
+    shippedArchive = await mergePersistedArchive(shippedArchive);
+  } catch {
+    // архив на диске недоступен
+  }
+  const sessionProgress = await loadSessionProgress();
+
+  let state: SharedWorkspaceState = normalizeWorkspaceState({
     version: 1,
     revision: 1,
     assemblyItems,
     orders,
-    shippedArchive: mergeShippedArchives(orders),
+    shippedArchive,
     apiOrderIds: orders.filter((order) => !order.barcodePrinted).map((order) => order.id),
     updatedAt: Date.now(),
     updatedBy: "server",
     resetToken,
-  };
+  });
+  state = applySessionProgress(state, sessionProgress);
 
+  await saveSessionProgress(state);
   memoryState = state;
   broadcast(state);
   return state;
 }
 
-/** Обновить архив в оперативной сессии после записи на диск */
-export async function replaceSessionArchive(shippedArchive: ShippingOrder[]): Promise<void> {
+export function resetSharedWorkspace(
+  assemblyItems: AssemblyItem[],
+  orders: ShippingOrder[],
+  resetToken?: string,
+): Promise<SharedWorkspaceState> {
+  return enqueueWorkspaceUpdate(() => resetSharedWorkspaceInner(assemblyItems, orders, resetToken));
+}
+
+async function replaceSessionArchiveInner(shippedArchive: ShippingOrder[]): Promise<void> {
   if (!memoryState) return;
+
+  const prevOrders = memoryState.orders;
+  const nextOrders = prevOrders.map((order) => {
+    const archived = shippedArchive.find((entry) => entry.id === order.id && entry.barcodePrinted);
+    if (!archived) return order;
+    return {
+      ...order,
+      barcodePrinted: true,
+      barcodePrintedAt: archived.barcodePrintedAt ?? order.barcodePrintedAt ?? Date.now(),
+    };
+  });
+
+  const assemblyItems = reconcileAssemblyChanges(prevOrders, nextOrders, memoryState.assemblyItems);
 
   memoryState = normalizeWorkspaceState({
     ...memoryState,
+    orders: nextOrders,
+    assemblyItems,
     shippedArchive,
     revision: memoryState.revision + 1,
     updatedAt: Date.now(),
     updatedBy: "archive-sync",
   });
+  await saveSessionProgress(memoryState);
   broadcast(memoryState);
 }
 
+/** Обновить архив в оперативной сессии после записи на диск */
+export function replaceSessionArchive(shippedArchive: ShippingOrder[]): Promise<void> {
+  return enqueueWorkspaceUpdate(() => replaceSessionArchiveInner(shippedArchive));
+}
+
+/** Записать архив на диск и синхронизировать оперативную сессию */
+export function persistAndReplaceArchive(incoming: ShippingOrder[]): Promise<ShippingOrder[]> {
+  return enqueueWorkspaceUpdate(async () => {
+    const archive = await mergePersistedArchive(incoming);
+    await replaceSessionArchiveInner(archive);
+    return archive;
+  });
+}
+
 /** Свежие заказы с API + архив + сохранённый прогресс сборки/сканов */
-export async function replaceWorkspaceFromApi(fresh: WorkspaceData): Promise<SharedWorkspaceState> {
+async function replaceWorkspaceFromApiInner(fresh: WorkspaceData): Promise<SharedWorkspaceState> {
   let shippedArchive = memoryState?.shippedArchive ?? [];
   try {
     shippedArchive = await mergePersistedArchive(shippedArchive);
   } catch {
     // архив на диске недоступен — продолжаем с оперативным состоянием
   }
-  const sessionProgress = memoryState ? null : await loadSessionProgress();
+  const sessionProgress = await loadSessionProgress();
 
   const mergeBase: SharedWorkspaceState = memoryState ?? {
     version: 1,
@@ -143,14 +220,14 @@ export async function replaceWorkspaceFromApi(fresh: WorkspaceData): Promise<Sha
     updatedBy: "api-sync",
   };
 
+  await saveSessionProgress(next);
   memoryState = next;
-  try {
-    await saveSessionProgress(next);
-  } catch {
-    // не блокируем загрузку заказов из-за ошибки записи прогресса
-  }
   broadcast(next);
   return next;
+}
+
+export function replaceWorkspaceFromApi(fresh: WorkspaceData): Promise<SharedWorkspaceState> {
+  return enqueueWorkspaceUpdate(() => replaceWorkspaceFromApiInner(fresh));
 }
 
 export async function initSharedWorkspace(
@@ -188,12 +265,15 @@ async function applyWorkspaceUpdateInner(
     revision: (current?.revision ?? 0) + 1,
     updatedAt: Date.now(),
     updatedBy: clientId,
+    resetToken: current?.resetToken,
   });
 
   next.shippedArchive = await mergePersistedArchive(next.shippedArchive ?? []);
+  const activeIds = new Set(next.orders.map((order) => order.id));
+  next.shippedArchive = next.shippedArchive.filter((order) => !activeIds.has(order.id));
 
-  memoryState = next;
   await saveSessionProgress(next);
+  memoryState = next;
   broadcast(next);
 
   void logSync("workspace.update", {

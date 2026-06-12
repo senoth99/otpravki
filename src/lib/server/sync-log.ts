@@ -11,20 +11,29 @@ export type SyncLogEntry = {
 };
 
 export async function logSync(type: string, data: Record<string, unknown> = {}) {
-  const entry: SyncLogEntry = { at: new Date().toISOString(), type, ...data };
-  await mkdir(path.dirname(LOG_FILE), { recursive: true });
-  await appendFile(LOG_FILE, `${JSON.stringify(entry)}\n`, "utf8");
+  try {
+    const entry: SyncLogEntry = { at: new Date().toISOString(), type, ...data };
+    await mkdir(path.dirname(LOG_FILE), { recursive: true });
+    await appendFile(LOG_FILE, `${JSON.stringify(entry)}\n`, "utf8");
+  } catch {
+    // logging must not break sync
+  }
 }
 
 export async function readSyncLog(lines = 100): Promise<SyncLogEntry[]> {
   try {
     const raw = await readFile(LOG_FILE, "utf8");
-    return raw
-      .trim()
-      .split("\n")
-      .filter(Boolean)
-      .slice(-lines)
-      .map((line) => JSON.parse(line) as SyncLogEntry);
+    const parsed: SyncLogEntry[] = [];
+    for (const line of raw.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        parsed.push(JSON.parse(trimmed) as SyncLogEntry);
+      } catch {
+        // skip corrupt line
+      }
+    }
+    return parsed.slice(-lines);
   } catch {
     return [];
   }

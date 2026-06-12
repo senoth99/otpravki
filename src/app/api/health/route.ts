@@ -7,14 +7,16 @@ import { getWorkspaceRevision } from "@/lib/server/workspace-store";
 export async function GET() {
   const printer = await detectBarcodePrinter();
   const revision = await getWorkspaceRevision();
+  const isProd = process.env.NODE_ENV === "production";
   return NextResponse.json({
     ok: true,
     service: "otpravki",
     syncApi: Boolean(process.env.SYNC_API_URL),
     socketReady: Boolean((globalThis as { __workspaceIo?: unknown }).__workspaceIo),
     revision,
-    syncLog: getSyncLogPath(),
-    syncLogApi: "/api/sync/log",
+    ...(isProd
+      ? {}
+      : { syncLog: getSyncLogPath(), syncLogApi: "/api/sync/log" }),
     buildId: process.env.BUILD_ID ?? "dev",
     printer: printer ?? null,
     time: formatMoscowIso(),

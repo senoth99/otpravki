@@ -40,18 +40,24 @@ interface ShippingViewProps {
   onOrdersChange: (next: ShippingOrder[] | ((prev: ShippingOrder[]) => ShippingOrder[])) => void;
 }
 
-function findNextActiveIndex(orders: ShippingOrder[], from: number): number | null {
+function findNextActiveOrderId(
+  orders: ShippingOrder[],
+  fromId: string | null,
+): string | null {
+  const from = fromId ? orders.findIndex((order) => order.id === fromId) : -1;
   for (let i = from + 1; i < orders.length; i++) {
-    if (!orders[i].barcodePrinted) return i;
+    if (!orders[i].barcodePrinted) return orders[i].id;
   }
-  for (let i = 0; i < from; i++) {
-    if (!orders[i].barcodePrinted) return i;
+  for (let i = 0; i < (from >= 0 ? from : orders.length); i++) {
+    if (!orders[i].barcodePrinted) return orders[i].id;
   }
   return null;
 }
 
 export function ShippingView({ orders, assemblyItems, onOrdersChange }: ShippingViewProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentOrderId, setCurrentOrderId] = useState<string | null>(
+    () => orders[0]?.id ?? null,
+  );
   const [viewingShippedId, setViewingShippedId] = useState<string | null>(null);
   const [manualMode, setManualMode] = useState(false);
   const [autoMode, setAutoMode] = useState(false);
@@ -65,14 +71,16 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
   const autoHandledRef = useRef<string | null>(null);
 
   useEffect(() => {
-    void fetch("/api/products", { cache: "no-store" })
+    const controller = new AbortController();
+    void fetch("/api/products", { cache: "no-store", signal: controller.signal })
       .then((res) => (res.ok ? res.json() : null))
       .then((data: { products?: ApiProduct[] } | null) => {
         if (data?.products) setProducts(data.products);
       })
-      .catch(() => {
-        // сканирование покажет ошибку каталога
+      .catch((err) => {
+        if (err instanceof Error && err.name === "AbortError") return;
       });
+    return () => controller.abort();
   }, []);
 
   const assemblyAllocation = useMemo(
@@ -111,7 +119,10 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     [orders],
   );
 
-  const currentOrder = orders[currentIndex];
+  const currentIndex = currentOrderId
+    ? orders.findIndex((order) => order.id === currentOrderId)
+    : -1;
+  const currentOrder = currentIndex >= 0 ? orders[currentIndex] : undefined;
   const viewingShippedOrder = viewingShippedId
     ? orders.find((order) => order.id === viewingShippedId) ?? null
     : null;
@@ -141,44 +152,58 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     setScannerOpen(false);
     setAutoMode(true);
     const next = findFirstAutoOrderIndex(orders, orderStatuses);
-    if (next !== null) setCurrentIndex(next);
+    if (next !== null) setCurrentOrderId(orders[next].id);
   }, [autoMode, exitAutoMode, orders, orderStatuses]);
 
   const validateScan = useCallback(
     (code: string) => {
-      if (!currentOrder || !canScan) return;
+      const orderId = currentOrderId;
+      if (!orderId || !canScan) return;
 
       if (!products.length) {
         setScanError("Каталог товаров не загружен. Обнови страницу.");
         return;
       }
 
-      const result = resolveScanFromBarcode(products, currentOrder, code);
-      if (!result.ok) {
-        setScanError(result.message);
-        return;
-      }
+      onOrdersChange((prev) => {
+        const order = prev.find((entry) => entry.id === orderId);
+        if (!order) return prev;
 
-      const { item: matchedItem } = result;
+        const result = resolveScanFromBarcode(products, order, code);
+        if (!result.ok) {
+          setScanError(result.message);
+          return prev;
+        }
 
-      onOrdersChange((prev) =>
-        prev.map((order, idx) =>
-          idx === currentIndex
+        const { item: matchedItem } = result;
+        const currentItem = order.items.find((item) => item.id === matchedItem.id);
+        if (!currentItem || currentItem.scannedCount >= currentItem.quantity) {
+          setScanError("Все единицы этой позиции уже отсканированы");
+          return prev;
+        }
+
+        setScanError(null);
+        setScannerOpen(false);
+
+        return prev.map((entry) =>
+          entry.id === orderId
             ? {
-                ...order,
-                items: order.items.map((item) =>
+                ...entry,
+                items: entry.items.map((item) =>
                   item.id === matchedItem.id
-                    ? { ...item, scannedCount: item.scannedCount + 1, scannedAt: Date.now() }
+                    ? {
+                        ...item,
+                        scannedCount: Math.min(item.scannedCount + 1, item.quantity),
+                        scannedAt: Date.now(),
+                      }
                     : item,
                 ),
               }
-            : order,
-        ),
-      );
-      setScanError(null);
-      setScannerOpen(false);
+            : entry,
+        );
+      });
     },
-    [currentOrder, currentIndex, canScan, onOrdersChange, products],
+    [currentOrderId, canScan, onOrdersChange, products],
   );
 
   useHardwareScanner(validateScan, !manualMode && !scannerOpen && canScan);
@@ -188,8 +213,8 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
       if (!canScan || autoMode) return;
 
       onOrdersChange((prev) =>
-        prev.map((order, idx) =>
-          idx === currentIndex
+        prev.map((order) =>
+          order.id === currentOrderId
             ? {
                 ...order,
                 items: order.items.map((item) => {
@@ -203,7 +228,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
         ),
       );
     },
-    [autoMode, canScan, currentIndex, onOrdersChange],
+    [autoMode, canScan, currentOrderId, onOrdersChange],
   );
 
   const handlePrint = () => {
@@ -212,23 +237,23 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
   };
 
   const goToNextOrder = useCallback(
-    (updatedOrders: ShippingOrder[]) => {
-      const next = findNextActiveIndex(updatedOrders, currentIndex);
-      if (next !== null) setCurrentIndex(next);
+    (updatedOrders: ShippingOrder[], fromOrderId?: string | null) => {
+      const nextId = findNextActiveOrderId(updatedOrders, fromOrderId ?? currentOrderId);
+      if (nextId) setCurrentOrderId(nextId);
     },
-    [currentIndex],
+    [currentOrderId],
   );
 
   const handlePrinted = () => {
     setPrintModalOpen(false);
-    const shippedId = currentOrder?.id;
+    const shippedId = currentOrderId;
     onOrdersChange((prev) => {
-      const updated = prev.map((order, idx) =>
-        idx === currentIndex
+      const updated = prev.map((order) =>
+        order.id === currentOrderId
           ? { ...order, barcodePrinted: true, barcodePrintedAt: Date.now() }
           : order,
       );
-      goToNextOrder(updated);
+      goToNextOrder(updated, currentOrderId);
       if (shippedId) setViewingShippedId(shippedId);
       return updated;
     });
@@ -247,10 +272,10 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     }
 
     const next = findFirstAutoOrderIndex(orders, orderStatuses);
-    if (next !== null && next !== currentIndex) {
-      setCurrentIndex(next);
+    if (next !== null && orders[next].id !== currentOrderId) {
+      setCurrentOrderId(orders[next].id);
     }
-  }, [autoMode, countdown, currentIndex, currentOrder, orderStatuses, orders]);
+  }, [autoMode, countdown, currentOrderId, currentOrder, currentIndex, orderStatuses, orders]);
 
   useEffect(() => {
     if (!autoMode || !allScanned || !canScan || countdown || !currentOrder) return;
@@ -258,43 +283,35 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
 
     autoHandledRef.current = currentOrder.id;
     const shippedNumber = currentOrder.orderNumber;
-    const shippedIndex = currentIndex;
-    const shippedAt = Date.now();
-
-    const updatedOrders = orders.map((order, idx) =>
-      idx === shippedIndex
-        ? { ...order, barcodePrinted: true, barcodePrintedAt: shippedAt }
-        : order,
-    );
-    const nextAllocation = buildAssemblyAllocation(updatedOrders, assemblyItems);
-    const nextStatuses = updatedOrders.map((order) =>
-      getOrderDisplayStatus(order, assemblyItems, nextAllocation),
-    );
-    const hasNext = findFirstAutoOrderIndex(updatedOrders, nextStatuses) !== null;
-
-    onOrdersChange(updatedOrders);
-    setViewingShippedId(currentOrder.id);
-    setCountdown({ orderNumber: shippedNumber, secondsLeft: 5, hasNext });
+    const shippedId = currentOrder.id;
 
     void (async () => {
       const result = await printOrderBarcode(shippedNumber, {
         orderId: currentOrder.id,
         barcodeUrl: currentOrder.barcodeUrl,
-        order: { ...currentOrder, barcodePrinted: true, barcodePrintedAt: shippedAt },
+        order: currentOrder,
       });
-      if (result.ok) return;
+      if (!result.ok) {
+        autoHandledRef.current = null;
+        setPrintError(result.message ?? "Не удалось напечатать баркод");
+        return;
+      }
 
-      autoHandledRef.current = null;
-      setCountdown(null);
-      setViewingShippedId(null);
-      onOrdersChange((prev) =>
-        prev.map((order, idx) =>
-          idx === shippedIndex
-            ? { ...order, barcodePrinted: false, barcodePrintedAt: undefined }
-            : order,
-        ),
+      const shippedAt = Date.now();
+      const updatedOrders = orders.map((order) =>
+        order.id === shippedId
+          ? { ...order, barcodePrinted: true, barcodePrintedAt: shippedAt }
+          : order,
       );
-      setPrintError(result.message ?? "Не удалось напечатать баркод");
+      const nextAllocation = buildAssemblyAllocation(updatedOrders, assemblyItems);
+      const nextStatuses = updatedOrders.map((order) =>
+        getOrderDisplayStatus(order, assemblyItems, nextAllocation),
+      );
+      const hasNext = findFirstAutoOrderIndex(updatedOrders, nextStatuses) !== null;
+
+      onOrdersChange(updatedOrders);
+      setViewingShippedId(currentOrder.id);
+      setCountdown({ orderNumber: shippedNumber, secondsLeft: 5, hasNext });
     })();
   }, [
     allScanned,
@@ -303,8 +320,8 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     autoPrintRetry,
     canScan,
     countdown,
-    currentIndex,
     currentOrder,
+    currentOrderId,
     onOrdersChange,
     orders,
   ]);
@@ -323,7 +340,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
       setViewingShippedId(null);
       autoHandledRef.current = null;
       const next = findFirstAutoOrderIndex(orders, orderStatuses);
-      if (next !== null) setCurrentIndex(next);
+      if (next !== null) setCurrentOrderId(orders[next].id);
       return;
     }
 
@@ -337,17 +354,17 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
   useEffect(() => {
     if (viewingShippedId) return;
     if (currentOrder?.barcodePrinted) {
-      const next = findNextActiveIndex(orders, currentIndex);
-      if (next !== null) setCurrentIndex(next);
+      const nextId = findNextActiveOrderId(orders, currentOrderId);
+      if (nextId) setCurrentOrderId(nextId);
     }
-  }, [orders, currentIndex, currentOrder, viewingShippedId]);
+  }, [orders, currentOrderId, currentOrder, viewingShippedId]);
 
   useEffect(() => {
     if (viewingShippedId || shippableIndices.length === 0) return;
     if (!shippableIndices.includes(currentIndex)) {
-      setCurrentIndex(shippableIndices[0]);
+      setCurrentOrderId(orders[shippableIndices[0]].id);
     }
-  }, [currentIndex, shippableIndices, viewingShippedId]);
+  }, [currentIndex, orders, shippableIndices, viewingShippedId]);
 
   const hasActiveOrders = activeIndices.length > 0;
   const hasShippableOrders = shippableIndices.length > 0;
@@ -369,13 +386,15 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
 
   const totalUnits = displayOrder?.items.reduce((sum, i) => sum + i.quantity, 0) ?? 0;
   const scannedCount = displayOrder?.items.reduce((sum, i) => sum + i.scannedCount, 0) ?? 0;
-  const hasNextUnshipped = orders.some((o, i) => i !== currentIndex && !o.barcodePrinted);
+  const hasNextUnshipped = orders.some(
+    (order) => order.id !== currentOrderId && !order.barcodePrinted,
+  );
 
   const showActions = hasShippableOrders && isAssemblyReady && !isShipped && !autoMode && !isViewingArchive;
 
   const handleSelectActive = (index: number) => {
     setViewingShippedId(null);
-    setCurrentIndex(index);
+    setCurrentOrderId(orders[index].id);
   };
 
   return (

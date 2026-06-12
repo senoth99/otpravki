@@ -33,10 +33,11 @@ function formatDeadline(createdAt: string): string {
   return formatMoscowDate(shipBy);
 }
 
-function resolveSizeId(product: ApiProduct | undefined, size: string, lineId: number): number {
+function resolveSizeId(product: ApiProduct | undefined, size: string): number | null {
+  if (!product) return null;
   const normalized = size.toLowerCase();
-  const match = product?.sizes.find((s) => s.size.toLowerCase() === normalized);
-  return match?.id ?? lineId;
+  const match = product.sizes.find((s) => s.size.toLowerCase() === normalized);
+  return match?.id ?? null;
 }
 
 function buildProductIndex(products: ApiProduct[]): Map<string, ApiProduct> {
@@ -65,6 +66,7 @@ export function mapUnshippedOrdersToWorkspace(
 ): { assemblyItems: AssemblyItem[]; orders: ShippingOrder[] } {
   const productIndex = buildProductIndex(products);
   const assemblyMap = new Map<string, AssemblyItem>();
+  const warehouseCapByKey = new Map<string, number>();
   const orders: ShippingOrder[] = [];
 
   for (const order of apiOrders) {
@@ -78,16 +80,20 @@ export function mapUnshippedOrdersToWorkspace(
 
       const product = findProduct(productIndex, line.productSlug);
       const productId = line.productSlug;
-      const sizeId = resolveSizeId(product, line.size, line.id);
+      const sizeId = resolveSizeId(product, line.size);
+      if (sizeId === null) continue;
+
       const key = assemblyKey(productId, line.size, isBlogger);
       const imagePath = product?.images[0] ?? "";
 
+      warehouseCapByKey.set(
+        key,
+        Math.max(warehouseCapByKey.get(key) ?? 0, line.warehouseQuantity),
+      );
+
       const assemblyLine = assemblyMap.get(key);
       if (assemblyLine) {
-        assemblyLine.quantity = Math.min(
-          assemblyLine.quantity + line.quantity,
-          line.warehouseQuantity,
-        );
+        assemblyLine.quantity += line.quantity;
       } else {
         assemblyMap.set(key, {
           id: `assembly-${key}`,
@@ -98,7 +104,7 @@ export function mapUnshippedOrdersToWorkspace(
           brand: product?.brand || "CASHER",
           imageUrl: imagePath ? getImageUrl(imagePath) : "",
           barcodeId: String(sizeId),
-          quantity: Math.min(line.quantity, line.warehouseQuantity),
+          quantity: line.quantity,
           collectedCount: 0,
           isBlogger,
         });
@@ -135,6 +141,13 @@ export function mapUnshippedOrdersToWorkspace(
       city: order.city,
       trackingNumber: order.trackingNumber ?? undefined,
     });
+  }
+
+  for (const [key, item] of assemblyMap) {
+    const cap = warehouseCapByKey.get(key);
+    if (cap !== undefined) {
+      item.quantity = Math.min(item.quantity, cap);
+    }
   }
 
   const assemblyItems = sortAssemblyItemsByUrgency([...assemblyMap.values()], orders);

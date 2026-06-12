@@ -1,6 +1,6 @@
 import { mergeShippedArchives } from "@/lib/shipped-archive";
 import type { AssemblyItem, ShippingOrder, ShippingOrderItem } from "@/types/shipping";
-import type { WorkspaceState } from "@/types/workspace";
+import type { SharedWorkspaceState } from "@/types/workspace";
 
 function pickByTimestamp<T extends number>(
   aValue: T,
@@ -14,22 +14,15 @@ function pickByTimestamp<T extends number>(
   return aTime > bTime ? aValue : bValue;
 }
 
-/** Отправленный статус липкий: API не выкидывает заказ из архива, кроме явной отмены */
+/** Отправленный статус липкий: true держится, кроме явной отмены (barcodePrintedAt сброшен) */
 function resolveBarcodePrinted(a: ShippingOrder, b: ShippingOrder): boolean {
-  const aPrinted = a.barcodePrinted;
-  const bPrinted = b.barcodePrinted;
+  if (a.barcodePrinted && b.barcodePrinted) return true;
+  if (!a.barcodePrinted && !b.barcodePrinted) return false;
 
-  if (aPrinted && bPrinted) return true;
-  if (!aPrinted && !bPrinted) return false;
+  const unprinted = !a.barcodePrinted ? a : b;
+  if (unprinted.barcodePrintedAt === undefined) return false;
 
-  const aAt = a.barcodePrintedAt ?? 0;
-  const bAt = b.barcodePrintedAt ?? 0;
-
-  if (aPrinted && !bPrinted) {
-    return bAt <= aAt;
-  }
-
-  return aAt <= bAt;
+  return true;
 }
 
 function mergeAssemblyItem(a: AssemblyItem, b: AssemblyItem): AssemblyItem {
@@ -79,7 +72,10 @@ export function mergeOrder(a: ShippingOrder, b: ShippingOrder): ShippingOrder {
 }
 
 /** Сливает два снимка по времени последнего изменения каждой позиции */
-export function mergeWorkspaces(a: WorkspaceState, b: WorkspaceState): WorkspaceState {
+export function mergeWorkspaces(
+  a: SharedWorkspaceState,
+  b: SharedWorkspaceState | Omit<SharedWorkspaceState, "revision">,
+): SharedWorkspaceState {
   const assemblyById = new Map<string, AssemblyItem>();
   for (const item of [...a.assemblyItems, ...b.assemblyItems]) {
     const existing = assemblyById.get(item.id);
@@ -101,5 +97,8 @@ export function mergeWorkspaces(a: WorkspaceState, b: WorkspaceState): Workspace
     shippedArchive: mergeShippedArchives(a.shippedArchive ?? [], a.orders, b.shippedArchive ?? [], b.orders),
     apiOrderIds: newer.apiOrderIds ?? a.apiOrderIds ?? b.apiOrderIds,
     updatedAt: Math.max(a.updatedAt, b.updatedAt),
+    revision: Math.max(a.revision, "revision" in b ? b.revision : 0),
+    updatedBy: newer.updatedBy ?? a.updatedBy ?? b.updatedBy,
+    resetToken: newer.resetToken ?? a.resetToken ?? b.resetToken,
   };
 }

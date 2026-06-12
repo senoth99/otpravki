@@ -43,21 +43,3 @@ export function normalizeWorkspaceState<T extends WorkspaceState>(state: T): T {
     shippedArchive,
   };
 }
-
-/** Добавляет локальный архив к ответу сервера после «Обновить» */
-export function mergeWorkspaceWithLocalArchive(
-  remote: { orders: ShippingOrder[]; shippedArchive?: ShippingOrder[] },
-  localOrders: ShippingOrder[],
-  localArchive?: ShippingOrder[],
-): { orders: ShippingOrder[]; shippedArchive: ShippingOrder[] } {
-  const shippedArchive = unionPermanentArchive(
-    remote.shippedArchive ?? [],
-    remote.orders,
-    localArchive ?? [],
-    localOrders,
-  );
-  const archiveIds = new Set(shippedArchive.map((order) => order.id));
-  const orders = remote.orders.filter((order) => !archiveIds.has(order.id));
-
-  return { orders, shippedArchive };
-}

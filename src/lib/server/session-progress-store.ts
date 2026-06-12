@@ -41,24 +41,44 @@ export function extractSessionProgress(state: SharedWorkspaceState): SessionProg
   return { version: 1, updatedAt: Date.now(), assembly, scans };
 }
 
+function normalizeSessionProgress(raw: unknown): SessionProgress | null {
+  if (!raw || typeof raw !== "object") return null;
+  const data = raw as Partial<SessionProgress>;
+  if (data.version !== 1) return null;
+  return {
+    version: 1,
+    updatedAt: typeof data.updatedAt === "number" ? data.updatedAt : 0,
+    assembly:
+      data.assembly && typeof data.assembly === "object" && !Array.isArray(data.assembly)
+        ? data.assembly
+        : {},
+    scans:
+      data.scans && typeof data.scans === "object" && !Array.isArray(data.scans) ? data.scans : {},
+  };
+}
+
 export function applySessionProgress(
   state: SharedWorkspaceState,
   progress: SessionProgress | null,
 ): SharedWorkspaceState {
   if (!progress) return state;
 
+  const assembly = progress.assembly ?? {};
+  const scans = progress.scans ?? {};
+
   const assemblyItems = state.assemblyItems.map((item) => {
-    const saved = progress.assembly[item.id];
+    const saved = assembly[item.id];
     if (!saved) return item;
     return {
       ...item,
-      collectedCount: Math.min(saved.collectedCount, item.quantity),
+      collectedCount:
+        saved.collectedCount > item.quantity ? saved.collectedCount : Math.min(saved.collectedCount, item.quantity),
       collectedAt: saved.collectedAt,
     };
   });
 
   const orders = state.orders.map((order) => {
-    const savedLines = progress.scans[order.id];
+    const savedLines = scans[order.id];
     if (!savedLines) return order;
     return {
       ...order,
@@ -67,7 +87,10 @@ export function applySessionProgress(
         if (!saved) return line;
         return {
           ...line,
-          scannedCount: Math.min(saved.scannedCount, line.quantity),
+          scannedCount:
+            saved.scannedCount > line.quantity
+              ? saved.scannedCount
+              : Math.min(saved.scannedCount, line.quantity),
           scannedAt: saved.scannedAt,
         };
       }),
@@ -80,7 +103,7 @@ export function applySessionProgress(
 export async function loadSessionProgress(): Promise<SessionProgress | null> {
   try {
     const raw = await readFile(PROGRESS_FILE, "utf-8");
-    return JSON.parse(raw) as SessionProgress;
+    return normalizeSessionProgress(JSON.parse(raw));
   } catch {
     return null;
   }

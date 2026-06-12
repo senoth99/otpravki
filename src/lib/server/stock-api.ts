@@ -24,7 +24,10 @@ interface RawStockEntry {
 }
 
 function normalizeResponse(raw: unknown): ApiStockItem[] {
-  if (!Array.isArray(raw) || raw.length === 0) return [];
+  if (!Array.isArray(raw)) {
+    throw new Error("Некорректный ответ API склада: ожидался массив");
+  }
+  if (raw.length === 0) return [];
 
   const map = new Map<number, ApiStockItem>();
 

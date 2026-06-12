@@ -94,7 +94,7 @@ export async function markOrderShipped(orderId: string): Promise<void> {
     },
   );
 
-  if (res.status !== 200) {
+  if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(
       `Не удалось отметить заказ отправленным: HTTP ${res.status}${body ? ` — ${body.slice(0, 200)}` : ""}`,

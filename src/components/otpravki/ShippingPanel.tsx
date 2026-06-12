@@ -76,13 +76,15 @@ export function ShippingPanel({
   return (
     <div className="relative mx-auto w-full max-w-3xl space-y-4 sm:space-y-6">
       {offline && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 p-4">
-          <div className="max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl">
-            <p className="font-semibold text-gray-900">Нет интернета</p>
-            <p className="mt-2 text-sm text-gray-600">
-              Нужен доступ к api.cashercollection.com. Перезагрузи страницу, когда сеть появится.
-            </p>
-          </div>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-medium">
+            {!isInternetOnline ? "Нет интернета" : "Сервер недоступен"}
+          </p>
+          <p className="mt-1 text-amber-800">
+            {!isInternetOnline
+              ? "Нужен доступ к api.cashercollection.com. Работа продолжается локально."
+              : "Синхронизация с сервером временно недоступна. Изменения сохранятся при восстановлении связи."}
+          </p>
         </div>
       )}
       <div className="flex flex-col gap-3">

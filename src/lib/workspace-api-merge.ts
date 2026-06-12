@@ -5,7 +5,7 @@ import type { SharedWorkspaceState } from "@/types/workspace";
 function mergeAssemblyProgress(prev: AssemblyItem, fresh: AssemblyItem): AssemblyItem {
   return {
     ...fresh,
-    collectedCount: Math.min(prev.collectedCount, fresh.quantity),
+    collectedCount: prev.collectedCount,
     collectedAt: prev.collectedAt,
   };
 }
@@ -13,7 +13,7 @@ function mergeAssemblyProgress(prev: AssemblyItem, fresh: AssemblyItem): Assembl
 function mergeOrderItemProgress(prev: ShippingOrderItem, fresh: ShippingOrderItem): ShippingOrderItem {
   return {
     ...fresh,
-    scannedCount: Math.min(prev.scannedCount, fresh.quantity),
+    scannedCount: prev.scannedCount,
     scannedAt: prev.scannedAt,
   };
 }
@@ -34,7 +34,11 @@ function mergeOrderProgress(prev: ShippingOrder, fresh: ShippingOrder): Shipping
 /** Свежие данные с API + архив отправленных (никогда не очищается) */
 export function mergeFreshOrdersData(
   existing: SharedWorkspaceState,
-  fresh: { assemblyItems: AssemblyItem[]; orders: ShippingOrder[] },
+  fresh: {
+    assemblyItems: AssemblyItem[];
+    orders: ShippingOrder[];
+    apiOrderIds?: string[];
+  },
 ): SharedWorkspaceState {
   const archiveById = new Map(
     mergeShippedArchives(existing.shippedArchive ?? [], existing.orders).map((order) => [
@@ -46,21 +50,29 @@ export function mergeFreshOrdersData(
   const existingOrders = new Map(existing.orders.map((order) => [order.id, order]));
   const existingAssembly = new Map(existing.assemblyItems.map((item) => [item.id, item]));
   const activeOrders: ShippingOrder[] = [];
+  const freshIds = new Set(fresh.orders.map((order) => order.id));
 
   for (const order of fresh.orders) {
+    const prev = existingOrders.get(order.id);
+    if (prev && !prev.barcodePrinted) {
+      archiveById.delete(order.id);
+      activeOrders.push(mergeOrderProgress(prev, order));
+      continue;
+    }
+
     const archived = archiveById.get(order.id);
     if (!archived) {
-      const prev = existingOrders.get(order.id);
       activeOrders.push(prev ? mergeOrderProgress(prev, order) : order);
       continue;
     }
 
-    archiveById.set(order.id, {
-      ...archived,
-      customerName: order.customerName,
-      trackingNumber: order.trackingNumber ?? archived.trackingNumber,
-      barcodeUrl: order.barcodeUrl || archived.barcodeUrl,
-    });
+    archiveById.delete(order.id);
+    activeOrders.push(prev ? mergeOrderProgress(prev, order) : order);
+  }
+
+  for (const [id, prev] of existingOrders) {
+    if (prev.barcodePrinted || freshIds.has(id)) continue;
+    activeOrders.push(prev);
   }
 
   const shippedArchive = unionPermanentArchive(
@@ -78,7 +90,7 @@ export function mergeFreshOrdersData(
     assemblyItems,
     orders: activeOrders,
     shippedArchive,
-    apiOrderIds: fresh.orders.map((order) => order.id),
+    apiOrderIds: fresh.apiOrderIds ?? fresh.orders.map((order) => order.id),
     updatedAt: Date.now(),
   };
 }

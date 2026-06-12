@@ -7,21 +7,30 @@ function logFilePath() {
 }
 
 async function logSync(type, data = {}) {
-  const entry = { at: new Date().toISOString(), type, ...data };
-  const file = logFilePath();
-  await fsp.mkdir(path.dirname(file), { recursive: true });
-  await fsp.appendFile(file, `${JSON.stringify(entry)}\n`, "utf8");
+  try {
+    const entry = { at: new Date().toISOString(), type, ...data };
+    const file = logFilePath();
+    await fsp.mkdir(path.dirname(file), { recursive: true });
+    await fsp.appendFile(file, `${JSON.stringify(entry)}\n`, "utf8");
+  } catch {
+    // logging must not break sync
+  }
 }
 
 async function readSyncLog(lines = 100) {
   try {
     const raw = await fsp.readFile(logFilePath(), "utf8");
-    return raw
-      .trim()
-      .split("\n")
-      .filter(Boolean)
-      .slice(-lines)
-      .map((line) => JSON.parse(line));
+    const parsed = [];
+    for (const line of raw.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        parsed.push(JSON.parse(trimmed));
+      } catch {
+        // skip corrupt line
+      }
+    }
+    return parsed.slice(-lines);
   } catch {
     return [];
   }

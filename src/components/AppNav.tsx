@@ -5,7 +5,11 @@ import { usePathname } from "next/navigation";
 
 function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
   const pathname = usePathname();
-  const isActive = pathname === href || pathname.startsWith(href + "/");
+  const hrefSegments = href.split("/").filter(Boolean);
+  const pathSegments = pathname.split("/").filter(Boolean);
+  const isActive =
+    hrefSegments.length > 0 &&
+    hrefSegments.every((segment, index) => pathSegments[index] === segment);
 
   return (
     <Link

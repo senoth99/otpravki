@@ -38,7 +38,7 @@ export function buildAssemblyItems(lines: AssemblyLine[]): AssemblyItem[] {
       size: formatSize(size?.size ?? fallbackSize),
       sizeId,
       brand: product.brand || "CASHER",
-      imageUrl: getImageUrl(product.images[0]),
+      imageUrl: getImageUrl(product.images?.[0] ?? ""),
       barcodeId: String(sizeId),
       quantity,
       collectedCount: 0,

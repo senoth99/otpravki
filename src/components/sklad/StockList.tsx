@@ -14,7 +14,7 @@ export function StockList({ items }: StockListProps) {
   const [onlyInStock, setOnlyInStock] = useState(false);
 
   const brands = useMemo(() => {
-    const set = new Set(items.map((i) => i.brand));
+    const set = new Set(items.map((i) => i.brand).filter(Boolean));
     return Array.from(set).sort();
   }, [items]);
 
@@ -95,8 +95,8 @@ export function StockList({ items }: StockListProps) {
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          {filtered.map((item) => (
-            <StockItemCard key={item.productSlug} item={item} />
+          {filtered.map((item, index) => (
+            <StockItemCard key={`${item.productSlug}-${index}`} item={item} />
           ))}
         </div>
       )}
