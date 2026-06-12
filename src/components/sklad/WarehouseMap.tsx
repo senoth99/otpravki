@@ -441,7 +441,6 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
             Сброс
           </button>
         </div>
-        <span className="text-xs text-gray-400">Колёсико — зум · Перетаскивание — двигать</span>
         <button
           type="button"
           onClick={handleSaveMap}
