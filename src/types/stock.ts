@@ -30,6 +30,7 @@ export interface FurnitureItem {
   rows: number;       // количество рядов
   cols: number;       // количество колонок
   cells: Record<string, WarehouseCell>;  // ключ: "r{row}c{col}", например "r1c3"
+  rotation?: "h" | "v";  // h = горизонтально (по умолчанию), v = вертикально
 }
 
 export interface WarehouseMapConfig {
