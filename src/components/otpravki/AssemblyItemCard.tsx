@@ -16,6 +16,12 @@ interface AssemblyItemCardProps {
   onDecrement: (id: string) => void;
   cellLocation?: WarehouseCellLocation;
   warehouseMap?: WarehouseMapConfig;
+  emphasize?: boolean;
+  dimmed?: boolean;
+  locked?: boolean;
+  stepNumber?: number;
+  navOpen?: boolean;
+  onNavOpenChange?: (open: boolean) => void;
 }
 
 export function AssemblyItemCard({
@@ -24,18 +30,37 @@ export function AssemblyItemCard({
   onDecrement,
   cellLocation,
   warehouseMap,
+  emphasize = false,
+  dimmed = false,
+  locked = false,
+  stepNumber,
+  navOpen: navOpenProp,
+  onNavOpenChange,
 }: AssemblyItemCardProps) {
-  const [navOpen, setNavOpen] = useState(false);
+  const [navOpenLocal, setNavOpenLocal] = useState(false);
+  const navOpen = navOpenProp ?? navOpenLocal;
+  const setNavOpen = onNavOpenChange ?? setNavOpenLocal;
   const isComplete = item.collectedCount >= item.quantity;
 
   return (
     <div
-      className={`flex w-full flex-col gap-3 rounded-2xl border p-3 transition-all sm:flex-row sm:items-center sm:gap-4 sm:p-4 ${
-        isComplete
-          ? "border-green-300 bg-green-50 shadow-sm"
-          : "border-gray-100 bg-white"
-      }`}
+      className={`relative flex w-full flex-col gap-3 rounded-2xl border p-3 transition-all sm:flex-row sm:items-center sm:gap-4 sm:p-4 ${
+        emphasize
+          ? "border-gray-900 bg-white shadow-lg ring-2 ring-gray-900"
+          : isComplete
+            ? "border-green-300 bg-green-50 shadow-sm"
+            : "border-gray-100 bg-white"
+      } ${dimmed ? "pointer-events-none opacity-40 saturate-50" : ""}`}
     >
+      {stepNumber !== undefined && (
+        <div
+          className={`absolute -left-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold shadow-sm ${
+            emphasize ? "bg-gray-900 text-white" : "bg-gray-200 text-gray-700"
+          }`}
+        >
+          {stepNumber}
+        </div>
+      )}
       <div className="flex min-w-0 items-start gap-3 sm:flex-1">
         <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-gray-100 sm:h-20 sm:w-20">
           <ProductImage
@@ -78,7 +103,8 @@ export function AssemblyItemCard({
               <button
                 type="button"
                 onClick={() => setNavOpen(true)}
-                className="rounded-lg bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 active:bg-blue-200"
+                disabled={locked}
+                className="rounded-lg bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 active:bg-blue-200 disabled:opacity-50"
               >
                 {cellLocation.hint}
               </button>
@@ -91,8 +117,8 @@ export function AssemblyItemCard({
         <QuantityTracker
           quantity={item.quantity}
           doneCount={item.collectedCount}
-          onIncrement={() => onIncrement(item.id)}
-          onDecrement={() => onDecrement(item.id)}
+          onIncrement={locked ? () => {} : () => onIncrement(item.id)}
+          onDecrement={locked ? () => {} : () => onDecrement(item.id)}
         />
       </div>
 

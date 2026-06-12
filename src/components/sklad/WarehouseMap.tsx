@@ -26,6 +26,37 @@ const POPOVER_W = 210;
 const RACK_LABEL_H = 28;
 const MIN_ZOOM = 0.35;
 const MAX_ZOOM = 4;
+const PAN_THRESHOLD_PX = 8;
+
+function touchDistance(touches: TouchList | React.Touch[]): number {
+  if (touches.length < 2) return 0;
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.hypot(dx, dy);
+}
+
+function touchMidpoint(touches: TouchList | React.Touch[]): { x: number; y: number } {
+  return {
+    x: (touches[0].clientX + touches[1].clientX) / 2,
+    y: (touches[0].clientY + touches[1].clientY) / 2,
+  };
+}
+
+type MapGestureMode = "idle" | "pan" | "pinch";
+
+interface MapGestureState {
+  mode: MapGestureMode;
+  moved: boolean;
+  pan?: { startX: number; startY: number; originX: number; originY: number };
+  pinch?: {
+    startDistance: number;
+    startZoom: number;
+    startPanX: number;
+    startPanY: number;
+    anchorX: number;
+    anchorY: number;
+  };
+}
 
 function inferColsFromCells(cells: Record<string, WarehouseCell>): number {
   let maxCol = 1;
@@ -275,7 +306,9 @@ export function WarehouseMap({
   const baseScaleRef = useRef(1);
   const zoomRef = useRef(1);
   const panRef = useRef({ x: 0, y: 0 });
-  const panSessionRef = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
+  const gestureRef = useRef<MapGestureState>({ mode: "idle", moved: false });
+  const panMovedRef = useRef(false);
+  const activeTouchPanIdRef = useRef<number | null>(null);
 
   baseScaleRef.current = baseScale;
   zoomRef.current = zoom;
@@ -313,7 +346,7 @@ export function WarehouseMap({
     return count;
   }, [furniture, searchQuery, searchActive, stockBySlug]);
 
-  const zoomAtPoint = useCallback((clientX: number, clientY: number, factor: number) => {
+  const applyZoomAtPoint = useCallback((clientX: number, clientY: number, nextZoom: number) => {
     const viewport = viewportRef.current;
     if (!viewport) return;
 
@@ -322,17 +355,116 @@ export function WarehouseMap({
     const anchorY = clientY - rect.top;
 
     const oldScale = baseScaleRef.current * zoomRef.current;
-    const nextZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomRef.current * factor));
-    const newScale = baseScaleRef.current * nextZoom;
+    const clampedZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom));
+    const newScale = baseScaleRef.current * clampedZoom;
 
     const worldX = (anchorX - panRef.current.x) / oldScale;
     const worldY = (anchorY - panRef.current.y) / oldScale;
+
+    setZoom(clampedZoom);
+    setPan({
+      x: anchorX - worldX * newScale,
+      y: anchorY - worldY * newScale,
+    });
+  }, []);
+
+  const zoomAtPoint = useCallback(
+    (clientX: number, clientY: number, factor: number) => {
+      applyZoomAtPoint(clientX, clientY, zoomRef.current * factor);
+    },
+    [applyZoomAtPoint],
+  );
+
+  const applyPanDelta = useCallback((clientX: number, clientY: number) => {
+    const session = gestureRef.current.pan;
+    if (!session) return;
+
+    const dx = clientX - session.startX;
+    const dy = clientY - session.startY;
+    if (Math.abs(dx) > PAN_THRESHOLD_PX || Math.abs(dy) > PAN_THRESHOLD_PX) {
+      gestureRef.current.moved = true;
+      panMovedRef.current = true;
+    }
+
+    setPan({
+      x: session.originX + dx,
+      y: session.originY + dy,
+    });
+  }, []);
+
+  const beginPan = useCallback((clientX: number, clientY: number) => {
+    gestureRef.current = {
+      mode: "pan",
+      moved: false,
+      pan: {
+        startX: clientX,
+        startY: clientY,
+        originX: panRef.current.x,
+        originY: panRef.current.y,
+      },
+    };
+    panMovedRef.current = false;
+    setIsPanning(true);
+  }, []);
+
+  const beginPinch = useCallback((touches: TouchList | React.Touch[]) => {
+    const viewport = viewportRef.current;
+    if (!viewport || touches.length < 2) return;
+
+    const rect = viewport.getBoundingClientRect();
+    const mid = touchMidpoint(touches);
+    const distance = touchDistance(touches);
+    if (distance <= 0) return;
+
+    gestureRef.current = {
+      mode: "pinch",
+      moved: true,
+      pinch: {
+        startDistance: distance,
+        startZoom: zoomRef.current,
+        startPanX: panRef.current.x,
+        startPanY: panRef.current.y,
+        anchorX: mid.x - rect.left,
+        anchorY: mid.y - rect.top,
+      },
+    };
+    panMovedRef.current = true;
+    activeTouchPanIdRef.current = null;
+    setIsPanning(false);
+  }, []);
+
+  const applyPinch = useCallback((touches: TouchList | React.Touch[]) => {
+    const pinch = gestureRef.current.pinch;
+    if (!pinch || touches.length < 2) return;
+
+    const distance = touchDistance(touches);
+    if (distance <= 0 || pinch.startDistance <= 0) return;
+
+    const ratio = distance / pinch.startDistance;
+    const nextZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, pinch.startZoom * ratio));
+    const mid = touchMidpoint(touches);
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const rect = viewport.getBoundingClientRect();
+    const anchorX = mid.x - rect.left;
+    const anchorY = mid.y - rect.top;
+    const oldScale = baseScaleRef.current * pinch.startZoom;
+    const newScale = baseScaleRef.current * nextZoom;
+    const worldX = (pinch.anchorX - pinch.startPanX) / oldScale;
+    const worldY = (pinch.anchorY - pinch.startPanY) / oldScale;
 
     setZoom(nextZoom);
     setPan({
       x: anchorX - worldX * newScale,
       y: anchorY - worldY * newScale,
     });
+  }, []);
+
+  const endGesture = useCallback(() => {
+    gestureRef.current = { mode: "idle", moved: false };
+    activeTouchPanIdRef.current = null;
+    setIsPanning(false);
   }, []);
 
   const focusNavigateTarget = useCallback(() => {
@@ -345,10 +477,21 @@ export function WarehouseMap({
     const center = getSlotWorldCenter(f, col);
     const vw = viewportRef.current.clientWidth;
     const vh = viewportRef.current.clientHeight;
-    const targetZoom = vw < 380 ? 1.2 : vw < 640 ? 1.45 : 1.7;
+    const targetZoom = navigateTarget
+      ? vw < 380
+        ? 2.4
+        : vw < 640
+          ? 2.0
+          : 1.7
+      : vw < 380
+        ? 1.2
+        : vw < 640
+          ? 1.45
+          : 1.7;
     setZoom(targetZoom);
     const scale = baseScaleRef.current * targetZoom;
-    const panelH = readOnly ? 112 : 0;
+    const panelH =
+      readOnly && navigateTarget ? (vw < 640 ? 220 : 128) : readOnly ? 112 : 0;
     setPan({
       x: vw / 2 - center.x * scale,
       y: (vh - panelH) / 2 - center.y * scale,
@@ -442,38 +585,85 @@ export function WarehouseMap({
     return () => el.removeEventListener("wheel", onWheel);
   }, [zoomAtPoint]);
 
-  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
-    const target = e.target as HTMLElement;
-    if (target.closest("[data-map-slot]")) return;
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
 
-    panSessionRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      panX: panRef.current.x,
-      panY: panRef.current.y,
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        beginPinch(e.touches);
+        return;
+      }
+      if (e.touches.length === 1) {
+        activeTouchPanIdRef.current = e.touches[0].identifier;
+        beginPan(e.touches[0].clientX, e.touches[0].clientY);
+      }
     };
-    setIsPanning(true);
-    e.currentTarget.setPointerCapture(e.pointerId);
-  }, []);
 
-  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const session = panSessionRef.current;
-    if (!session) return;
-    setPan({
-      x: session.panX + e.clientX - session.startX,
-      y: session.panY + e.clientY - session.startY,
-    });
-  }, []);
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        if (gestureRef.current.mode !== "pinch") beginPinch(e.touches);
+        e.preventDefault();
+        applyPinch(e.touches);
+        return;
+      }
 
-  const endPan = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (!panSessionRef.current) return;
-    panSessionRef.current = null;
-    setIsPanning(false);
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    }
-  }, []);
+      if (e.touches.length === 1 && gestureRef.current.mode === "pan") {
+        const touch = Array.from(e.touches).find(
+          (t) => t.identifier === activeTouchPanIdRef.current,
+        );
+        if (touch) {
+          e.preventDefault();
+          applyPanDelta(touch.clientX, touch.clientY);
+        }
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length === 0) {
+        endGesture();
+        return;
+      }
+      if (e.touches.length === 1 && gestureRef.current.mode === "pinch") {
+        activeTouchPanIdRef.current = e.touches[0].identifier;
+        beginPan(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd);
+    el.addEventListener("touchcancel", onTouchEnd);
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, [applyPanDelta, applyPinch, beginPan, beginPinch, endGesture]);
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.button !== 0 || e.pointerType === "touch") return;
+
+      beginPan(e.clientX, e.clientY);
+
+      const onWindowPointerMove = (ev: PointerEvent) => {
+        if (gestureRef.current.mode === "pan") applyPanDelta(ev.clientX, ev.clientY);
+      };
+      const onWindowPointerEnd = () => {
+        window.removeEventListener("pointermove", onWindowPointerMove);
+        window.removeEventListener("pointerup", onWindowPointerEnd);
+        window.removeEventListener("pointercancel", onWindowPointerEnd);
+        endGesture();
+      };
+
+      window.addEventListener("pointermove", onWindowPointerMove);
+      window.addEventListener("pointerup", onWindowPointerEnd);
+      window.addEventListener("pointercancel", onWindowPointerEnd);
+    },
+    [applyPanDelta, beginPan, endGesture],
+  );
 
   function handleCellSave(furnitureId: string, cellKey: string, cell: WarehouseCell) {
     setFurniture((prev) => prev.map((f) => (f.id === furnitureId ? { ...f, cells: { ...f.cells, [cellKey]: cell } } : f)));
@@ -561,89 +751,97 @@ export function WarehouseMap({
   const openSlotFurniture = openSlot ? furniture.find((f) => f.id === openSlot.furnitureId) : null;
   const navigateCol = navigateTarget?.cellKey.match(/^r(\d+)c(\d+)$/)?.[2];
   const navigateRow = navigateTarget?.cellKey.match(/^r(\d+)c(\d+)$/)?.[1];
-  const navTargetCell =
-    readOnly && navigateTarget && openSlotFurniture
-      ? openSlotFurniture.cells[navigateTarget.cellKey]
-      : undefined;
+
+  const isNavigationMode = readOnly && Boolean(navigateTarget);
 
   return (
-    <div className={`flex flex-col ${readOnly ? "gap-2 sm:gap-3" : "gap-4"}`}>
-      <div className="flex flex-col gap-2">
-        {!readOnly && (
-          <div className="relative">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Поиск товара на карте..."
-              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 pr-20 text-sm outline-none placeholder:text-gray-400 focus:border-gray-400"
-            />
-            {searchActive && (
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
-                {matchCount > 0 ? `${matchCount} яч.` : "нет"}
+    <div className={`flex h-full flex-col ${readOnly ? "gap-2 sm:gap-3" : "gap-4"}`}>
+      {!isNavigationMode && (
+        <div className="flex flex-col gap-2">
+          {!readOnly && (
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Поиск товара на карте..."
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 pr-20 text-sm outline-none placeholder:text-gray-400 focus:border-gray-400"
+              />
+              {searchActive && (
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                  {matchCount > 0 ? `${matchCount} яч.` : "нет"}
+                </span>
+              )}
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-white px-1 py-1 shadow-sm">
+              <button
+                type="button"
+                onClick={() => zoomFromToolbar(0.8)}
+                className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                aria-label="Уменьшить"
+              >
+                −
+              </button>
+              <span className="min-w-[3.5rem] text-center text-xs font-medium text-gray-600">
+                {Math.round(zoom * 100)}%
               </span>
+              <button
+                type="button"
+                onClick={() => zoomFromToolbar(1.25)}
+                className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                aria-label="Увеличить"
+              >
+                +
+              </button>
+              <button
+                type="button"
+                onClick={resetView}
+                className="rounded-lg px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-50"
+              >
+                Сброс
+              </button>
+            </div>
+            {!readOnly && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleSaveMap}
+                  className="rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-opacity"
+                >
+                  Сохранить карту
+                </button>
+                {saved && <span className="text-xs text-green-600 font-medium">Сохранено!</span>}
+              </>
             )}
           </div>
-        )}
-        <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-white px-1 py-1 shadow-sm">
-          <button
-            type="button"
-            onClick={() => zoomFromToolbar(0.8)}
-            className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
-            aria-label="Уменьшить"
-          >
-            −
-          </button>
-          <span className="min-w-[3.5rem] text-center text-xs font-medium text-gray-600">
-            {Math.round(zoom * 100)}%
-          </span>
-          <button
-            type="button"
-            onClick={() => zoomFromToolbar(1.25)}
-            className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
-            aria-label="Увеличить"
-          >
-            +
-          </button>
-          <button
-            type="button"
-            onClick={resetView}
-            className="rounded-lg px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-50"
-          >
-            Сброс
-          </button>
         </div>
-        {!readOnly && (
-          <>
-            <button
-              type="button"
-              onClick={handleSaveMap}
-              className="rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-opacity"
-            >
-              Сохранить карту
-            </button>
-            {saved && <span className="text-xs text-green-600 font-medium">Сохранено!</span>}
-          </>
-        )}
-        </div>
-      </div>
+      )}
 
       <div
         ref={viewportRef}
-        className={`relative overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 touch-none select-none ${
+        className={`relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 touch-none overscroll-none select-none ${
           isPanning ? "cursor-grabbing" : "cursor-grab"
         }`}
         style={{
-          height: readOnly
-            ? "min(52dvh, 520px)"
-            : "min(calc(100dvh - 220px), 560px)",
+          height: isNavigationMode
+            ? undefined
+            : readOnly
+              ? "min(52dvh, 520px)"
+              : "min(calc(100dvh - 220px), 560px)",
+          minHeight: isNavigationMode ? "min(42dvh, 360px)" : undefined,
+          touchAction: "none",
         }}
         onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={endPan}
-        onPointerCancel={endPan}
       >
+        {isNavigationMode && (
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/35 to-transparent px-3 py-2 sm:hidden">
+            <p className="text-center text-[11px] font-medium text-white">
+              Свайп — двигать · Щипок — масштаб
+            </p>
+          </div>
+        )}
         <div
           className="absolute left-0 top-0"
           style={{
@@ -715,10 +913,9 @@ export function WarehouseMap({
                         data-map-slot
                         data-furniture-id={f.id}
                         data-col={colNum}
-                        onPointerDown={(e) => e.stopPropagation()}
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (readOnly) return;
+                          if (readOnly || panMovedRef.current) return;
                           if (openSlot?.furnitureId === f.id && openSlot.col === colNum) {
                             setOpenSlot(null);
                             setEditModalTarget(null);
@@ -765,15 +962,15 @@ export function WarehouseMap({
           )}
         </div>
 
-        {readOnly && navigateTarget && openSlotFurniture && navigateCol && (
-          <div className="absolute inset-x-0 bottom-0 z-20 border-t border-gray-200 bg-white/95 px-3 py-2.5 backdrop-blur-sm sm:px-4 sm:py-3">
-            <p className="text-[11px] font-semibold text-gray-900 sm:text-xs">
-              {openSlotFurniture.label?.trim() || "Стеллаж"} · Я{navigateCol} · Р{navigateRow}
+        {isNavigationMode && openSlotFurniture && navigateCol && (
+          <div className="absolute inset-x-0 bottom-0 z-20 border-t-2 border-amber-300 bg-white px-4 py-4 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] sm:px-4 sm:py-3">
+            <p className="text-center text-[11px] font-semibold uppercase tracking-wider text-amber-700 sm:text-xs">
+              Ряды в ячейке · подсветка на карте
             </p>
-            <p className="mt-0.5 line-clamp-1 text-[11px] text-gray-500 sm:text-xs">
-              {navTargetCell?.productName ?? "Возьмите товар с подсвеченного ряда"}
+            <p className="mt-1 text-center text-sm font-semibold text-gray-900 sm:hidden">
+              {openSlotFurniture.label?.trim() || "Стеллаж"} · Я{navigateCol}
             </p>
-            <div className="mt-2 flex w-fit flex-col gap-1">
+            <div className="mx-auto mt-3 flex w-full max-w-[9.5rem] flex-col gap-2 sm:mt-2 sm:max-w-[8rem] sm:gap-1">
               {Array.from({ length: openSlotFurniture.rows }, (_, rowIdx) => {
                 const rowNum = openSlotFurniture.rows - rowIdx;
                 const cellKey = `r${rowNum}c${navigateCol}`;
@@ -782,17 +979,25 @@ export function WarehouseMap({
                 return (
                   <div
                     key={rowNum}
-                    className={`flex min-w-[3.25rem] flex-row items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 ${
+                    className={`flex min-h-[2.75rem] flex-row items-center justify-between gap-3 rounded-xl border-2 px-3.5 py-2.5 sm:min-h-0 sm:rounded-lg sm:border sm:px-2.5 sm:py-1.5 ${
                       isTarget
-                        ? "border-amber-400 bg-amber-50 ring-2 ring-amber-300"
-                        : "border-gray-200 bg-gray-50"
+                        ? "border-amber-400 bg-amber-100 ring-2 ring-amber-400 ring-offset-1"
+                        : "border-gray-200 bg-gray-50 opacity-70"
                     }`}
                   >
-                    <span className={`text-[10px] font-semibold ${isTarget ? "text-amber-900" : "text-gray-500"}`}>
+                    <span
+                      className={`text-base font-bold sm:text-[10px] sm:font-semibold ${
+                        isTarget ? "text-amber-950" : "text-gray-500"
+                      }`}
+                    >
                       Р{rowNum}
                     </span>
-                    <span className="text-[9px] text-gray-400">
-                      {cell?.productSlug ? "●" : "○"}
+                    <span
+                      className={`text-xs font-semibold sm:text-[9px] sm:font-normal sm:text-gray-400 ${
+                        isTarget ? "text-amber-900" : "text-gray-400"
+                      }`}
+                    >
+                      {isTarget ? "Бери здесь" : cell?.productSlug ? "занято" : "пусто"}
                     </span>
                   </div>
                 );

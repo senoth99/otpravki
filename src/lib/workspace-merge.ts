@@ -33,7 +33,7 @@ function mergeAssemblyItem(a: AssemblyItem, b: AssemblyItem): AssemblyItem {
     ...winner,
     quantity: Math.max(a.quantity, b.quantity),
     collectedCount:
-      aTime === bTime ? Math.max(a.collectedCount, b.collectedCount) : winner.collectedCount,
+      aTime === bTime ? b.collectedCount : winner.collectedCount,
     collectedAt: Math.max(aTime, bTime) || undefined,
   };
 }
@@ -44,7 +44,7 @@ function mergeOrderItem(a: ShippingOrderItem, b: ShippingOrderItem): ShippingOrd
   const winner = aTime >= bTime ? a : b;
   return {
     ...winner,
-    scannedCount: aTime === bTime ? Math.max(a.scannedCount, b.scannedCount) : winner.scannedCount,
+    scannedCount: aTime === bTime ? b.scannedCount : winner.scannedCount,
     scannedAt: Math.max(aTime, bTime) || undefined,
   };
 }

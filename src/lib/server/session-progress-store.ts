@@ -68,29 +68,28 @@ export function applySessionProgress(
 
   const assemblyItems = state.assemblyItems.map((item) => {
     const saved = assembly[item.id];
-    if (!saved) return item;
+    if (!saved) {
+      return { ...item, collectedCount: 0, collectedAt: undefined };
+    }
     return {
       ...item,
-      collectedCount:
-        saved.collectedCount > item.quantity ? saved.collectedCount : Math.min(saved.collectedCount, item.quantity),
+      collectedCount: Math.min(saved.collectedCount, item.quantity),
       collectedAt: saved.collectedAt,
     };
   });
 
   const orders = state.orders.map((order) => {
     const savedLines = scans[order.id];
-    if (!savedLines) return order;
     return {
       ...order,
       items: order.items.map((line) => {
-        const saved = savedLines[line.id];
-        if (!saved) return line;
+        const saved = savedLines?.[line.id];
+        if (!saved) {
+          return { ...line, scannedCount: 0, scannedAt: undefined };
+        }
         return {
           ...line,
-          scannedCount:
-            saved.scannedCount > line.quantity
-              ? saved.scannedCount
-              : Math.min(saved.scannedCount, line.quantity),
+          scannedCount: Math.min(saved.scannedCount, line.quantity),
           scannedAt: saved.scannedAt,
         };
       }),
@@ -111,19 +110,6 @@ export async function loadSessionProgress(): Promise<SessionProgress | null> {
 
 export async function saveSessionProgress(state: SharedWorkspaceState): Promise<void> {
   const progress = extractSessionProgress(state);
-  const hasData =
-    Object.keys(progress.assembly).length > 0 || Object.keys(progress.scans).length > 0;
-
-  if (!hasData) {
-    try {
-      const { unlink } = await import("fs/promises");
-      await unlink(PROGRESS_FILE);
-    } catch {
-      // no file yet
-    }
-    return;
-  }
-
   await mkdir(path.dirname(PROGRESS_FILE), { recursive: true });
   await writeFile(PROGRESS_FILE, JSON.stringify(progress), "utf-8");
 }

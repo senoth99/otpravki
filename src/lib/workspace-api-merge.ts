@@ -2,20 +2,14 @@ import { mergeShippedArchives, unionPermanentArchive } from "@/lib/shipped-archi
 import type { AssemblyItem, ShippingOrder, ShippingOrderItem } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
 
-function mergeAssemblyProgress(prev: AssemblyItem, fresh: AssemblyItem): AssemblyItem {
-  return {
-    ...fresh,
-    collectedCount: prev.collectedCount,
-    collectedAt: prev.collectedAt,
-  };
+function mergeAssemblyProgress(_prev: AssemblyItem, fresh: AssemblyItem): AssemblyItem {
+  // Сборка восстанавливается только из session-progress, не из памяти/API.
+  return fresh;
 }
 
-function mergeOrderItemProgress(prev: ShippingOrderItem, fresh: ShippingOrderItem): ShippingOrderItem {
-  return {
-    ...fresh,
-    scannedCount: prev.scannedCount,
-    scannedAt: prev.scannedAt,
-  };
+function mergeOrderItemProgress(_prev: ShippingOrderItem, fresh: ShippingOrderItem): ShippingOrderItem {
+  // Сканы восстанавливаются только из session-progress, не из памяти/API.
+  return fresh;
 }
 
 function mergeOrderProgress(prev: ShippingOrder, fresh: ShippingOrder): ShippingOrder {

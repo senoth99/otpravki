@@ -3,9 +3,18 @@
 interface AutoModeButtonProps {
   active: boolean;
   onClick: () => void;
+  title?: string;
+  subtitleActive?: string;
+  subtitleInactive?: string;
 }
 
-export function AutoModeButton({ active, onClick }: AutoModeButtonProps) {
+export function AutoModeButton({
+  active,
+  onClick,
+  title = "AUTO MODE",
+  subtitleActive = "Сканируй → печать → следующий",
+  subtitleInactive = "Автопечать и переход между заказами",
+}: AutoModeButtonProps) {
   return (
     <button
       type="button"
@@ -27,9 +36,9 @@ export function AutoModeButton({ active, onClick }: AutoModeButtonProps) {
         </div>
 
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-gray-900">AUTO MODE</p>
+          <p className="text-sm font-semibold text-gray-900">{title}</p>
           <p className="truncate text-xs text-gray-500">
-            {active ? "Сканируй → печать → следующий" : "Автопечать и переход между заказами"}
+            {active ? subtitleActive : subtitleInactive}
           </p>
         </div>
       </div>

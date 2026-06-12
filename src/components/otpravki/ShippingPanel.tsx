@@ -100,6 +100,7 @@ export function ShippingPanel({
           <AssemblyView
             sections={assemblySections}
             allItems={assemblyItems}
+            orders={orders}
             onItemsChange={updateAssembly}
             warehouseMap={warehouseMap}
           />

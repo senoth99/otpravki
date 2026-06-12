@@ -106,8 +106,9 @@ export function useWorkspace({
         });
       }
 
-      void persistSessionProgress(workspace);
-      pushToServer(workspace);
+      void persistSessionProgress(workspace).then(() => {
+        pushToServer(workspace);
+      });
     },
     [pushToServer],
   );

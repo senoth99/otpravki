@@ -1,0 +1,61 @@
+"use client";
+
+interface AssemblyAutoCountdownProps {
+  productName: string;
+  stepLabel: string;
+  secondsLeft: number;
+  hasNext: boolean;
+  onExitAutoMode: () => void;
+}
+
+export function AssemblyAutoCountdown({
+  productName,
+  stepLabel,
+  secondsLeft,
+  hasNext,
+  onExitAutoMode,
+}: AssemblyAutoCountdownProps) {
+  const progress = ((3 - secondsLeft) / 3) * 100;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/90 p-6 backdrop-blur-sm">
+      <div className="flex w-full max-w-sm flex-col items-center text-center">
+        <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Auto Mode · Сборка</p>
+        <p className="mt-4 text-sm text-gray-300">Позиция собрана</p>
+        <p className="mt-1 line-clamp-2 text-xl font-bold text-white">{productName}</p>
+        <p className="mt-1 text-sm text-gray-400">{stepLabel}</p>
+
+        <div className="relative mt-10 flex h-32 w-32 items-center justify-center">
+          <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="5" />
+            <circle
+              cx="60"
+              cy="60"
+              r="54"
+              fill="none"
+              stroke="white"
+              strokeWidth="5"
+              strokeLinecap="round"
+              strokeDasharray={339.292}
+              strokeDashoffset={339.292 * (1 - progress / 100)}
+              className="transition-[stroke-dashoffset] duration-1000 ease-linear"
+            />
+          </svg>
+          <span className="text-4xl font-bold tabular-nums text-white">{secondsLeft}</span>
+        </div>
+
+        <p className="mt-8 text-sm text-gray-400">
+          {hasNext ? "Следующая позиция через…" : "Маршрут завершён"}
+        </p>
+
+        <button
+          type="button"
+          onClick={onExitAutoMode}
+          className="mt-8 w-full rounded-xl border border-gray-600 bg-gray-800 px-6 py-3 text-sm font-medium text-white transition-colors active:bg-gray-700"
+        >
+          Выключить AUTO MODE
+        </button>
+      </div>
+    </div>
+  );
+}
