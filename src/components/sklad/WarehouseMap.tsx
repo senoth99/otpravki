@@ -37,6 +37,10 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
     furnitureId: string;
     cellKey: string;
   } | null>(null);
+  const [editModalTarget, setEditModalTarget] = useState<{
+    furnitureId: string;
+    cellKey: string;
+  } | null>(null);
   const [saved, setSaved] = useState(false);
   const [dragOver, setDragOver] = useState<string | null>(null); // "furnitureId:cellKey"
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
@@ -173,7 +177,7 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
           : f
       )
     );
-    setModalTarget(null);
+    setEditModalTarget(null);
   }
 
   function handleCellClear(furnitureId: string, cellKey: string) {
@@ -185,6 +189,7 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
         return { ...f, cells };
       })
     );
+    setEditModalTarget(null);
     setModalTarget(null);
   }
 
@@ -256,11 +261,11 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
     }
   }
 
-  const modalFurniture = modalTarget
-    ? furniture.find((f) => f.id === modalTarget.furnitureId)
+  const editModalFurniture = editModalTarget
+    ? furniture.find((f) => f.id === editModalTarget.furnitureId)
     : null;
-  const modalCell = modalFurniture
-    ? modalFurniture.cells[modalTarget!.cellKey] ?? {}
+  const editModalCell = editModalFurniture
+    ? editModalFurniture.cells[editModalTarget!.cellKey] ?? {}
     : null;
 
   return (
@@ -274,20 +279,13 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
         >
           ＋ Стеллаж
         </button>
-        <button
-          type="button"
-          onClick={() => addFurniture("table")}
-          className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-        >
-          ＋ Стол
-        </button>
       </div>
 
       {/* Canvas */}
       <div
         ref={canvasRef}
-        className="relative min-h-[600px] overflow-auto rounded-2xl bg-gray-100"
-        style={{ userSelect: dragging || resizing ? "none" : undefined }}
+        className="relative overflow-auto rounded-2xl bg-gray-100"
+        style={{ minHeight: 900, minWidth: 1400, userSelect: dragging || resizing ? "none" : undefined }}
       >
         {furniture.map((f) => {
           const isDraggingThis = dragging?.id === f.id;
@@ -389,55 +387,118 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
                         const isDragOverThis =
                           dragOver === `${f.id}:${cellKey}`;
 
+                        const isPopoverOpen =
+                          modalTarget?.furnitureId === f.id &&
+                          modalTarget?.cellKey === cellKey;
+
                         return (
                           <div
                             key={colIdx}
-                            draggable={hasProduct}
-                            onDragStart={
-                              hasProduct
-                                ? (e) =>
-                                    handleCellDragStart(e, f.id, cellKey)
-                                : undefined
-                            }
-                            onDragOver={(e) => {
-                              e.preventDefault();
-                              setDragOver(`${f.id}:${cellKey}`);
-                            }}
-                            onDragLeave={() => setDragOver(null)}
-                            onDrop={(e) =>
-                              handleCellDrop(e, f.id, cellKey)
-                            }
-                            onClick={() =>
-                              setModalTarget({
-                                furnitureId: f.id,
-                                cellKey,
-                              })
-                            }
-                            style={{ width: CELL_W - 4, height: CELL_H - 12 }}
-                            className={`flex flex-col items-start justify-center gap-0.5 rounded-lg border p-1.5 transition-all cursor-pointer
-                              ${
-                                isDragOverThis
-                                  ? "border-2 border-blue-400 bg-blue-100"
-                                  : hasProduct
-                                  ? "border-blue-200 bg-blue-50 hover:shadow-sm cursor-grab"
-                                  : "border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100"
-                              }`}
+                            style={{ position: "relative", width: CELL_W - 4, height: CELL_H - 12 }}
                           >
-                            {hasProduct ? (
-                              <>
-                                <span className="line-clamp-2 text-[10px] font-medium leading-tight text-blue-900 w-full">
-                                  {cell!.productName}
-                                </span>
-                                {cell!.sizes && cell!.sizes.length > 0 && (
-                                  <span className="text-[8px] leading-tight text-gray-500 w-full truncate">
-                                    {cell!.sizes.join(", ")}
+                            <div
+                              draggable={hasProduct}
+                              onDragStart={
+                                hasProduct
+                                  ? (e) =>
+                                      handleCellDragStart(e, f.id, cellKey)
+                                  : undefined
+                              }
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                setDragOver(`${f.id}:${cellKey}`);
+                              }}
+                              onDragLeave={() => setDragOver(null)}
+                              onDrop={(e) =>
+                                handleCellDrop(e, f.id, cellKey)
+                              }
+                              onClick={() =>
+                                setModalTarget({
+                                  furnitureId: f.id,
+                                  cellKey,
+                                })
+                              }
+                              style={{ width: "100%", height: "100%" }}
+                              className={`flex flex-col items-start justify-center gap-0.5 rounded-lg border p-1.5 transition-all cursor-pointer
+                                ${
+                                  isDragOverThis
+                                    ? "border-2 border-blue-400 bg-blue-100"
+                                    : hasProduct
+                                    ? "border-blue-200 bg-blue-50 hover:shadow-sm cursor-grab"
+                                    : "border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100"
+                                }`}
+                            >
+                              {hasProduct ? (
+                                <>
+                                  <span className="line-clamp-2 text-[10px] font-medium leading-tight text-blue-900 w-full">
+                                    {cell!.productName}
                                   </span>
+                                  {cell!.sizes && cell!.sizes.length > 0 && (
+                                    <span className="text-[8px] leading-tight text-gray-500 w-full truncate">
+                                      {cell!.sizes.join(", ")}
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="text-[10px] text-gray-300">
+                                  {cell?.label ?? ""}
+                                </span>
+                              )}
+                            </div>
+                            {isPopoverOpen && (
+                              <div
+                                style={{ position: "absolute", bottom: "100%", left: 0, zIndex: 200 }}
+                                className="bg-white rounded-xl shadow-xl border border-gray-200 p-3 w-48 flex flex-col gap-2"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {hasProduct ? (
+                                  <>
+                                    <span className="text-xs font-medium text-gray-900 leading-tight">
+                                      {cell!.productName}
+                                    </span>
+                                    {cell!.sizes && cell!.sizes.length > 0 && (
+                                      <div className="flex flex-wrap gap-1">
+                                        {cell!.sizes.map((s) => (
+                                          <span key={s} className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500">
+                                            {s}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditModalTarget(modalTarget);
+                                        setModalTarget(null);
+                                      }}
+                                      className="w-full rounded-lg bg-gray-900 px-2 py-1.5 text-xs font-medium text-white hover:opacity-90"
+                                    >
+                                      Изменить
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCellClear(f.id, cellKey)}
+                                      className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                                    >
+                                      Очистить
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="text-xs text-gray-400">Нет товара</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditModalTarget(modalTarget);
+                                        setModalTarget(null);
+                                      }}
+                                      className="w-full rounded-lg bg-gray-900 px-2 py-1.5 text-xs font-medium text-white hover:opacity-90"
+                                    >
+                                      Назначить
+                                    </button>
+                                  </>
                                 )}
-                              </>
-                            ) : (
-                              <span className="text-[10px] text-gray-300">
-                                {cell?.label ?? ""}
-                              </span>
+                              </div>
                             )}
                           </div>
                         );
@@ -475,6 +536,14 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
           );
         })}
 
+        {modalTarget && (
+          <div
+            className="fixed inset-0"
+            style={{ zIndex: 199 }}
+            onClick={() => setModalTarget(null)}
+          />
+        )}
+
         {furniture.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-400">
             Добавьте мебель с помощью кнопок выше
@@ -497,16 +566,16 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
       </div>
 
       {/* Cell Modal */}
-      {modalTarget && modalFurniture && modalCell !== null && (
+      {editModalTarget && editModalFurniture && editModalCell !== null && (
         <CellModal
-          furnitureId={modalTarget.furnitureId}
-          cellKey={modalTarget.cellKey}
-          cell={modalCell}
-          furnitureLabel={modalFurniture.label}
+          furnitureId={editModalTarget.furnitureId}
+          cellKey={editModalTarget.cellKey}
+          cell={editModalCell}
+          furnitureLabel={editModalFurniture.label}
           stock={stock}
           onSave={handleCellSave}
           onClear={handleCellClear}
-          onClose={() => setModalTarget(null)}
+          onClose={() => setEditModalTarget(null)}
         />
       )}
     </div>
