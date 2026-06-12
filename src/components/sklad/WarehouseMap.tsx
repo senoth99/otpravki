@@ -24,14 +24,35 @@ const POPOVER_W = 210;
 const MIN_ZOOM = 0.35;
 const MAX_ZOOM = 4;
 
-function normalizeRack(f: FurnitureItem): FurnitureItem {
-  if (f.type !== "rack") return f;
-  const cells: Record<string, WarehouseCell> = {};
-  for (const [key, cell] of Object.entries(f.cells)) {
-    const m = key.match(/^r(\d+)c(\d+)$/);
-    if (m && parseInt(m[1], 10) <= RACK_ROWS) cells[key] = cell;
+function inferColsFromCells(cells: Record<string, WarehouseCell>): number {
+  let maxCol = 1;
+  for (const key of Object.keys(cells)) {
+    const m = key.match(/^r\d+c(\d+)$/);
+    if (m) maxCol = Math.max(maxCol, parseInt(m[1], 10));
   }
-  return { ...f, rows: RACK_ROWS, cells };
+  return maxCol;
+}
+
+function normalizeFurnitureItem(f: FurnitureItem): FurnitureItem {
+  const rawCells =
+    f.cells && typeof f.cells === "object" && !Array.isArray(f.cells) ? f.cells : {};
+  const cells: Record<string, WarehouseCell> = {};
+  for (const [key, cell] of Object.entries(rawCells)) {
+    const m = key.match(/^r(\d+)c(\d+)$/);
+    if (f.type === "rack" && m && parseInt(m[1], 10) > RACK_ROWS) continue;
+    cells[key] = cell;
+  }
+  const cols = Math.max(1, Number(f.cols) || inferColsFromCells(cells));
+  const rows = f.type === "rack" ? RACK_ROWS : Math.max(1, Number(f.rows) || RACK_ROWS);
+  return {
+    ...f,
+    x: Number(f.x) || 0,
+    y: Number(f.y) || 0,
+    cols,
+    rows,
+    cells,
+    rotation: f.rotation === "v" ? "v" : "h",
+  };
 }
 
 function autoAlign(items: FurnitureItem[]): FurnitureItem[] {
@@ -160,7 +181,7 @@ function computeCanvasSize(items: FurnitureItem[]): { w: number; h: number } {
 
 export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
   const [furniture, setFurniture] = useState<FurnitureItem[]>(() =>
-    autoAlign(initialMap.furniture.map(normalizeRack)),
+    autoAlign((initialMap.furniture ?? []).map(normalizeFurnitureItem)),
   );
   const [editModalTarget, setEditModalTarget] = useState<{ furnitureId: string; cellKey: string } | null>(null);
   const [openSlot, setOpenSlot] = useState<{ furnitureId: string; col: number } | null>(null);
@@ -475,9 +496,9 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
           {furniture.map((f) => {
             const isV = f.rotation === "v";
             const fWidth = getFurnitureWidth(f);
-            const slotCount = f.cols;
+                    const slotCount = Math.max(1, Number(f.cols) || 1);
 
-            return (
+                    return (
               <div
                 key={f.id}
                 style={{ position: "absolute", left: f.x, top: f.y, zIndex: 2 }}

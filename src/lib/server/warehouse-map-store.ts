@@ -9,14 +9,35 @@ const MAP_BACKUP_PATH = path.join(DATA_DIR, "warehouse", "map.legacy-backup.json
 const EMPTY_CONFIG: WarehouseMapConfig = { furniture: [], updatedAt: 0 };
 const RACK_ROWS = 4;
 
-function normalizeRackItem(item: FurnitureItem): FurnitureItem {
-  if (item.type !== "rack") return item;
-  const cells: Record<string, WarehouseCell> = {};
-  for (const [key, cell] of Object.entries(item.cells ?? {})) {
-    const m = key.match(/^r(\d+)c(\d+)$/);
-    if (m && parseInt(m[1], 10) <= RACK_ROWS) cells[key] = cell;
+function inferColsFromCells(cells: Record<string, WarehouseCell>): number {
+  let maxCol = 1;
+  for (const key of Object.keys(cells)) {
+    const m = key.match(/^r\d+c(\d+)$/);
+    if (m) maxCol = Math.max(maxCol, parseInt(m[1], 10));
   }
-  return { ...item, rows: RACK_ROWS, cells };
+  return maxCol;
+}
+
+function normalizeRackItem(item: FurnitureItem): FurnitureItem {
+  const rawCells =
+    item.cells && typeof item.cells === "object" && !Array.isArray(item.cells) ? item.cells : {};
+  const cells: Record<string, WarehouseCell> = {};
+  for (const [key, cell] of Object.entries(rawCells)) {
+    const m = key.match(/^r(\d+)c(\d+)$/);
+    if (item.type === "rack" && m && parseInt(m[1], 10) > RACK_ROWS) continue;
+    cells[key] = cell;
+  }
+  const cols = Math.max(1, Number(item.cols) || inferColsFromCells(cells));
+  const rows = item.type === "rack" ? RACK_ROWS : Math.max(1, Number(item.rows) || RACK_ROWS);
+  return {
+    ...item,
+    x: Number(item.x) || 0,
+    y: Number(item.y) || 0,
+    cols,
+    rows,
+    cells,
+    rotation: item.rotation === "v" ? "v" : "h",
+  };
 }
 
 interface LegacyCell {

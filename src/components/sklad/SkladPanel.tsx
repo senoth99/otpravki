@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ApiStockItem, WarehouseMapConfig } from "@/types/stock";
 import { StockList } from "./StockList";
 import { WarehouseMap } from "./WarehouseMap";
@@ -20,6 +20,11 @@ interface SkladPanelProps {
 
 export function SkladPanel({ initialStock, initialMap, stockError }: SkladPanelProps) {
   const [activeTab, setActiveTab] = useState<SkladTab>("stock");
+  const [mapMounted, setMapMounted] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === "map") setMapMounted(true);
+  }, [activeTab]);
   const [stock, setStock] = useState(initialStock);
   const [refreshError, setRefreshError] = useState<string | undefined>(stockError);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -84,9 +89,11 @@ export function SkladPanel({ initialStock, initialMap, stockError }: SkladPanelP
       <div className={activeTab !== "stock" ? "hidden" : undefined}>
         <StockList items={stock} />
       </div>
-      <div className={activeTab !== "map" ? "hidden" : undefined}>
-        <WarehouseMap initialMap={initialMap} stock={stock} />
-      </div>
+      {mapMounted && (
+        <div className={activeTab !== "map" ? "hidden" : undefined}>
+          <WarehouseMap initialMap={initialMap} stock={stock} />
+        </div>
+      )}
     </div>
   );
 }
