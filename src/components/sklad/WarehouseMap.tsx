@@ -470,14 +470,15 @@ export function WarehouseMap({
 
   const focusNavigateTarget = useCallback(() => {
     if (!navigateTarget || !viewportRef.current) return false;
+    const vw = viewportRef.current.clientWidth;
+    const vh = viewportRef.current.clientHeight;
+    if (vw <= 0 || vh <= 0) return false;
     const f = furniture.find((item) => item.id === navigateTarget.furnitureId);
     if (!f) return false;
     const match = navigateTarget.cellKey.match(/^r(\d+)c(\d+)$/);
     if (!match) return false;
     const col = parseInt(match[2], 10);
     const center = getSlotWorldCenter(f, col);
-    const vw = viewportRef.current.clientWidth;
-    const vh = viewportRef.current.clientHeight;
     const targetZoom = navigateTarget
       ? vw < 380
         ? 2.4
@@ -552,11 +553,18 @@ export function WarehouseMap({
       const pad = 16;
       const vw = viewport.clientWidth - pad;
       const vh = viewport.clientHeight - pad;
-      if (vw <= 0 || vh <= 0) return;
+      if (vw <= 0 || vh <= 0) {
+        requestAnimationFrame(updateBaseScale);
+        return;
+      }
       const nextBase = Math.max(0.12, Math.min(vw / canvasSize.w, vh / canvasSize.h, 1));
       setBaseScale(nextBase);
       if (navigateTarget) {
-        requestAnimationFrame(() => focusNavigateTarget());
+        requestAnimationFrame(() => {
+          if (!focusNavigateTarget()) {
+            requestAnimationFrame(focusNavigateTarget);
+          }
+        });
       } else {
         centerView(nextBase, zoomRef.current);
       }
@@ -757,7 +765,7 @@ export function WarehouseMap({
   const isNavigationMode = lockView;
 
   return (
-    <div className={`flex h-full flex-col ${readOnly ? "gap-2 sm:gap-3" : "gap-4"}`}>
+    <div className={`flex min-h-0 w-full flex-1 flex-col ${readOnly ? "gap-2 sm:gap-3" : "gap-4"}`}>
       {!isNavigationMode && (
         <div className="flex flex-col gap-2">
           {!readOnly && (
@@ -825,14 +833,15 @@ export function WarehouseMap({
         ref={viewportRef}
         className={`relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 overscroll-none select-none ${
           lockView ? "cursor-default" : isPanning ? "cursor-grabbing touch-none" : "cursor-grab touch-none"
-        }`}
+        } ${isNavigationMode ? "min-h-[240px]" : ""}`}
         style={{
+          flex: isNavigationMode ? "1 1 0" : undefined,
           height: isNavigationMode
             ? undefined
             : readOnly
               ? "min(52dvh, 520px)"
               : "min(calc(100dvh - 220px), 560px)",
-          minHeight: isNavigationMode ? "min(42dvh, 360px)" : undefined,
+          minHeight: isNavigationMode ? "min(38dvh, 360px)" : undefined,
           touchAction: lockView ? "auto" : "none",
         }}
         onPointerDown={handlePointerDown}
