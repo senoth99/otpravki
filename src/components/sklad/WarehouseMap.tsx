@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import type {
   ApiStockItem,
@@ -8,6 +8,7 @@ import type {
   WarehouseCell,
   WarehouseMapConfig,
 } from "@/types/stock";
+import { toLocalImageUrl } from "@/lib/image-url";
 import { CellModal } from "./CellModal";
 
 interface WarehouseMapProps {
@@ -64,6 +65,88 @@ function getFurnitureHeight(f: FurnitureItem): number {
   return body + 8;
 }
 
+function buildStockIndex(stock: ApiStockItem[]): Map<string, ApiStockItem> {
+  const index = new Map<string, ApiStockItem>();
+  for (const item of stock) {
+    index.set(item.productSlug, item);
+    index.set(item.productSlug.toLowerCase(), item);
+  }
+  return index;
+}
+
+function getColumnProductSlugs(f: FurnitureItem, colNum: number): string[] {
+  const slugs: string[] = [];
+  const seen = new Set<string>();
+  for (let r = 1; r <= f.rows; r++) {
+    const slug = f.cells[`r${r}c${colNum}`]?.productSlug;
+    if (slug && !seen.has(slug)) {
+      seen.add(slug);
+      slugs.push(slug);
+    }
+  }
+  return slugs;
+}
+
+function ProductIcon({ imageUrl, alt, size }: { imageUrl: string; alt: string; size: number }) {
+  const [failed, setFailed] = useState(false);
+  const src = toLocalImageUrl(imageUrl);
+
+  if (!src || failed) {
+    return (
+      <div
+        className="flex shrink-0 items-center justify-center rounded bg-gray-200"
+        style={{ width: size, height: size }}
+        title={alt}
+      >
+        <span className="text-[7px] text-gray-400">?</span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      width={size}
+      height={size}
+      draggable={false}
+      className="shrink-0 rounded object-cover bg-white ring-1 ring-white/80"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function MapProductIcons({
+  slugs,
+  stockBySlug,
+  maxSize = 22,
+}: {
+  slugs: string[];
+  stockBySlug: Map<string, ApiStockItem>;
+  maxSize?: number;
+}) {
+  if (slugs.length === 0) return null;
+
+  const iconSize =
+    slugs.length === 1 ? Math.min(maxSize * 1.6, 40) : slugs.length <= 4 ? maxSize : Math.max(14, maxSize - 4);
+
+  return (
+    <div className="flex h-full w-full flex-wrap items-center justify-center gap-0.5 p-1">
+      {slugs.map((slug) => {
+        const item = stockBySlug.get(slug) ?? stockBySlug.get(slug.toLowerCase());
+        return (
+          <ProductIcon
+            key={slug}
+            imageUrl={item?.imageUrl ?? ""}
+            alt={item?.productName ?? slug}
+            size={iconSize}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 function computeCanvasSize(items: FurnitureItem[]): { w: number; h: number } {
   if (items.length === 0) return { w: 800, h: 500 };
   let maxX = 0;
@@ -117,6 +200,7 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
   const canvasSize = computeCanvasSize(furniture);
   const canvasSizeRef = useRef(canvasSize);
   canvasSizeRef.current = canvasSize;
+  const stockBySlug = useMemo(() => buildStockIndex(stock), [stock]);
 
   const zoomAtPoint = useCallback((clientX: number, clientY: number, factor: number) => {
     const viewport = viewportRef.current;
@@ -409,6 +493,7 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
                     }
                     const hasAny = filledCount > 0;
                     const isOpen = openSlot?.furnitureId === f.id && openSlot?.col === colNum;
+                    const productSlugs = getColumnProductSlugs(f, colNum);
 
                     return (
                       <div
@@ -427,19 +512,23 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
                           setOpenSlot({ furnitureId: f.id, col: colNum });
                         }}
                         style={{ width: isV ? fWidth - 16 : SLOT_W, height: SLOT_H, position: "relative" }}
-                        className={`flex flex-col items-center justify-center rounded-lg border cursor-pointer transition-all select-none
+                        className={`flex flex-col items-center justify-center overflow-hidden rounded-lg border cursor-pointer transition-all select-none
                           ${isOpen ? "ring-2 ring-blue-400 ring-offset-1" : ""}
                           ${hasAny ? "bg-blue-50 border-blue-200 hover:shadow" : "border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100"}`}
                       >
-                        {hasAny && (
-                          <span
-                            style={{ position: "absolute", top: 3, right: 5 }}
-                            className="text-[9px] font-semibold text-blue-500"
-                          >
-                            {filledCount}/{f.rows}
-                          </span>
+                        {hasAny ? (
+                          <>
+                            <span
+                              style={{ position: "absolute", top: 2, right: 3, zIndex: 1 }}
+                              className="rounded bg-white/90 px-0.5 text-[8px] font-semibold text-blue-600"
+                            >
+                              {filledCount}/{f.rows}
+                            </span>
+                            <MapProductIcons slugs={productSlugs} stockBySlug={stockBySlug} />
+                          </>
+                        ) : (
+                          <span className="text-[10px] font-medium text-gray-400">Я{colNum}</span>
                         )}
-                        <span className="text-[10px] text-gray-400 font-medium mt-auto mb-1">Я{colNum}</span>
                       </div>
                     );
                   })}
@@ -524,17 +613,28 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
                             : "border-dashed border-gray-200 bg-gray-50 hover:bg-gray-100"}`}
                         style={{ minHeight: 52 }}
                       >
-                        {hasProduct ? (
-                          <>
-                            <span className="line-clamp-2 text-[10px] font-medium leading-tight text-blue-900">
-                              {cell!.productName}
-                            </span>
-                            {cell!.sizes && cell!.sizes.length > 0 && (
-                              <span className="text-[8px] leading-tight text-gray-500 truncate">
-                                {cell!.sizes.join(", ")}
+                        {hasProduct && cell?.productSlug ? (
+                          <div className="flex items-center gap-1.5 w-full">
+                            <ProductIcon
+                              imageUrl={
+                                stockBySlug.get(cell.productSlug)?.imageUrl ??
+                                stockBySlug.get(cell.productSlug.toLowerCase())?.imageUrl ??
+                                ""
+                              }
+                              alt={cell.productName ?? cell.productSlug}
+                              size={28}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <span className="line-clamp-2 text-[10px] font-medium leading-tight text-blue-900">
+                                {cell.productName}
                               </span>
-                            )}
-                          </>
+                              {cell.sizes && cell.sizes.length > 0 && (
+                                <span className="text-[8px] leading-tight text-gray-500 truncate block">
+                                  {cell.sizes.join(", ")}
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         ) : (
                           <span className="text-[10px] text-gray-300">{cell?.label ?? ""}</span>
                         )}
