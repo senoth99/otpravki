@@ -553,10 +553,7 @@ export function WarehouseMap({
       const pad = 16;
       const vw = viewport.clientWidth - pad;
       const vh = viewport.clientHeight - pad;
-      if (vw <= 0 || vh <= 0) {
-        requestAnimationFrame(updateBaseScale);
-        return;
-      }
+      if (vw <= 0 || vh <= 0) return;
       const nextBase = Math.max(0.12, Math.min(vw / canvasSize.w, vh / canvasSize.h, 1));
       setBaseScale(nextBase);
       if (navigateTarget) {
@@ -765,7 +762,11 @@ export function WarehouseMap({
   const isNavigationMode = lockView;
 
   return (
-    <div className={`flex min-h-0 w-full flex-1 flex-col ${readOnly ? "gap-2 sm:gap-3" : "gap-4"}`}>
+    <div
+      className={`flex w-full flex-col ${readOnly ? "gap-2 sm:gap-3" : "gap-4"} ${
+        isNavigationMode ? "min-h-0 flex-1" : ""
+      }`}
+    >
       {!isNavigationMode && (
         <div className="flex flex-col gap-2">
           {!readOnly && (
@@ -831,9 +832,9 @@ export function WarehouseMap({
 
       <div
         ref={viewportRef}
-        className={`relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 overscroll-none select-none ${
+        className={`relative overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 overscroll-none select-none ${
           lockView ? "cursor-default" : isPanning ? "cursor-grabbing touch-none" : "cursor-grab touch-none"
-        } ${isNavigationMode ? "min-h-[240px]" : ""}`}
+        } ${isNavigationMode ? "min-h-0 flex-1 min-h-[240px]" : ""}`}
         style={{
           flex: isNavigationMode ? "1 1 0" : undefined,
           height: isNavigationMode
