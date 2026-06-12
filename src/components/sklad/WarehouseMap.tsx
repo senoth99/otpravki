@@ -18,9 +18,20 @@ interface WarehouseMapProps {
 const SLOT_W = 72;
 const SLOT_H = 60;
 const SNAP_THRESHOLD = 12;
+const RACK_ROWS = 4;
 /** Заблокировать редактирование: NEXT_PUBLIC_WAREHOUSE_MAP_LOCKED=true */
 const LOCKED = process.env.NEXT_PUBLIC_WAREHOUSE_MAP_LOCKED === "true";
 const POPOVER_W = 210;
+
+function normalizeRack(f: FurnitureItem): FurnitureItem {
+  if (f.type !== "rack") return f;
+  const cells: Record<string, WarehouseCell> = {};
+  for (const [key, cell] of Object.entries(f.cells)) {
+    const m = key.match(/^r(\d+)c(\d+)$/);
+    if (m && parseInt(m[1], 10) <= RACK_ROWS) cells[key] = cell;
+  }
+  return { ...f, rows: RACK_ROWS, cells };
+}
 
 function autoAlign(items: FurnitureItem[]): FurnitureItem[] {
   if (items.length <= 1) return items;
@@ -40,20 +51,32 @@ function autoAlign(items: FurnitureItem[]): FurnitureItem[] {
   return res;
 }
 
+function getFurnitureWidth(f: FurnitureItem): number {
+  const isV = f.rotation === "v";
+  return isV ? SLOT_W + 16 : f.cols * (SLOT_W + 4) - 4 + 16;
+}
+
+function getFurnitureHeight(f: FurnitureItem): number {
+  const isV = f.rotation === "v";
+  const body = isV ? f.cols * (SLOT_H + 4) - 4 + 16 : SLOT_H + 16;
+  return body + 40;
+}
+
 function computeCanvasSize(items: FurnitureItem[]): { w: number; h: number } {
   if (items.length === 0) return { w: 800, h: 500 };
-  let maxX = 0, maxY = 0;
+  let maxX = 0;
+  let maxY = 0;
   for (const f of items) {
-    const fw = (f.rotation === "v" ? SLOT_W + 16 : f.cols * (SLOT_W + 4) - 4 + 16);
-    const fh = (f.rotation === "v" ? f.cols * (SLOT_H + 4) - 4 + 16 : SLOT_H + 16) + 40;
-    maxX = Math.max(maxX, f.x + fw);
-    maxY = Math.max(maxY, f.y + fh);
+    maxX = Math.max(maxX, f.x + getFurnitureWidth(f));
+    maxY = Math.max(maxY, f.y + getFurnitureHeight(f));
   }
-  return { w: maxX + 80, h: maxY + 80 };
+  return { w: maxX + 40, h: maxY + 40 };
 }
 
 export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
-  const [furniture, setFurniture] = useState<FurnitureItem[]>(() => autoAlign(initialMap.furniture));
+  const [furniture, setFurniture] = useState<FurnitureItem[]>(() =>
+    autoAlign(initialMap.furniture.map(normalizeRack)),
+  );
   const [dragging, setDragging] = useState<{ id: string; offsetX: number; offsetY: number } | null>(null);
   const [resizing, setResizing] = useState<{ id: string; startMouseX: number; startMouseY: number; startCols: number; startRows: number } | null>(null);
   const [editModalTarget, setEditModalTarget] = useState<{ furnitureId: string; cellKey: string } | null>(null);
@@ -63,10 +86,14 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
   const [dragOver, setDragOver] = useState<string | null>(null);
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
   const [editingLabelValue, setEditingLabelValue] = useState("");
+  const viewportRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const slotAnchorRef = useRef<HTMLElement | null>(null);
   const resizeSnapshotRef = useRef<{ id: string; cols: number; rows: number; cells: Record<string, WarehouseCell> } | null>(null);
   const dragDepthRef = useRef(0);
+  const fitScaleRef = useRef(1);
+  const [fitScale, setFitScale] = useState(1);
+  fitScaleRef.current = fitScale;
 
   const updatePopoverPos = useCallback(() => {
     const el = slotAnchorRef.current;
@@ -89,38 +116,41 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
   useLayoutEffect(() => {
     if (!openSlot) return;
     updatePopoverPos();
-    const canvas = canvasRef.current;
-    canvas?.addEventListener("scroll", updatePopoverPos, { passive: true });
     window.addEventListener("resize", updatePopoverPos);
     window.addEventListener("scroll", updatePopoverPos, true);
     return () => {
-      canvas?.removeEventListener("scroll", updatePopoverPos);
       window.removeEventListener("resize", updatePopoverPos);
       window.removeEventListener("scroll", updatePopoverPos, true);
     };
   }, [openSlot, updatePopoverPos]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
+    const scale = fitScaleRef.current;
     if (dragging) {
       const inner = canvasRef.current?.querySelector(".canvas-inner") as HTMLElement;
       if (!inner) return;
       const rect = inner.getBoundingClientRect();
+      const contentX = (e.clientX - rect.left) / scale;
+      const contentY = (e.clientY - rect.top) / scale;
       setFurniture((prev) =>
         prev.map((f) =>
           f.id === dragging.id
-            ? { ...f, x: Math.max(0, e.clientX - rect.left - dragging.offsetX), y: Math.max(0, e.clientY - rect.top - dragging.offsetY) }
+            ? { ...f, x: Math.max(0, contentX - dragging.offsetX), y: Math.max(0, contentY - dragging.offsetY) }
             : f
         )
       );
     }
     if (resizing) {
-      const dx = e.clientX - resizing.startMouseX;
-      const dy = e.clientY - resizing.startMouseY;
+      const dx = (e.clientX - resizing.startMouseX) / scale;
+      const dy = (e.clientY - resizing.startMouseY) / scale;
       const newCols = Math.min(12, Math.max(1, Math.round((dx + resizing.startCols * SLOT_W) / SLOT_W)));
-      const newRows = Math.min(10, Math.max(1, Math.round((dy + resizing.startRows * SLOT_H) / SLOT_H)));
       setFurniture((prev) =>
         prev.map((f) => {
           if (f.id !== resizing.id) return f;
+          const newRows =
+            f.type === "rack"
+              ? RACK_ROWS
+              : Math.min(10, Math.max(1, Math.round((dy + resizing.startRows * SLOT_H) / SLOT_H)));
           const newCells: Record<string, WarehouseCell> = {};
           for (const [key, cell] of Object.entries(f.cells)) {
             const m = key.match(/^r(\d+)c(\d+)$/);
@@ -177,7 +207,20 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
       }, 0);
       x = rightmost;
     }
-    setFurniture((prev) => [...prev, { id: `rack-${Date.now()}`, type: "rack", label: `Стеллаж ${n}`, x, y, rows: 4, cols: 4, cells: {}, rotation: "h" }]);
+    setFurniture((prev) => [
+      ...prev,
+      {
+        id: `rack-${Date.now()}`,
+        type: "rack",
+        label: `Стеллаж ${n}`,
+        x,
+        y,
+        rows: RACK_ROWS,
+        cols: 4,
+        cells: {},
+        rotation: "h",
+      },
+    ]);
   }
 
   function toggleRotation(id: string) {
@@ -248,15 +291,34 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
     } catch { /* ignore */ }
   }
 
-  function getFurnitureWidth(f: FurnitureItem) {
-    const isV = f.rotation === "v";
-    return isV ? SLOT_W + 16 : f.cols * (SLOT_W + 4) - 4 + 16;
-  }
+  const canvasSize = computeCanvasSize(furniture);
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const updateScale = () => {
+      const pad = 16;
+      const vw = viewport.clientWidth - pad;
+      const vh = viewport.clientHeight - pad;
+      if (vw <= 0 || vh <= 0) return;
+      const scale = Math.min(vw / canvasSize.w, vh / canvasSize.h, 1);
+      setFitScale(Math.max(0.12, scale));
+    };
+
+    updateScale();
+    const ro = new ResizeObserver(updateScale);
+    ro.observe(viewport);
+    window.addEventListener("resize", updateScale);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", updateScale);
+    };
+  }, [canvasSize.w, canvasSize.h]);
 
   const editModalFurniture = editModalTarget ? furniture.find((f) => f.id === editModalTarget.furnitureId) : null;
   const editModalCell = editModalFurniture ? editModalFurniture.cells[editModalTarget!.cellKey] ?? {} : null;
   const openSlotFurniture = openSlot ? furniture.find((f) => f.id === openSlot.furnitureId) : null;
-  const canvasSize = computeCanvasSize(furniture);
 
   return (
     <div className="flex flex-col gap-4">
@@ -270,9 +332,33 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
         </div>
       )}
 
-      {/* Canvas wrapper — scrolls, inner sized to fit all furniture */}
-      <div ref={canvasRef} className="overflow-auto rounded-2xl border border-gray-200 bg-gray-100" style={{ maxHeight: 700 }}>
-        <div className="canvas-inner relative" style={{ width: canvasSize.w, height: canvasSize.h, userSelect: dragging || resizing ? "none" : undefined }}>
+      {/* Canvas — auto-scales to fit viewport */}
+      <div
+        ref={viewportRef}
+        className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-100"
+        style={{ height: "min(calc(100dvh - 220px), 560px)" }}
+      >
+        <div
+          ref={canvasRef}
+          className="flex h-full w-full items-center justify-center"
+        >
+          <div
+            style={{
+              width: canvasSize.w * fitScale,
+              height: canvasSize.h * fitScale,
+              flexShrink: 0,
+            }}
+          >
+            <div
+              className="canvas-inner relative"
+              style={{
+                width: canvasSize.w,
+                height: canvasSize.h,
+                transform: `scale(${fitScale})`,
+                transformOrigin: "top left",
+                userSelect: dragging || resizing ? "none" : undefined,
+              }}
+            >
 
           {furniture.map((f) => {
             const isV = f.rotation === "v";
@@ -293,7 +379,10 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
                     const inner = canvasRef.current?.querySelector(".canvas-inner") as HTMLElement;
                     if (!inner) return;
                     const canvasRect = inner.getBoundingClientRect();
-                    setDragging({ id: f.id, offsetX: e.clientX - canvasRect.left - f.x, offsetY: e.clientY - canvasRect.top - f.y });
+                    const scale = fitScaleRef.current;
+                    const contentX = (e.clientX - canvasRect.left) / scale;
+                    const contentY = (e.clientY - canvasRect.top) / scale;
+                    setDragging({ id: f.id, offsetX: contentX - f.x, offsetY: contentY - f.y });
                   }}
                   onDoubleClick={LOCKED ? undefined : () => { setEditingLabelId(f.id); setEditingLabelValue(f.label); }}
                   style={{ cursor: LOCKED ? "default" : isDraggingThis ? "grabbing" : "grab", width: fWidth }}
@@ -391,6 +480,8 @@ export function WarehouseMap({ initialMap, stock }: WarehouseMapProps) {
               {LOCKED ? "Карта склада пуста" : "Нажмите «＋ Стеллаж» чтобы добавить"}
             </div>
           )}
+            </div>
+          </div>
         </div>
       </div>
 

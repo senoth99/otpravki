@@ -7,6 +7,17 @@ const MAP_PATH = path.join(DATA_DIR, "warehouse", "map.json");
 const MAP_BACKUP_PATH = path.join(DATA_DIR, "warehouse", "map.legacy-backup.json");
 
 const EMPTY_CONFIG: WarehouseMapConfig = { furniture: [], updatedAt: 0 };
+const RACK_ROWS = 4;
+
+function normalizeRackItem(item: FurnitureItem): FurnitureItem {
+  if (item.type !== "rack") return item;
+  const cells: Record<string, WarehouseCell> = {};
+  for (const [key, cell] of Object.entries(item.cells ?? {})) {
+    const m = key.match(/^r(\d+)c(\d+)$/);
+    if (m && parseInt(m[1], 10) <= RACK_ROWS) cells[key] = cell;
+  }
+  return { ...item, rows: RACK_ROWS, cells };
+}
 
 interface LegacyCell {
   row?: number;
@@ -73,10 +84,15 @@ export async function getWarehouseMap(): Promise<WarehouseMapConfig> {
     if (Array.isArray(typed.furniture)) {
       return {
         ...typed,
-        furniture: typed.furniture.map((item) => ({
-          ...item,
-          cells: item.cells && typeof item.cells === "object" && !Array.isArray(item.cells) ? item.cells : {},
-        })),
+        furniture: typed.furniture.map((item) =>
+          normalizeRackItem({
+            ...item,
+            cells:
+              item.cells && typeof item.cells === "object" && !Array.isArray(item.cells)
+                ? item.cells
+                : {},
+          }),
+        ),
       };
     }
     return { ...EMPTY_CONFIG };
