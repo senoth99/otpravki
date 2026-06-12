@@ -773,7 +773,7 @@ export function WarehouseMap({
             <p className="mt-0.5 line-clamp-1 text-[11px] text-gray-500 sm:text-xs">
               {navTargetCell?.productName ?? "Возьмите товар с подсвеченного ряда"}
             </p>
-            <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="mt-2 flex w-fit flex-col gap-1">
               {Array.from({ length: openSlotFurniture.rows }, (_, rowIdx) => {
                 const rowNum = openSlotFurniture.rows - rowIdx;
                 const cellKey = `r${rowNum}c${navigateCol}`;
@@ -782,7 +782,7 @@ export function WarehouseMap({
                 return (
                   <div
                     key={rowNum}
-                    className={`flex min-w-[3.25rem] shrink-0 flex-col items-center rounded-lg border px-2 py-1.5 text-center ${
+                    className={`flex min-w-[3.25rem] flex-row items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 ${
                       isTarget
                         ? "border-amber-400 bg-amber-50 ring-2 ring-amber-300"
                         : "border-gray-200 bg-gray-50"
@@ -791,7 +791,7 @@ export function WarehouseMap({
                     <span className={`text-[10px] font-semibold ${isTarget ? "text-amber-900" : "text-gray-500"}`}>
                       Р{rowNum}
                     </span>
-                    <span className="mt-0.5 text-[9px] text-gray-400">
+                    <span className="text-[9px] text-gray-400">
                       {cell?.productSlug ? "●" : "○"}
                     </span>
                   </div>
