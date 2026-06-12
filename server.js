@@ -140,6 +140,16 @@ async function startDev() {
 
   attachWorkspaceSocket(server);
 
+  server.on("error", (err) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(
+        `Port ${port} is already in use. Stop the old process first:\n  lsof -i :${port}\n  kill <PID>`,
+      );
+      process.exit(1);
+    }
+    throw err;
+  });
+
   server.listen(port, hostname, () => {
     console.log(`> Otpravki dev http://${hostname}:${port}`);
   });
