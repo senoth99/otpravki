@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
@@ -11,8 +10,9 @@ function NavLink({ href, children }: { href: string; children: React.ReactNode }
     hrefSegments.length > 0 &&
     hrefSegments.every((segment, index) => pathSegments[index] === segment);
 
+  // Full reload: client-side RSC nav can fail after deploy or stale dev chunks.
   return (
-    <Link
+    <a
       href={href}
       className={
         isActive
@@ -21,7 +21,7 @@ function NavLink({ href, children }: { href: string; children: React.ReactNode }
       }
     >
       {children}
-    </Link>
+    </a>
   );
 }
 
