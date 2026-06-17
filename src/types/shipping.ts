@@ -34,6 +34,15 @@ export interface AssemblyItem {
 
 export type OrderUrgency = "critical" | "high" | "normal" | "low";
 
+export interface StaffComment {
+  id: number;
+  body: string;
+  createdAt: string;
+  authorName: string;
+  parentId: number | null;
+  source: string;
+}
+
 export interface ShippingOrderItem {
   id: string;
   productId: string;
@@ -65,6 +74,8 @@ export interface ShippingOrder {
   allInStockAtWarehouse?: boolean;
   city?: string;
   trackingNumber?: string;
+  customerComment?: string;
+  staffComments?: StaffComment[];
 }
 
 export type ShippingTab = "assembly" | "shipping" | "archive";

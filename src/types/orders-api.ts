@@ -1,3 +1,12 @@
+export interface ApiStaffComment {
+  id: number;
+  body: string;
+  createdAt: string;
+  authorName: string;
+  parentId: number | null;
+  source: string;
+}
+
 export interface ApiOrderLineItem {
   id: number;
   productName: string;
@@ -20,6 +29,8 @@ export interface ApiUnshippedOrder {
   city: string;
   deliveryMethod: string;
   trackingNumber: string | null;
+  customerComment?: string | null;
+  staffComments?: ApiStaffComment[];
   items: ApiOrderLineItem[];
   hasAnyInStock: boolean;
   allInStockAtWarehouse: boolean;

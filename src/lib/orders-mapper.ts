@@ -23,6 +23,11 @@ function normalizeCity(city: string | undefined | null): string | undefined {
   return trimmed;
 }
 
+function normalizeComment(comment: string | undefined | null): string | undefined {
+  const trimmed = comment?.trim();
+  return trimmed || undefined;
+}
+
 function deriveUrgency(createdAt: string, allInStock: boolean): OrderUrgency {
   const ageHours = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60);
 
@@ -132,6 +137,8 @@ export function mapUnshippedOrdersToWorkspace(
 
     if (shippingItems.length === 0) continue;
 
+    const staffComments = order.staffComments?.filter((comment) => comment.body.trim());
+
     orders.push({
       id: String(order.id),
       orderNumber: order.orderNumber,
@@ -146,6 +153,8 @@ export function mapUnshippedOrdersToWorkspace(
       allInStockAtWarehouse: true,
       city: normalizeCity(order.city),
       trackingNumber: order.trackingNumber ?? undefined,
+      customerComment: normalizeComment(order.customerComment),
+      staffComments: staffComments?.length ? staffComments : undefined,
     });
   }
 

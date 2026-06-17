@@ -16,6 +16,7 @@ import { AutoModeButton } from "./AutoModeButton";
 import { AutoModeCountdown } from "./AutoModeCountdown";
 import { BarcodePrintModal } from "./BarcodePrintModal";
 import { BarcodeScanner } from "./BarcodeScanner";
+import { OrderComments } from "./OrderComments";
 import { OrderItemRow } from "./OrderItemRow";
 import { OrderPicker } from "./OrderPicker";
 import { ScanErrorPopup } from "./ScanErrorPopup";
@@ -360,11 +361,11 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
   }, [orders, currentOrderId, currentOrder, viewingShippedId]);
 
   useEffect(() => {
-    if (viewingShippedId || shippableIndices.length === 0) return;
-    if (!shippableIndices.includes(currentIndex)) {
-      setCurrentOrderId(orders[shippableIndices[0]].id);
-    }
-  }, [currentIndex, orders, shippableIndices, viewingShippedId]);
+    if (viewingShippedId) return;
+    if (activeIndices.length === 0) return;
+    if (activeIndices.includes(currentIndex)) return;
+    setCurrentOrderId(orders[activeIndices[0]].id);
+  }, [currentIndex, orders, activeIndices, viewingShippedId]);
 
   const hasActiveOrders = activeIndices.length > 0;
   const hasShippableOrders = shippableIndices.length > 0;
@@ -397,6 +398,9 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     setCurrentOrderId(orders[index].id);
   };
 
+  const pickerPosition = Math.max(1, activeIndices.indexOf(currentIndex) + 1);
+  const pickerTotal = activeIndices.length || 1;
+
   return (
     <div
       className={`overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm ${
@@ -408,38 +412,30 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
       </div>
 
       <div className="space-y-4 p-3 sm:p-6">
-          {hasShippableOrders && (
+          {hasActiveOrders && !isViewingArchive && (
             <OrderPicker
               orders={orders}
               currentIndex={currentIndex}
               statuses={orderStatuses}
-              visibleIndices={shippableIndices}
+              visibleIndices={activeIndices}
               onSelect={handleSelectActive}
               locked={autoMode}
             />
           )}
 
-          {hasActiveOrders && !hasShippableOrders && !isViewingArchive ? (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-5 text-center sm:px-6">
-              <p className="text-sm font-medium text-amber-900">Сначала соберите заказы</p>
-              <p className="mt-1 text-xs text-amber-800">
-                {awaitingAssemblyCount > 0
-                  ? `${awaitingAssemblyCount} заказ(ов) ждут сборки на вкладке «Сборка»`
-                  : "Отметьте все позиции на вкладке «Сборка»"}
-              </p>
-            </div>
-          ) : !displayOrder ? (
+          {!displayOrder ? (
             <div className="py-6 text-center text-sm text-gray-500">Нет заказов на отправку</div>
-          ) : !isAssemblyReady && !isViewingArchive ? (
-            <AssemblyLockedCard missing={assemblyStatus?.missing ?? []} />
           ) : isShipped && !autoMode ? (
-            <ShippedOrderCard
-              orderNumber={displayOrder.orderNumber}
-              customerName={displayOrder.customerName}
-              createdAt={displayOrder.createdAt}
-              hasNext={hasNextUnshipped && !isViewingArchive}
-              onNext={isViewingArchive ? undefined : handleNextOrder}
-            />
+            <div className="space-y-4">
+              <ShippedOrderCard
+                orderNumber={displayOrder.orderNumber}
+                customerName={displayOrder.customerName}
+                createdAt={displayOrder.createdAt}
+                hasNext={hasNextUnshipped && !isViewingArchive}
+                onNext={isViewingArchive ? undefined : handleNextOrder}
+              />
+              <OrderComments order={displayOrder} />
+            </div>
           ) : (
             <div className="space-y-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
@@ -454,7 +450,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
                         {urgency.label}
                       </span>
                     )}
-                    {allScanned && (
+                    {allScanned && isAssemblyReady && (
                       <span className="rounded-lg bg-gray-900 px-2 py-0.5 text-xs font-medium text-white">
                         Собран
                       </span>
@@ -470,25 +466,44 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
                 </div>
                 <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2 sm:block sm:bg-transparent sm:p-0 sm:text-right">
                   <p className="text-sm font-medium text-gray-700">
-                    {Math.max(1, shippableIndices.indexOf(currentIndex) + 1)} / {shippableIndices.length || 1}
+                    {pickerPosition} / {pickerTotal}
                   </p>
-                  <p className="text-xs tabular-nums text-gray-500">
-                    Сканировано: {scannedCount} / {totalUnits}
-                  </p>
+                  {isAssemblyReady && (
+                    <p className="text-xs tabular-nums text-gray-500">
+                      Сканировано: {scannedCount} / {totalUnits}
+                    </p>
+                  )}
                 </div>
               </div>
 
-              <div className="space-y-2">
-                {displayOrder.items.map((item) => (
-                  <OrderItemRow
-                    key={item.id}
-                    item={item}
-                    manual={manualMode && !autoMode}
-                    onIncrement={() => updateItemCount(item.id, 1)}
-                    onDecrement={() => updateItemCount(item.id, -1)}
-                  />
-                ))}
-              </div>
+              <OrderComments order={displayOrder} />
+
+              {hasActiveOrders && !hasShippableOrders && !isViewingArchive && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center sm:px-5">
+                  <p className="text-sm font-medium text-amber-900">Сначала соберите заказы</p>
+                  <p className="mt-1 text-xs text-amber-800">
+                    {awaitingAssemblyCount > 0
+                      ? `${awaitingAssemblyCount} заказ(ов) ждут сборки на вкладке «Сборка»`
+                      : "Отметьте все позиции на вкладке «Сборка»"}
+                  </p>
+                </div>
+              )}
+
+              {!isAssemblyReady && !isViewingArchive ? (
+                <AssemblyLockedCard missing={assemblyStatus?.missing ?? []} />
+              ) : (
+                <div className="space-y-2">
+                  {displayOrder.items.map((item) => (
+                    <OrderItemRow
+                      key={item.id}
+                      item={item}
+                      manual={manualMode && !autoMode}
+                      onIncrement={() => updateItemCount(item.id, 1)}
+                      onDecrement={() => updateItemCount(item.id, -1)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
