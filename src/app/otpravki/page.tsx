@@ -62,7 +62,8 @@ export default async function OtpravkiPage() {
 
   if (!USE_MOCK_ORDERS) {
     try {
-      const { workspace } = await fetchAndSyncWorkspaceFromApi();
+      const existing = await getSharedWorkspace();
+      const workspace = existing ?? (await fetchAndSyncWorkspaceFromApi()).workspace;
       return (
         <OtpravkiShell
           assemblyItems={workspace.assemblyItems}

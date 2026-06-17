@@ -4,17 +4,20 @@ import { mutatingApiHeaders } from "@/lib/api-headers";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
 /** Сохраняет прогресс сборки и сканов на сервере */
-export async function persistSessionProgress(workspace: WorkspaceState): Promise<void> {
+export async function persistSessionProgress(workspace: WorkspaceState): Promise<boolean> {
   try {
-    await fetchWithTimeout("/api/session/progress", {
+    const res = await fetchWithTimeout("/api/session/progress", {
       method: "POST",
       headers: mutatingApiHeaders(),
       body: JSON.stringify({ workspace }),
       cache: "no-store",
       timeoutMs: 10_000,
     });
+    if (!res.ok) return false;
+    const data = (await res.json().catch(() => ({}))) as { ok?: boolean };
+    return data.ok !== false;
   } catch {
-    // не блокируем UI
+    return false;
   }
 }
 

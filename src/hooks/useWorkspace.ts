@@ -106,7 +106,11 @@ export function useWorkspace({
         });
       }
 
-      void persistSessionProgress(workspace).then(() => {
+      void persistSessionProgress(workspace).then((saved) => {
+        if (!saved) {
+          setIsServerReachable(false);
+          return;
+        }
         pushToServer(workspace);
       });
     },

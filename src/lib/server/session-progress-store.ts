@@ -16,12 +16,10 @@ interface SessionProgress {
 export function extractSessionProgress(state: SharedWorkspaceState): SessionProgress {
   const assembly: SessionProgress["assembly"] = {};
   for (const item of state.assemblyItems) {
-    if (item.collectedCount > 0) {
-      assembly[item.id] = {
-        collectedCount: item.collectedCount,
-        collectedAt: item.collectedAt,
-      };
-    }
+    assembly[item.id] = {
+      collectedCount: item.collectedCount,
+      ...(item.collectedCount > 0 && item.collectedAt ? { collectedAt: item.collectedAt } : {}),
+    };
   }
 
   const scans: SessionProgress["scans"] = {};
@@ -74,7 +72,7 @@ export function applySessionProgress(
     return {
       ...item,
       collectedCount: Math.min(saved.collectedCount, item.quantity),
-      collectedAt: saved.collectedAt,
+      collectedAt: saved.collectedCount > 0 ? saved.collectedAt : undefined,
     };
   });
 
