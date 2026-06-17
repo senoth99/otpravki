@@ -30,9 +30,28 @@ export interface ApiUnshippedOrder {
   deliveryMethod: string;
   trackingNumber: string | null;
   customerComment?: string | null;
-  staffComments?: ApiStaffComment[];
+  staffComments?: ApiStaffComment[] | null;
   items: ApiOrderLineItem[];
   hasAnyInStock: boolean;
   allInStockAtWarehouse: boolean;
   barcodeUrl: string;
+}
+
+export interface ApiQueueDelay {
+  enabled: boolean;
+  hours: number;
+}
+
+/** Ответ GET /orders/admin/unshipped-with-stock */
+export interface ApiUnshippedOrdersResponse {
+  queueDelay?: ApiQueueDelay;
+  orders: ApiUnshippedOrder[];
+}
+
+export function parseUnshippedOrdersPayload(data: unknown): ApiUnshippedOrder[] {
+  if (Array.isArray(data)) return data as ApiUnshippedOrder[];
+  if (data && typeof data === "object" && Array.isArray((data as ApiUnshippedOrdersResponse).orders)) {
+    return (data as ApiUnshippedOrdersResponse).orders;
+  }
+  throw new Error("API заказов: неожиданный формат ответа");
 }

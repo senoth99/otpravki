@@ -137,7 +137,9 @@ export function mapUnshippedOrdersToWorkspace(
 
     if (shippingItems.length === 0) continue;
 
-    const staffComments = order.staffComments?.filter((comment) => comment.body.trim());
+    const staffComments = Array.isArray(order.staffComments)
+      ? order.staffComments.filter((comment) => comment.body.trim())
+      : undefined;
 
     orders.push({
       id: String(order.id),

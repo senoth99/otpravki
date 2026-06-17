@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import type { ApiUnshippedOrder } from "@/types/orders-api";
+import { parseUnshippedOrdersPayload } from "@/types/orders-api";
 import { formatApiFetchError } from "@/lib/server/api-fetch-error";
 import { ORDERS_API_BASE, casherAuthHeaders, getCasherApiKey } from "@/lib/server/casher-api";
 import { externalFetch } from "@/lib/server/external-fetch";
@@ -70,7 +71,8 @@ export async function fetchUnshippedOrders(): Promise<ApiUnshippedOrder[]> {
     throw new Error(`API заказов: ${res.status}${body ? ` — ${body.slice(0, 200)}` : ""}`);
   }
 
-  return (await res.json()) as ApiUnshippedOrder[];
+  const data: unknown = await res.json();
+  return parseUnshippedOrdersPayload(data);
 }
 
 /** PUT /orders/{id}/status — перед печатью этикетки */

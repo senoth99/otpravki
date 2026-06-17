@@ -6,7 +6,9 @@ interface OrderCommentsProps {
 
 export function OrderComments({ order }: OrderCommentsProps) {
   const customerComment = order.customerComment?.trim();
-  const staffComments = order.staffComments?.filter((comment) => comment.body.trim()) ?? [];
+  const staffComments = Array.isArray(order.staffComments)
+    ? order.staffComments.filter((comment) => comment.body.trim())
+    : [];
 
   if (!customerComment && staffComments.length === 0) {
     return null;
