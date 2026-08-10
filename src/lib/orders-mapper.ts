@@ -64,6 +64,9 @@ function resolveWarehouseCap(line: {
   }
   return Math.max(0, line.warehouseQuantity ?? 0);
 }
+
+/** Заказ можно отправить разом — всё на складе */
+function isFullyStockedOrder(order: ApiUnshippedOrderWithBrand): boolean {
   if (!order.allInStockAtWarehouse) return false;
   return order.items.length > 0 && order.items.every((line) => line.inStockAtWarehouse);
 }
