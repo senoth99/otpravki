@@ -87,7 +87,7 @@ export function generateOrdersFromAssembly(assemblyItems: AssemblyItem[], count 
       createdAt,
       urgency,
       deadline:
-        urgency === "critical" || urgency === "urgent"
+        urgency === "critical" || urgency === "rush" || urgency === "urgent"
           ? "Сегодня"
           : urgency === "high"
             ? moscowDaysFromNow(1)

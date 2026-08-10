@@ -32,7 +32,12 @@ export interface AssemblyItem {
   isBlogger?: boolean;
 }
 
-export type OrderUrgency = "critical" | "urgent" | "high" | "normal" | "low";
+export type OrderUrgency = "critical" | "rush" | "urgent" | "high" | "normal" | "low";
+
+export interface OrderTag {
+  label: string;
+  color?: string;
+}
 
 export interface StaffComment {
   id: number;
@@ -78,6 +83,7 @@ export interface ShippingOrder {
   trackingNumber?: string;
   customerComment?: string;
   staffComments?: StaffComment[];
+  tags?: OrderTag[];
 }
 
 export type ShippingTab = "assembly" | "shipping" | "archive";

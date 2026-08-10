@@ -31,6 +31,7 @@ export interface ApiUnshippedOrder {
   trackingNumber: string | null;
   customerComment?: string | null;
   staffComments?: ApiStaffComment[] | null;
+  tags?: Array<{ label: string; color?: string }> | null;
   items: ApiOrderLineItem[];
   hasAnyInStock: boolean;
   allInStockAtWarehouse: boolean;

@@ -2,7 +2,7 @@ import { sortAssemblyItemsByUrgency } from "@/lib/assembly-sort";
 import { isBloggerOrder } from "@/lib/blogger-order";
 import { getImageUrl } from "@/lib/api";
 import { addMoscowCalendarDays, formatMoscowDate, formatSize, isMoscowToday } from "@/lib/format";
-import { deriveUrgency, resolveOrderUrgency, URGENCY_WEIGHT } from "@/lib/urgency";
+import { deriveUrgency, hasRushTag, mapOrderTags, resolveOrderUrgency, URGENCY_WEIGHT } from "@/lib/urgency";
 import type { ApiUnshippedOrderWithBrand } from "@/lib/server/orders-api";
 import type {
   ApiProduct,
@@ -129,6 +129,7 @@ export function mapUnshippedOrdersToWorkspace(
     const staffComments = Array.isArray(order.staffComments)
       ? order.staffComments.filter((comment) => comment.body.trim())
       : undefined;
+    const tags = mapOrderTags(order.tags);
 
     orders.push({
       id: `${(order.storeBrand ?? "CASHER").toLowerCase()}:${order.remoteOrderId}`,
@@ -138,7 +139,7 @@ export function mapUnshippedOrdersToWorkspace(
       isBlogger,
       customerName: order.fullName,
       createdAt: order.createdAt,
-      urgency: deriveUrgency(order.createdAt),
+      urgency: hasRushTag(tags) ? "rush" : deriveUrgency(order.createdAt),
       deadline: formatDeadline(order.createdAt),
       items: shippingItems,
       barcodeUrl: order.barcodeUrl,
@@ -148,6 +149,7 @@ export function mapUnshippedOrdersToWorkspace(
       trackingNumber: order.trackingNumber ?? undefined,
       customerComment: normalizeComment(order.customerComment),
       staffComments: staffComments?.length ? staffComments : undefined,
+      tags,
     });
   }
 

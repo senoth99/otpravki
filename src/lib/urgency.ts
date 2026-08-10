@@ -1,17 +1,20 @@
 import { moscowDateKey } from "@/lib/format";
-import type { OrderUrgency, ShippingOrder } from "@/types/shipping";
+import type { OrderTag, OrderUrgency, ShippingOrder } from "@/types/shipping";
 
 /** Меньше = выше в очереди */
 export const URGENCY_WEIGHT: Record<OrderUrgency, number> = {
   critical: 0,
-  urgent: 1,
-  high: 2,
-  normal: 3,
-  low: 4,
+  /** Тег API «СРОЧНО» — выше обычных срочных по возрасту */
+  rush: 1,
+  urgent: 2,
+  high: 3,
+  normal: 4,
+  low: 5,
 };
 
 export const URGENCY_LABELS: Record<OrderUrgency, { label: string; className: string }> = {
   critical: { label: "Критический", className: "bg-red-100 text-red-800" },
+  rush: { label: "Срочно", className: "bg-red-100 text-red-800" },
   urgent: { label: "Срочно", className: "bg-orange-100 text-orange-800" },
   high: { label: "Высокий", className: "bg-amber-100 text-amber-800" },
   normal: { label: "Обычный", className: "bg-blue-100 text-blue-700" },
@@ -44,10 +47,32 @@ export function deriveUrgency(createdAt: string, now: number | Date = Date.now()
   return "normal";
 }
 
+export function hasRushTag(tags?: OrderTag[] | null): boolean {
+  if (!tags?.length) return false;
+  return tags.some((tag) => tag.label.trim().toLocaleUpperCase("ru-RU") === "СРОЧНО");
+}
+
+export function mapOrderTags(
+  tags?: Array<{ label?: string | null; color?: string | null }> | null,
+): OrderTag[] | undefined {
+  if (!Array.isArray(tags) || tags.length === 0) return undefined;
+  const mapped = tags
+    .map((tag) => {
+      const label = tag.label?.trim();
+      if (!label) return null;
+      const color = tag.color?.trim();
+      return color ? { label, color } : { label };
+    })
+    .filter((tag): tag is OrderTag => tag !== null);
+  return mapped.length ? mapped : undefined;
+}
+
+/** Итоговая срочность: тег «СРОЧНО» → rush, иначе по возрасту / сохранённому urgency. */
 export function resolveOrderUrgency(
-  order: Pick<ShippingOrder, "urgency" | "createdAt">,
+  order: Pick<ShippingOrder, "urgency" | "createdAt" | "tags">,
   now: number | Date = Date.now(),
 ): OrderUrgency {
+  if (order.urgency === "rush" || hasRushTag(order.tags)) return "rush";
   if (order.createdAt) return deriveUrgency(order.createdAt, now);
   return order.urgency;
 }
