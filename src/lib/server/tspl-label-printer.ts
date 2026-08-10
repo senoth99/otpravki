@@ -8,7 +8,7 @@ const execFileAsync = promisify(execFile);
 const RENDER_DPI = Number(process.env.BARCODE_LABEL_DPI ?? 203);
 const LABEL_WIDTH_MM = Number(process.env.BARCODE_LABEL_WIDTH_MM ?? 100);
 const LABEL_HEIGHT_MM = Number(process.env.BARCODE_LABEL_HEIGHT_MM ?? 150);
-const LABEL_SCALE = Number(process.env.BARCODE_LABEL_SCALE ?? 0.5);
+const LABEL_SCALE = Number(process.env.BARCODE_LABEL_SCALE ?? 1);
 const LABEL_ROTATION = Number(process.env.BARCODE_LABEL_ROTATION ?? 180);
 
 function labelWidthPoints(): number {
