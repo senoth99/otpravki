@@ -16,8 +16,8 @@ export const metadata = {
 
 function EmptyState({ title, hint }: { title: string; hint: string }) {
   return (
-    <div className="min-h-screen overflow-x-hidden bg-gray-50 px-3 py-3 sm:p-6">
-      <div className="mx-auto max-w-3xl rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-sm">
+    <div className="flex h-dvh max-h-dvh w-full items-center justify-center overflow-hidden bg-gray-50 p-4 overscroll-none">
+      <div className="w-full max-w-lg rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-sm">
         <p className="font-medium text-gray-900">{title}</p>
         <p className="mt-2 text-sm text-gray-500">{hint}</p>
       </div>
@@ -41,16 +41,14 @@ function OtpravkiShell({
   warehouseMap?: WarehouseMapConfig;
 }) {
   return (
-    <div className="min-h-screen overflow-x-hidden bg-gray-50 px-3 py-3 sm:p-6">
-      <ShippingPanel
-        assemblyItems={assemblyItems}
-        orders={orders}
-        apiOrderIds={apiOrderIds}
-        shippedArchive={shippedArchive}
-        initialRevision={initialRevision}
-        warehouseMap={warehouseMap}
-      />
-    </div>
+    <ShippingPanel
+      assemblyItems={assemblyItems}
+      orders={orders}
+      apiOrderIds={apiOrderIds}
+      shippedArchive={shippedArchive}
+      initialRevision={initialRevision}
+      warehouseMap={warehouseMap}
+    />
   );
 }
 
