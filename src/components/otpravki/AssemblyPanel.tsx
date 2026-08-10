@@ -12,6 +12,7 @@ import { AssemblyView } from "./AssemblyView";
 import {
   applyOrderFilters,
   collectFilterCities,
+  collectFilterProducts,
   DEFAULT_FILTERS,
   OtpravkiFiltersPanel,
   OtpravkiMobileFilters,
@@ -82,7 +83,7 @@ export function AssemblyPanel({
     if (filters.kind === "regular") {
       return brandAsm.filter((item) => item.isBlogger !== true);
     }
-    if (filters.query.trim() || filters.urgency !== "all" || filters.city !== "all") {
+    if (filters.query.trim() || filters.urgency !== "all" || filters.city !== "all" || filters.productIds.length > 0) {
       const allowedKeys = new Set(
         filteredOrders.flatMap((order) =>
           order.items.map((item) => `${item.productId}-${item.sizeId}-${orderIsBlogger(order)}`),
@@ -90,7 +91,7 @@ export function AssemblyPanel({
       );
       if (
         allowedKeys.size === 0 &&
-        (filters.query || filters.urgency !== "all" || filters.city !== "all")
+        (filters.query || filters.urgency !== "all" || filters.city !== "all" || filters.productIds.length > 0)
       ) {
         return [];
       }
@@ -126,6 +127,7 @@ export function AssemblyPanel({
   );
 
   const cities = useMemo(() => collectFilterCities(brandOrders), [brandOrders]);
+  const products = useMemo(() => collectFilterProducts(brandOrders), [brandOrders]);
 
   const counts = useMemo(() => {
     let critical = 0;
@@ -219,7 +221,12 @@ export function AssemblyPanel({
         )}
 
         <div className="mt-3">
-          <OtpravkiMobileFilters filters={filters} onChange={setFilters} cities={cities} />
+          <OtpravkiMobileFilters
+            filters={filters}
+            onChange={setFilters}
+            cities={cities}
+            products={products}
+          />
         </div>
       </header>
 
@@ -228,6 +235,7 @@ export function AssemblyPanel({
           filters={filters}
           onChange={setFilters}
           counts={counts}
+          products={products}
         />
 
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-5">

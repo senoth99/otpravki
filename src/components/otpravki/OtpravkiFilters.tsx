@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import { resolveOrderUrgency, URGENCY_LABELS } from "@/lib/urgency";
 import type { OrderUrgency, ShippingOrder } from "@/types/shipping";
@@ -18,6 +18,15 @@ export interface OtpravkiFiltersState {
   comment: CommentFilter;
   city: string;
   query: string;
+  /** Пустой = все товары; иначе заказ должен содержать хотя бы один выбранный */
+  productIds: string[];
+}
+
+export interface FilterProductOption {
+  productId: string;
+  productName: string;
+  orderCount: number;
+  quantity: number;
 }
 
 export const DEFAULT_FILTERS: OtpravkiFiltersState = {
@@ -27,6 +36,7 @@ export const DEFAULT_FILTERS: OtpravkiFiltersState = {
   comment: "all",
   city: "all",
   query: "",
+  productIds: [],
 };
 
 function orderScanState(order: ShippingOrder): Exclude<ScanFilter, "all"> {
@@ -69,6 +79,11 @@ export function applyOrderFilters(
       if (city !== filters.city) return false;
     }
 
+    if (filters.productIds.length > 0) {
+      const wanted = new Set(filters.productIds);
+      if (!order.items.some((item) => wanted.has(item.productId))) return false;
+    }
+
     if (q) {
       const hay = [
         order.orderNumber,
@@ -76,6 +91,7 @@ export function applyOrderFilters(
         order.city,
         order.trackingNumber,
         ...(order.tags?.map((t) => t.label) ?? []),
+        ...order.items.map((item) => item.productName),
       ]
         .filter(Boolean)
         .join(" ")
@@ -94,6 +110,41 @@ export function collectFilterCities(orders: ShippingOrder[]): string[] {
     if (city && city !== "—" && city !== "-") cities.add(city);
   }
   return [...cities].sort((a, b) => a.localeCompare(b, "ru"));
+}
+
+/** Уникальные товары из заказов к отправке — для фильтра с выбором. */
+export function collectFilterProducts(orders: ShippingOrder[]): FilterProductOption[] {
+  const map = new Map<string, FilterProductOption>();
+  for (const order of orders) {
+    const seenInOrder = new Set<string>();
+    for (const item of order.items) {
+      const id = item.productId?.trim();
+      if (!id) continue;
+      const existing = map.get(id);
+      if (!existing) {
+        map.set(id, {
+          productId: id,
+          productName: item.productName?.trim() || id,
+          orderCount: 1,
+          quantity: item.quantity,
+        });
+        seenInOrder.add(id);
+        continue;
+      }
+      existing.quantity += item.quantity;
+      if (!seenInOrder.has(id)) {
+        existing.orderCount += 1;
+        seenInOrder.add(id);
+      }
+    }
+  }
+  return [...map.values()].sort((a, b) => a.productName.localeCompare(b.productName, "ru"));
+}
+
+function toggleProductId(selected: string[], productId: string): string[] {
+  return selected.includes(productId)
+    ? selected.filter((id) => id !== productId)
+    : [...selected, productId];
 }
 
 function Chip({
@@ -139,16 +190,20 @@ interface OtpravkiFiltersPanelProps {
     blogger: number;
     ready: number;
   };
+  products?: FilterProductOption[];
 }
 
 export function OtpravkiFiltersPanel({
   filters,
   onChange,
   counts,
+  products = [],
 }: OtpravkiFiltersPanelProps) {
   const set = <K extends keyof OtpravkiFiltersState>(key: K, value: OtpravkiFiltersState[K]) => {
     onChange({ ...filters, [key]: value });
   };
+
+  const selectedCount = filters.productIds.length;
 
   return (
     <aside className="hidden h-full w-56 shrink-0 flex-col gap-4 overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-4 shadow-sm lg:flex">
@@ -197,6 +252,50 @@ export function OtpravkiFiltersPanel({
         </Chip>
       </FilterBlock>
 
+      {products.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+              Товар к отправке
+            </p>
+            {selectedCount > 0 && (
+              <button
+                type="button"
+                onClick={() => set("productIds", [])}
+                className="text-[10px] font-medium text-gray-500 underline-offset-2 hover:underline"
+              >
+                Сбросить ({selectedCount})
+              </button>
+            )}
+          </div>
+          <p className="text-[10px] text-gray-400">
+            {selectedCount === 0 ? "Все товары" : `Выбрано: ${selectedCount}`}
+          </p>
+          <div className="flex max-h-64 flex-col gap-1 overflow-y-auto overscroll-contain pr-0.5">
+            {products.map((product) => {
+              const active = filters.productIds.includes(product.productId);
+              return (
+                <button
+                  key={product.productId}
+                  type="button"
+                  onClick={() => set("productIds", toggleProductId(filters.productIds, product.productId))}
+                  className={`rounded-lg px-2.5 py-2 text-left transition-colors ${
+                    active
+                      ? "bg-gray-900 text-white"
+                      : "bg-gray-100 text-gray-800 active:bg-gray-200"
+                  }`}
+                >
+                  <span className="block text-xs font-medium leading-snug">{product.productName}</span>
+                  <span className={`mt-0.5 block text-[10px] ${active ? "text-gray-300" : "text-gray-500"}`}>
+                    {product.orderCount} зак. · {product.quantity} шт.
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <button
         type="button"
         onClick={() => onChange({ ...DEFAULT_FILTERS })}
@@ -212,14 +311,19 @@ export function OtpravkiFiltersPanel({
 export function OtpravkiMobileFilters({
   filters,
   onChange,
+  products = [],
 }: {
   filters: OtpravkiFiltersState;
   onChange: (next: OtpravkiFiltersState) => void;
   cities?: string[];
+  products?: FilterProductOption[];
 }) {
+  const [productsOpen, setProductsOpen] = useState(false);
   const set = <K extends keyof OtpravkiFiltersState>(key: K, value: OtpravkiFiltersState[K]) => {
     onChange({ ...filters, [key]: value });
   };
+
+  const selectedCount = filters.productIds.length;
 
   return (
     <div className="space-y-2 lg:hidden">
@@ -252,7 +356,66 @@ export function OtpravkiMobileFilters({
           <option value="blogger">Блогеры</option>
           <option value="regular">Обычные</option>
         </select>
+        {products.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setProductsOpen((v) => !v)}
+            className={`h-9 shrink-0 rounded-xl border px-3 text-xs font-medium ${
+              selectedCount > 0
+                ? "border-gray-900 bg-gray-900 text-white"
+                : "border-gray-200 bg-white text-gray-800"
+            }`}
+          >
+            Товар{selectedCount > 0 ? ` · ${selectedCount}` : ""}
+          </button>
+        )}
       </div>
+
+      {productsOpen && products.length > 0 && (
+        <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-gray-900">Товары к отправке</p>
+            <div className="flex items-center gap-2">
+              {selectedCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => set("productIds", [])}
+                  className="text-[11px] font-medium text-gray-500"
+                >
+                  Сбросить
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setProductsOpen(false)}
+                className="rounded-lg bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white"
+              >
+                Готово
+              </button>
+            </div>
+          </div>
+          <div className="grid max-h-56 grid-cols-1 gap-1.5 overflow-y-auto overscroll-contain sm:grid-cols-2">
+            {products.map((product) => {
+              const active = filters.productIds.includes(product.productId);
+              return (
+                <button
+                  key={product.productId}
+                  type="button"
+                  onClick={() => set("productIds", toggleProductId(filters.productIds, product.productId))}
+                  className={`rounded-xl px-3 py-2 text-left ${
+                    active ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-800"
+                  }`}
+                >
+                  <span className="block text-xs font-medium leading-snug">{product.productName}</span>
+                  <span className={`mt-0.5 block text-[10px] ${active ? "text-gray-300" : "text-gray-500"}`}>
+                    {product.orderCount} зак. · {product.quantity} шт.
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
