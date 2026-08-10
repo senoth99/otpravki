@@ -129,7 +129,7 @@ export function ShippingView({
           const order = orders[index];
           if (order.barcodePrinted) return false;
           if (getOrderStoreBrand(order) !== selectedBrand) return false;
-          // Только заказы, полностью покрытые сборкой
+          // Только заказы, полностью покрытые наличием в сборке (API), не «Собрано»
           return orderStatuses[index] !== "awaiting-assembly";
         }),
     [orders, selectedBrand, orderStatuses],

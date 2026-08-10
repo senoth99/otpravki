@@ -16,14 +16,18 @@ export interface AssemblyAllocation {
   missingByOrderId: Map<string, MissingAssemblyItem[]>;
 }
 
-/** Распределяет пул сборки между заказами по приоритету срочности */
+/**
+ * Готовность к отправке по наличию в пуле сборки (quantity из API),
+ * без учёта кнопки «Собрано» (collectedCount).
+ */
 export function buildAssemblyAllocation(
   orders: ShippingOrder[],
   assemblyItems: AssemblyItem[],
 ): AssemblyAllocation {
   const pool = new Map<string, number>();
   for (const item of assemblyItems) {
-    pool.set(assemblyItemKey(item.productId, item.sizeId, item.isBlogger === true), item.collectedCount);
+    const key = assemblyItemKey(item.productId, item.sizeId, item.isBlogger === true);
+    pool.set(key, (pool.get(key) ?? 0) + item.quantity);
   }
 
   const readyByOrderId = new Map<string, boolean>();
@@ -96,12 +100,11 @@ export function getOrderAssemblyStatus(
     };
   }
 
-  const pool = new Map(
-    assemblyItems.map((item) => [
-      assemblyItemKey(item.productId, item.sizeId, item.isBlogger === true),
-      item.collectedCount,
-    ]),
-  );
+  const pool = new Map<string, number>();
+  for (const item of assemblyItems) {
+    const key = assemblyItemKey(item.productId, item.sizeId, item.isBlogger === true);
+    pool.set(key, (pool.get(key) ?? 0) + item.quantity);
+  }
 
   const missing: MissingAssemblyItem[] = [];
   const isBlogger = orderIsBlogger(order);
