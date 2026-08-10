@@ -53,6 +53,7 @@ export async function POST(request: Request) {
       orderId: body.orderId,
       barcodeUrl: body.barcodeUrl,
       barcodeData: body.barcodeData,
+      brand: body.order?.storeBrand,
     });
     if (!result.ok) {
       return NextResponse.json(

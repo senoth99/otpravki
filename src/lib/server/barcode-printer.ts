@@ -173,6 +173,7 @@ export interface PrintLabelOptions {
   orderId?: string;
   barcodeUrl?: string;
   barcodeData?: string;
+  brand?: string;
 }
 
 /** Печать этикетки СДЭК (PDF из barcodeUrl) или сгенерированного баркода (мок) */
@@ -188,19 +189,25 @@ export async function printToBarcodePrinter(
     return { ok: false, printer: null, error: NO_PRINTER_MESSAGE };
   }
 
-  const labelUrl = resolveBarcodeUrl(options.orderId, options.barcodeUrl);
+  const remoteOrderId =
+    options.orderId?.includes(":")
+      ? options.orderId.split(":").slice(1).join(":")
+      : options.orderId;
+  const labelUrl = resolveBarcodeUrl(remoteOrderId, options.barcodeUrl, options.brand);
 
   if (labelUrl) {
     try {
-      const pdf = await downloadBarcodePdf(labelUrl, options.orderId);
+      const pdf = await downloadBarcodePdf(labelUrl, remoteOrderId ?? options.orderId, options.brand);
       const stamp = `${Date.now()}`;
       const format = await printPdfLabel(printer, pdf, PRINT_DIR, stamp);
-      await logPrint(`OK ${format} url=${labelUrl} printer=${printer} order=${orderNumber}`);
+      await logPrint(
+        `OK ${format} url=${labelUrl} printer=${printer} order=${orderNumber} brand=${options.brand ?? "?"}`,
+      );
       return { ok: true, printer, format };
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Не удалось напечатать PDF-этикетку";
-      await logPrint(`FAIL pdf url=${labelUrl} printer=${printer} ${message}`);
+      await logPrint(`FAIL pdf url=${labelUrl} printer=${printer} brand=${options.brand ?? "?"} ${message}`);
       return { ok: false, printer, error: message };
     }
   }

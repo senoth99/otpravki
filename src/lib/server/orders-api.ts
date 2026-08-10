@@ -173,7 +173,10 @@ export async function downloadBarcodePdf(
     });
 
     if (!res.ok) {
-      throw new Error(`Не удалось скачать этикетку: HTTP ${res.status}`);
+      const body = await res.text().catch(() => "");
+      throw new Error(
+        `Не удалось скачать этикетку: HTTP ${res.status}${body ? ` — ${body.slice(0, 200)}` : ""}${brand ? ` (${brand})` : ""}`,
+      );
     }
 
     const data = Buffer.from(await res.arrayBuffer());
