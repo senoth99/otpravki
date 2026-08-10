@@ -376,10 +376,10 @@ export function ShippingView({
   useEffect(() => {
     if (viewingShippedId) return;
     if (currentOrder?.barcodePrinted) {
-      const nextId = findNextActiveOrderId(orders, currentOrderId);
+      const nextId = findNextActiveOrderId(orders, currentOrderId, selectedBrand);
       if (nextId) setCurrentOrderId(nextId);
     }
-  }, [orders, currentOrderId, currentOrder, viewingShippedId]);
+  }, [orders, currentOrderId, currentOrder, viewingShippedId, selectedBrand]);
 
   useEffect(() => {
     if (brandOptions.length === 0) {
