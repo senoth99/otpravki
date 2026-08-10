@@ -15,6 +15,8 @@ export interface ApiOrderLineItem {
   quantity: number;
   price: number;
   warehouseQuantity: number;
+  /** Реальное доступное наличие (часто > warehouseQuantity) */
+  effectiveWarehouseQuantity?: number;
   inStockAtWarehouse: boolean;
 }
 

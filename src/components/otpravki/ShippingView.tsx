@@ -129,10 +129,10 @@ export function ShippingView({
           const order = orders[index];
           if (order.barcodePrinted) return false;
           if (getOrderStoreBrand(order) !== selectedBrand) return false;
-          // Только заказы, полностью покрытые наличием в сборке (API), не «Собрано»
-          return orderStatuses[index] !== "awaiting-assembly";
+          // В workspace уже только заказы с наличием из API; «Собрано» не влияет
+          return true;
         }),
-    [orders, selectedBrand, orderStatuses],
+    [orders, selectedBrand],
   );
 
   const shippableIndices = activeIndices;

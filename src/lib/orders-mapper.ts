@@ -54,8 +54,16 @@ function findProduct(index: Map<string, ApiProduct>, slug: string): ApiProduct |
   return index.get(slug) ?? index.get(slug.toLowerCase());
 }
 
-/** Заказ можно отправить разом — всё на складе */
-function isFullyStockedOrder(order: ApiUnshippedOrderWithBrand): boolean {
+function resolveWarehouseCap(line: {
+  warehouseQuantity: number;
+  effectiveWarehouseQuantity?: number;
+}): number {
+  const effective = line.effectiveWarehouseQuantity;
+  if (typeof effective === "number" && Number.isFinite(effective) && effective > 0) {
+    return effective;
+  }
+  return Math.max(0, line.warehouseQuantity ?? 0);
+}
   if (!order.allInStockAtWarehouse) return false;
   return order.items.length > 0 && order.items.every((line) => line.inStockAtWarehouse);
 }
@@ -88,7 +96,7 @@ export function mapUnshippedOrdersToWorkspace(
 
       warehouseCapByKey.set(
         key,
-        Math.max(warehouseCapByKey.get(key) ?? 0, line.warehouseQuantity),
+        Math.max(warehouseCapByKey.get(key) ?? 0, resolveWarehouseCap(line)),
       );
 
       const assemblyLine = assemblyMap.get(key);
