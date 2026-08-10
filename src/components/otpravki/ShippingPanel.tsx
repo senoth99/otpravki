@@ -93,16 +93,11 @@ export function ShippingPanel({
     return applyOrderFilters(brandArchive, { ...filters, scan: "all" });
   }, [selectedBrand, shippedArchive, filters]);
 
-  const shippingViewOrders = useMemo(() => {
-    const printed = brandOrders.filter((order) => order.barcodePrinted);
-    return [...filteredOrders, ...printed];
-  }, [brandOrders, filteredOrders]);
-
   const handleFilteredOrdersChange = (
     nextOrders: ShippingOrder[] | ((prev: ShippingOrder[]) => ShippingOrder[]),
   ) => {
     const resolved =
-      typeof nextOrders === "function" ? nextOrders(shippingViewOrders) : nextOrders;
+      typeof nextOrders === "function" ? nextOrders(filteredOrders) : nextOrders;
     const nextById = new Map(resolved.map((order) => [order.id, order]));
     updateOrders(
       orders.map((order) => {
@@ -243,7 +238,7 @@ export function ShippingPanel({
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-5">
           {tab === "shipping" ? (
             <ShippingView
-              orders={shippingViewOrders}
+              orders={filteredOrders}
               assemblyItems={filteredAssemblyItems}
               selectedBrand={selectedBrand}
               brandOptions={brandOptions}

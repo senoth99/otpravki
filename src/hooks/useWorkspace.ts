@@ -146,6 +146,9 @@ export function useWorkspace({
       const archive = workspace.shippedArchive ?? [];
       const newlyShipped = archive.filter((order) => !prevArchiveIds.has(order.id));
 
+      // Отправленные сразу уходят в архив и пропадают из активного списка
+      ordersRef.current = workspace.orders;
+      setOrders(workspace.orders);
       shippedArchiveRef.current = archive;
       setShippedArchive(archive);
 

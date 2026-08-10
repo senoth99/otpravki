@@ -277,7 +277,6 @@ export function ShippingView({
 
   const handlePrinted = () => {
     setPrintModalOpen(false);
-    const shippedId = currentOrderId;
     onOrdersChange((prev) => {
       const updated = prev.map((order) =>
         order.id === currentOrderId
@@ -287,8 +286,7 @@ export function ShippingView({
       goToNextOrder(updated, currentOrderId);
       return updated;
     });
-    // Кратко показываем карточку «Отправлен», пикер заказов остаётся доступен
-    if (shippedId) setViewingShippedId(shippedId);
+    setViewingShippedId(null);
   };
 
   const handleNextOrder = () => {
@@ -352,7 +350,7 @@ export function ShippingView({
       const hasNext = findFirstAutoOrderIndex(nextVisibleOrders, nextVisibleStatuses) !== null;
 
       onOrdersChange(updatedOrders);
-      setViewingShippedId(currentOrder.id);
+      setViewingShippedId(null);
       setCountdown({ orderNumber: shippedNumber, secondsLeft: 5, hasNext });
     })();
   }, [
