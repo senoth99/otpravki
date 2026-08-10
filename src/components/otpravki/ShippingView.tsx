@@ -285,12 +285,14 @@ export function ShippingView({
           : order,
       );
       goToNextOrder(updated, currentOrderId);
-      if (shippedId) setViewingShippedId(shippedId);
       return updated;
     });
+    // Кратко показываем карточку «Отправлен», пикер заказов остаётся доступен
+    if (shippedId) setViewingShippedId(shippedId);
   };
 
   const handleNextOrder = () => {
+    setViewingShippedId(null);
     goToNextOrder(orders);
   };
 
@@ -460,7 +462,7 @@ export function ShippingView({
       </div>
 
       <div className="space-y-4 p-3 sm:p-6">
-          {hasActiveOrders && !isViewingArchive && (
+          {hasActiveOrders && (
             <OrderPicker
               orders={orders}
               currentIndex={currentIndex}
