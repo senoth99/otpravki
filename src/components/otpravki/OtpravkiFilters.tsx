@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import { resolveOrderUrgency, URGENCY_LABELS } from "@/lib/urgency";
 import type { OrderUrgency, ShippingOrder } from "@/types/shipping";
+import { KeyboardField } from "./VirtualKeyboard";
 
 export type UrgencyFilter = "all" | OrderUrgency;
 export type KindFilter = "all" | "blogger" | "regular";
@@ -162,11 +163,11 @@ export function OtpravkiFiltersPanel({
         <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">
           Поиск
         </span>
-        <input
-          type="search"
+        <KeyboardField
           value={filters.query}
-          onChange={(e) => set("query", e.target.value)}
+          onChange={(next) => set("query", next)}
           placeholder="Номер, ФИО, город…"
+          title="Поиск заказа"
           className="h-9 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
         />
       </label>
@@ -222,11 +223,11 @@ export function OtpravkiMobileFilters({
 
   return (
     <div className="space-y-2 lg:hidden">
-      <input
-        type="search"
+      <KeyboardField
         value={filters.query}
-        onChange={(e) => set("query", e.target.value)}
+        onChange={(next) => set("query", next)}
         placeholder="Поиск заказа…"
+        title="Поиск заказа"
         className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
       />
       <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

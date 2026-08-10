@@ -5,6 +5,7 @@ import { formatMoscowDate, formatOrderNumberShort } from "@/lib/format";
 import { type OrderDisplayStatus } from "@/lib/order-status";
 import { getSortedOrderIndices } from "@/lib/order-sort";
 import type { ShippingOrder } from "@/types/shipping";
+import { KeyboardField } from "./VirtualKeyboard";
 
 const COMPACT_THRESHOLD = 12;
 
@@ -186,12 +187,12 @@ function CompactOrderPicker({
             <span className="ml-1.5 text-gray-400">· осталось {pendingCount}</span>
           )}
         </p>
-        <input
-          type="search"
+        <KeyboardField
           value={search}
-          onChange={(e) => handleSearch(e.target.value)}
+          onChange={handleSearch}
           placeholder="Поиск CSH…"
           disabled={locked}
+          title="Поиск заказа"
           className="h-8 w-36 rounded-lg border border-gray-200 bg-white px-2.5 text-xs text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40 sm:w-44"
         />
       </div>
