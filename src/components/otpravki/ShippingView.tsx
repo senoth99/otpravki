@@ -46,15 +46,21 @@ function findNextActiveOrderId(
   orders: ShippingOrder[],
   fromId: string | null,
   brand: string,
+  readyOrderIds?: ReadonlySet<string>,
 ): string | null {
+  const isEligible = (order: ShippingOrder) =>
+    !order.barcodePrinted &&
+    getOrderStoreBrand(order) === brand &&
+    (!readyOrderIds || readyOrderIds.has(order.id));
+
   const from = fromId ? orders.findIndex((order) => order.id === fromId) : -1;
   for (let i = from + 1; i < orders.length; i++) {
-    if (!orders[i].barcodePrinted && getOrderStoreBrand(orders[i]) === brand) {
+    if (isEligible(orders[i])) {
       return orders[i].id;
     }
   }
   for (let i = 0; i < (from >= 0 ? from : orders.length); i++) {
-    if (!orders[i].barcodePrinted && getOrderStoreBrand(orders[i]) === brand) {
+    if (isEligible(orders[i])) {
       return orders[i].id;
     }
   }
@@ -102,6 +108,14 @@ export function ShippingView({
     [orders, assemblyItems],
   );
 
+  const readyOrderIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const [id, ready] of assemblyAllocation.readyByOrderId) {
+      if (ready) ids.add(id);
+    }
+    return ids;
+  }, [assemblyAllocation]);
+
   const orderStatuses = useMemo(
     () => orders.map((order) => getOrderDisplayStatus(order, assemblyItems, assemblyAllocation)),
     [orders, assemblyItems, assemblyAllocation],
@@ -111,12 +125,14 @@ export function ShippingView({
     () =>
       orders
         .map((_, index) => index)
-        .filter(
-          (index) =>
-            !orders[index].barcodePrinted &&
-            getOrderStoreBrand(orders[index]) === selectedBrand,
-        ),
-    [orders, selectedBrand],
+        .filter((index) => {
+          const order = orders[index];
+          if (order.barcodePrinted) return false;
+          if (getOrderStoreBrand(order) !== selectedBrand) return false;
+          // Только заказы, полностью покрытые сборкой
+          return orderStatuses[index] !== "awaiting-assembly";
+        }),
+    [orders, selectedBrand, orderStatuses],
   );
 
   const shippableIndices = activeIndices;
@@ -248,10 +264,15 @@ export function ShippingView({
 
   const goToNextOrder = useCallback(
     (updatedOrders: ShippingOrder[], fromOrderId?: string | null) => {
-      const nextId = findNextActiveOrderId(updatedOrders, fromOrderId ?? currentOrderId, selectedBrand);
+      const nextId = findNextActiveOrderId(
+        updatedOrders,
+        fromOrderId ?? currentOrderId,
+        selectedBrand,
+        readyOrderIds,
+      );
       if (nextId) setCurrentOrderId(nextId);
     },
-    [currentOrderId, selectedBrand],
+    [currentOrderId, readyOrderIds, selectedBrand],
   );
 
   const handlePrinted = () => {
