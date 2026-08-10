@@ -1,14 +1,14 @@
 import { assemblyItemKey } from "@/lib/assembly-demand";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
-import { URGENCY_WEIGHT } from "@/lib/urgency";
+import { resolveOrderUrgency, URGENCY_WEIGHT } from "@/lib/urgency";
 
 function buildUrgencyMap(orders: ShippingOrder[]) {
   const map = new Map<string, number>();
 
   for (const order of orders) {
     if (order.barcodePrinted) continue;
-    const weight = URGENCY_WEIGHT[order.urgency];
+    const weight = URGENCY_WEIGHT[resolveOrderUrgency(order)];
     const isBlogger = orderIsBlogger(order);
     for (const item of order.items) {
       const key = assemblyItemKey(item.productId, item.sizeId, isBlogger);

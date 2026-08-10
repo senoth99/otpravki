@@ -1,6 +1,7 @@
 "use client";
 
-import { formatMoscowDate, formatOrderNumberShort } from "@/lib/format";
+import { formatMoscowDate } from "@/lib/format";
+import { OrderNumberDisplay } from "./OrderNumberDisplay";
 
 interface ShippedOrderCardProps {
   orderNumber: string;
@@ -25,7 +26,9 @@ export function ShippedOrderCard({
         </svg>
       </div>
 
-      <p className="text-sm font-semibold text-gray-900">{formatOrderNumberShort(orderNumber)}</p>
+      <p className="text-sm font-semibold text-gray-900">
+        <OrderNumberDisplay orderNumber={orderNumber} className="justify-center" />
+      </p>
       <p className="mt-1 text-xs text-gray-500">{customerName}</p>
       {createdAt && (
         <p className="mt-1 text-xs text-gray-500">Заказ от {formatMoscowDate(createdAt)}</p>

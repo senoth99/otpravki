@@ -67,7 +67,10 @@ export async function POST(request: Request) {
     }
 
     try {
-      await markOrderShipped(body.orderId.trim());
+      await markOrderShipped(
+        body.order?.remoteOrderId?.trim() || body.orderId.trim(),
+        body.order?.storeBrand,
+      );
     } catch (error) {
       return NextResponse.json(
         {

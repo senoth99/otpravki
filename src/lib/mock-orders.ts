@@ -1,14 +1,11 @@
 import type {
   ApiProduct,
   AssemblyItem,
-  OrderUrgency,
   ShippingOrder,
   ShippingOrderItem,
 } from "@/types/shipping";
 import { moscowDaysFromNow } from "@/lib/format";
-import { URGENCY_WEIGHT } from "@/lib/urgency";
-
-const URGENCIES: OrderUrgency[] = ["critical", "high", "normal", "low"];
+import { deriveUrgency, resolveOrderUrgency, URGENCY_WEIGHT } from "@/lib/urgency";
 
 const CUSTOMER_NAMES = [
   "Иванов Алексей",
@@ -64,7 +61,6 @@ export function generateOrdersFromAssembly(assemblyItems: AssemblyItem[], count 
   const remaining = new Map(assemblyItems.map((item) => [item.id, item.quantity]));
 
   for (let i = 0; i < count; i++) {
-    const urgency = URGENCIES[i % URGENCIES.length];
     const available = assemblyItems.filter((item) => (remaining.get(item.id) ?? 0) > 0);
     if (available.length === 0) break;
 
@@ -79,9 +75,10 @@ export function generateOrdersFromAssembly(assemblyItems: AssemblyItem[], count 
       return toOrderItem(assemblyItem, quantity);
     });
 
-    const ageDays =
-      urgency === "critical" ? 3 : urgency === "high" ? 2 : urgency === "normal" ? 1 : 0;
+    // 0, 3, 6, 8 дней — закрывают все уровни срочности
+    const ageDays = [0, 3, 6, 8, 1][i % 5];
     const createdAt = new Date(Date.now() - ageDays * 24 * 60 * 60 * 1000).toISOString();
+    const urgency = deriveUrgency(createdAt);
 
     orders.push({
       id: `order-${i + 1}`,
@@ -90,7 +87,7 @@ export function generateOrdersFromAssembly(assemblyItems: AssemblyItem[], count 
       createdAt,
       urgency,
       deadline:
-        urgency === "critical"
+        urgency === "critical" || urgency === "urgent"
           ? "Сегодня"
           : urgency === "high"
             ? moscowDaysFromNow(1)
@@ -100,5 +97,7 @@ export function generateOrdersFromAssembly(assemblyItems: AssemblyItem[], count 
     });
   }
 
-  return orders.sort((a, b) => URGENCY_WEIGHT[a.urgency] - URGENCY_WEIGHT[b.urgency]);
+  return orders.sort(
+    (a, b) => URGENCY_WEIGHT[resolveOrderUrgency(a)] - URGENCY_WEIGHT[resolveOrderUrgency(b)],
+  );
 }

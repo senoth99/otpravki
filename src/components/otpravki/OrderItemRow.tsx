@@ -59,7 +59,6 @@ export function OrderItemRow({ item, manual, onIncrement, onDecrement }: OrderIt
             <p className="line-clamp-2 text-sm font-medium leading-snug text-gray-900 sm:truncate">
               {item.productName}
             </p>
-            <p className="text-xs text-gray-500">{item.brand}</p>
             <p className="mt-0.5 text-xs text-gray-600">
               <span className="font-medium">{formatSize(item.size)}</span>
             </p>

@@ -60,6 +60,50 @@ export function logClientSync(
   });
 }
 
+export async function refreshWorkspaceFromApi(brand?: string): Promise<{
+  ok: boolean;
+  workspace?: SharedWorkspaceState;
+  error?: string;
+}> {
+  try {
+    const res = await fetchWithTimeout("/api/workspace/refresh", {
+      method: "POST",
+      headers: mutatingApiHeaders(),
+      body: JSON.stringify(brand ? { brand } : {}),
+      cache: "no-store",
+      timeoutMs: SYNC_TIMEOUT_MS,
+    });
+
+    const data = (await res.json()) as {
+      ok: boolean;
+      workspace?: SharedWorkspaceState;
+      error?: string;
+    };
+
+    if (!res.ok || !data.ok) {
+      logClientSync("refresh.http.error", {
+        meta: { status: res.status, brand, error: data.error },
+      });
+      return { ok: false, error: data.error ?? `refresh failed: ${res.status}` };
+    }
+
+    logClientSync("refresh.http.ok", {
+      revision: data.workspace?.revision,
+      meta: { brand },
+    });
+    return { ok: true, workspace: data.workspace };
+  } catch (err) {
+    logClientSync("refresh.http.fail", {
+      message: err instanceof Error ? err.message : "fetch failed",
+      meta: { brand },
+    });
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "fetch failed",
+    };
+  }
+}
+
 export async function pushWorkspace(workspace: WorkspaceState): Promise<{
   ok: boolean;
   workspace?: SharedWorkspaceState;

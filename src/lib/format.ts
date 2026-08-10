@@ -73,3 +73,33 @@ export function formatOrderNumberShort(orderNumber: string): string {
   const last4 = digits.slice(-4).padStart(4, "0");
   return `CSH-${last4}`;
 }
+
+/** Префикс + последние 4 цифры из полного номера (для UI). */
+export function splitOrderNumberDisplay(orderNumber: string): {
+  prefix: string;
+  last4: string;
+} {
+  const trimmed = orderNumber.trim();
+  if (!trimmed) return { prefix: "", last4: "" };
+
+  let digitsFound = 0;
+  let splitAt = trimmed.length;
+  for (let i = trimmed.length - 1; i >= 0; i -= 1) {
+    if (/\d/.test(trimmed[i]!)) {
+      digitsFound += 1;
+      if (digitsFound === 4) {
+        splitAt = i;
+        break;
+      }
+    }
+  }
+
+  if (digitsFound < 4) {
+    return { prefix: "", last4: trimmed };
+  }
+
+  return {
+    prefix: trimmed.slice(0, splitAt),
+    last4: trimmed.slice(splitAt),
+  };
+}

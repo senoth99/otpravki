@@ -14,13 +14,8 @@ interface SessionProgress {
 }
 
 export function extractSessionProgress(state: SharedWorkspaceState): SessionProgress {
+  // Прогресс сборки не сохраняем — при обновлении всегда с нуля.
   const assembly: SessionProgress["assembly"] = {};
-  for (const item of state.assemblyItems) {
-    assembly[item.id] = {
-      collectedCount: item.collectedCount,
-      ...(item.collectedCount > 0 && item.collectedAt ? { collectedAt: item.collectedAt } : {}),
-    };
-  }
 
   const scans: SessionProgress["scans"] = {};
   for (const order of state.orders) {
@@ -59,22 +54,18 @@ export function applySessionProgress(
   state: SharedWorkspaceState,
   progress: SessionProgress | null,
 ): SharedWorkspaceState {
-  if (!progress) return state;
+  // Сборка всегда с нуля — collected не восстанавливаем.
+  const assemblyItems = state.assemblyItems.map((item) => ({
+    ...item,
+    collectedCount: 0,
+    collectedAt: undefined,
+  }));
 
-  const assembly = progress.assembly ?? {};
+  if (!progress) {
+    return { ...state, assemblyItems };
+  }
+
   const scans = progress.scans ?? {};
-
-  const assemblyItems = state.assemblyItems.map((item) => {
-    const saved = assembly[item.id];
-    if (!saved) {
-      return { ...item, collectedCount: 0, collectedAt: undefined };
-    }
-    return {
-      ...item,
-      collectedCount: Math.min(saved.collectedCount, item.quantity),
-      collectedAt: saved.collectedCount > 0 ? saved.collectedAt : undefined,
-    };
-  });
 
   const orders = state.orders.map((order) => {
     const savedLines = scans[order.id];

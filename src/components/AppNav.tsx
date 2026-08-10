@@ -30,7 +30,7 @@ export function AppNav() {
     <nav className="border-b border-gray-100 bg-white">
       <div className="mx-auto flex max-w-3xl items-center gap-1 px-3 py-2">
         <NavLink href="/otpravki">Отправки</NavLink>
-        <NavLink href="/sklad">Склад</NavLink>
+        {/* Склад временно скрыт */}
       </div>
     </nav>
   );

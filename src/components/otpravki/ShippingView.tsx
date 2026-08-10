@@ -2,32 +2,26 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHardwareScanner } from "@/hooks/useHardwareScanner";
-import { buildAssemblyAllocation, getOrderAssemblyStatus } from "@/lib/assembly-status";
+import { buildAssemblyAllocation } from "@/lib/assembly-status";
 import { resolveScanFromBarcode } from "@/lib/barcode-product";
-import { formatMoscowDate, formatOrderNumberShort } from "@/lib/format";
+import { formatMoscowDate } from "@/lib/format";
 import { getOrderDisplayStatus } from "@/lib/order-status";
 import { findFirstAutoOrderIndex } from "@/lib/order-sort";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import { printOrderBarcode } from "@/lib/print-barcode";
+import { resolveOrderUrgency, URGENCY_LABELS } from "@/lib/urgency";
 import { BloggerBadge } from "./BloggerBadge";
 import type { ApiProduct, AssemblyItem, ShippingOrder } from "@/types/shipping";
-import { AssemblyLockedCard } from "./AssemblyLockedCard";
 import { AutoModeButton } from "./AutoModeButton";
 import { AutoModeCountdown } from "./AutoModeCountdown";
 import { BarcodePrintModal } from "./BarcodePrintModal";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { OrderComments } from "./OrderComments";
 import { OrderItemRow } from "./OrderItemRow";
+import { OrderNumberDisplay } from "./OrderNumberDisplay";
 import { OrderPicker } from "./OrderPicker";
 import { ScanErrorPopup } from "./ScanErrorPopup";
 import { ShippedOrderCard } from "./ShippedOrderCard";
-
-const URGENCY_LABELS: Record<string, { label: string; className: string }> = {
-  critical: { label: "Срочно", className: "bg-red-100 text-red-700" },
-  high: { label: "Высокий", className: "bg-orange-100 text-orange-700" },
-  normal: { label: "Обычный", className: "bg-blue-100 text-blue-700" },
-  low: { label: "Низкий", className: "bg-gray-100 text-gray-600" },
-};
 
 interface CountdownState {
   orderNumber: string;
@@ -38,24 +32,43 @@ interface CountdownState {
 interface ShippingViewProps {
   orders: ShippingOrder[];
   assemblyItems: AssemblyItem[];
+  selectedBrand: string;
+  brandOptions: readonly string[];
+  onBrandChange: (brand: string) => void;
   onOrdersChange: (next: ShippingOrder[] | ((prev: ShippingOrder[]) => ShippingOrder[])) => void;
+}
+
+function getOrderStoreBrand(order: ShippingOrder): string {
+  return order.storeBrand?.trim() || "CASHER";
 }
 
 function findNextActiveOrderId(
   orders: ShippingOrder[],
   fromId: string | null,
+  brand: string,
 ): string | null {
   const from = fromId ? orders.findIndex((order) => order.id === fromId) : -1;
   for (let i = from + 1; i < orders.length; i++) {
-    if (!orders[i].barcodePrinted) return orders[i].id;
+    if (!orders[i].barcodePrinted && getOrderStoreBrand(orders[i]) === brand) {
+      return orders[i].id;
+    }
   }
   for (let i = 0; i < (from >= 0 ? from : orders.length); i++) {
-    if (!orders[i].barcodePrinted) return orders[i].id;
+    if (!orders[i].barcodePrinted && getOrderStoreBrand(orders[i]) === brand) {
+      return orders[i].id;
+    }
   }
   return null;
 }
 
-export function ShippingView({ orders, assemblyItems, onOrdersChange }: ShippingViewProps) {
+export function ShippingView({
+  orders,
+  assemblyItems,
+  selectedBrand,
+  brandOptions,
+  onBrandChange,
+  onOrdersChange,
+}: ShippingViewProps) {
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(
     () => orders[0]?.id ?? null,
   );
@@ -94,23 +107,19 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     [orders, assemblyItems, assemblyAllocation],
   );
 
-  const assemblyStatuses = useMemo(
-    () => orders.map((order) => getOrderAssemblyStatus(order, assemblyItems, assemblyAllocation)),
-    [orders, assemblyItems, assemblyAllocation],
-  );
-
   const activeIndices = useMemo(
-    () => orders.map((_, index) => index).filter((index) => !orders[index].barcodePrinted),
-    [orders],
+    () =>
+      orders
+        .map((_, index) => index)
+        .filter(
+          (index) =>
+            !orders[index].barcodePrinted &&
+            getOrderStoreBrand(orders[index]) === selectedBrand,
+        ),
+    [orders, selectedBrand],
   );
 
-  const shippableIndices = useMemo(
-    () =>
-      activeIndices.filter(
-        (index) => assemblyAllocation.readyByOrderId.get(orders[index].id) === true,
-      ),
-    [activeIndices, assemblyAllocation, orders],
-  );
+  const shippableIndices = activeIndices;
 
   const shippedOrders = useMemo(
     () =>
@@ -128,15 +137,13 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     ? orders.find((order) => order.id === viewingShippedId) ?? null
     : null;
   const displayOrder = viewingShippedOrder ?? currentOrder;
-  const assemblyStatus = assemblyStatuses[currentIndex];
-  const isAssemblyReady = assemblyStatus?.ready ?? false;
   const isShipped = displayOrder?.barcodePrinted ?? false;
   const isViewingArchive = viewingShippedOrder !== null;
 
   const allScanned =
     displayOrder?.items.every((i) => i.scannedCount >= i.quantity) ?? false;
-  const urgency = displayOrder ? URGENCY_LABELS[displayOrder.urgency] : null;
-  const canScan = isAssemblyReady && !isShipped && !countdown && !isViewingArchive;
+  const urgency = displayOrder ? URGENCY_LABELS[resolveOrderUrgency(displayOrder)] : null;
+  const canScan = !isShipped && !countdown && !isViewingArchive;
 
   const exitAutoMode = useCallback(() => {
     setAutoMode(false);
@@ -152,9 +159,11 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     setManualMode(false);
     setScannerOpen(false);
     setAutoMode(true);
-    const next = findFirstAutoOrderIndex(orders, orderStatuses);
-    if (next !== null) setCurrentOrderId(orders[next].id);
-  }, [autoMode, exitAutoMode, orders, orderStatuses]);
+    const filteredOrders = activeIndices.map((index) => orders[index]);
+    const filteredStatuses = activeIndices.map((index) => orderStatuses[index]);
+    const next = findFirstAutoOrderIndex(filteredOrders, filteredStatuses);
+    if (next !== null) setCurrentOrderId(filteredOrders[next].id);
+  }, [activeIndices, autoMode, exitAutoMode, orderStatuses, orders]);
 
   const validateScan = useCallback(
     (code: string) => {
@@ -239,10 +248,10 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
 
   const goToNextOrder = useCallback(
     (updatedOrders: ShippingOrder[], fromOrderId?: string | null) => {
-      const nextId = findNextActiveOrderId(updatedOrders, fromOrderId ?? currentOrderId);
+      const nextId = findNextActiveOrderId(updatedOrders, fromOrderId ?? currentOrderId, selectedBrand);
       if (nextId) setCurrentOrderId(nextId);
     },
-    [currentOrderId],
+    [currentOrderId, selectedBrand],
   );
 
   const handlePrinted = () => {
@@ -272,11 +281,13 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
       return;
     }
 
-    const next = findFirstAutoOrderIndex(orders, orderStatuses);
-    if (next !== null && orders[next].id !== currentOrderId) {
-      setCurrentOrderId(orders[next].id);
+    const filteredOrders = activeIndices.map((index) => orders[index]);
+    const filteredStatuses = activeIndices.map((index) => orderStatuses[index]);
+    const next = findFirstAutoOrderIndex(filteredOrders, filteredStatuses);
+    if (next !== null && filteredOrders[next].id !== currentOrderId) {
+      setCurrentOrderId(filteredOrders[next].id);
     }
-  }, [autoMode, countdown, currentOrderId, currentOrder, currentIndex, orderStatuses, orders]);
+  }, [activeIndices, autoMode, countdown, currentOrder, currentIndex, currentOrderId, orderStatuses, orders]);
 
   useEffect(() => {
     if (!autoMode || !allScanned || !canScan || countdown || !currentOrder) return;
@@ -308,7 +319,14 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
       const nextStatuses = updatedOrders.map((order) =>
         getOrderDisplayStatus(order, assemblyItems, nextAllocation),
       );
-      const hasNext = findFirstAutoOrderIndex(updatedOrders, nextStatuses) !== null;
+      const nextVisibleOrders = updatedOrders.filter(
+        (order) => !order.barcodePrinted && getOrderStoreBrand(order) === selectedBrand,
+      );
+      const nextVisibleStatuses = nextVisibleOrders.map((order) => {
+        const sourceIndex = updatedOrders.findIndex((entry) => entry.id === order.id);
+        return nextStatuses[sourceIndex];
+      });
+      const hasNext = findFirstAutoOrderIndex(nextVisibleOrders, nextVisibleStatuses) !== null;
 
       onOrdersChange(updatedOrders);
       setViewingShippedId(currentOrder.id);
@@ -325,6 +343,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     currentOrderId,
     onOrdersChange,
     orders,
+    selectedBrand,
   ]);
 
   const retryAutoPrint = useCallback(() => {
@@ -340,8 +359,10 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
       setCountdown(null);
       setViewingShippedId(null);
       autoHandledRef.current = null;
-      const next = findFirstAutoOrderIndex(orders, orderStatuses);
-      if (next !== null) setCurrentOrderId(orders[next].id);
+      const filteredOrders = activeIndices.map((index) => orders[index]);
+      const filteredStatuses = activeIndices.map((index) => orderStatuses[index]);
+      const next = findFirstAutoOrderIndex(filteredOrders, filteredStatuses);
+      if (next !== null) setCurrentOrderId(filteredOrders[next].id);
       return;
     }
 
@@ -350,7 +371,7 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [countdown, orders, orderStatuses]);
+  }, [activeIndices, countdown, orderStatuses, orders]);
 
   useEffect(() => {
     if (viewingShippedId) return;
@@ -359,6 +380,15 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
       if (nextId) setCurrentOrderId(nextId);
     }
   }, [orders, currentOrderId, currentOrder, viewingShippedId]);
+
+  useEffect(() => {
+    if (brandOptions.length === 0) {
+      return;
+    }
+    if (!brandOptions.includes(selectedBrand)) {
+      onBrandChange(brandOptions[0]);
+    }
+  }, [brandOptions, onBrandChange, selectedBrand]);
 
   useEffect(() => {
     if (viewingShippedId) return;
@@ -370,7 +400,6 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
   const hasActiveOrders = activeIndices.length > 0;
   const hasShippableOrders = shippableIndices.length > 0;
   const hasShippedOrders = shippedOrders.length > 0;
-  const awaitingAssemblyCount = activeIndices.length - shippableIndices.length;
 
   if (!hasActiveOrders && !hasShippedOrders) {
     return (
@@ -387,11 +416,9 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
 
   const totalUnits = displayOrder?.items.reduce((sum, i) => sum + i.quantity, 0) ?? 0;
   const scannedCount = displayOrder?.items.reduce((sum, i) => sum + i.scannedCount, 0) ?? 0;
-  const hasNextUnshipped = orders.some(
-    (order) => order.id !== currentOrderId && !order.barcodePrinted,
-  );
+  const hasNextUnshipped = activeIndices.some((index) => orders[index].id !== currentOrderId);
 
-  const showActions = hasShippableOrders && isAssemblyReady && !isShipped && !autoMode && !isViewingArchive;
+  const showActions = hasShippableOrders && !isShipped && !autoMode && !isViewingArchive;
 
   const handleSelectActive = (index: number) => {
     setViewingShippedId(null);
@@ -441,17 +468,19 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
-                      {formatOrderNumberShort(displayOrder.orderNumber)}
+                    <h2 className="m-0 text-base font-semibold leading-none text-gray-900 sm:text-lg">
+                      <OrderNumberDisplay orderNumber={displayOrder.orderNumber} />
                     </h2>
                     {orderIsBlogger(displayOrder) && <BloggerBadge />}
                     {urgency && (
-                      <span className={`rounded-lg px-2 py-0.5 text-xs font-medium ${urgency.className}`}>
+                      <span
+                        className={`inline-flex items-center rounded-lg px-2 py-0.5 text-xs font-medium leading-none ${urgency.className}`}
+                      >
                         {urgency.label}
                       </span>
                     )}
-                    {allScanned && isAssemblyReady && (
-                      <span className="rounded-lg bg-gray-900 px-2 py-0.5 text-xs font-medium text-white">
+                    {allScanned && (
+                      <span className="inline-flex items-center rounded-lg bg-gray-900 px-2 py-0.5 text-xs font-medium leading-none text-white">
                         Собран
                       </span>
                     )}
@@ -468,42 +497,25 @@ export function ShippingView({ orders, assemblyItems, onOrdersChange }: Shipping
                   <p className="text-sm font-medium text-gray-700">
                     {pickerPosition} / {pickerTotal}
                   </p>
-                  {isAssemblyReady && (
-                    <p className="text-xs tabular-nums text-gray-500">
-                      Сканировано: {scannedCount} / {totalUnits}
-                    </p>
-                  )}
+                  <p className="text-xs tabular-nums text-gray-500">
+                    Сканировано: {scannedCount} / {totalUnits}
+                  </p>
                 </div>
               </div>
 
               <OrderComments order={displayOrder} />
 
-              {hasActiveOrders && !hasShippableOrders && !isViewingArchive && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center sm:px-5">
-                  <p className="text-sm font-medium text-amber-900">Сначала соберите заказы</p>
-                  <p className="mt-1 text-xs text-amber-800">
-                    {awaitingAssemblyCount > 0
-                      ? `${awaitingAssemblyCount} заказ(ов) ждут сборки на вкладке «Сборка»`
-                      : "Отметьте все позиции на вкладке «Сборка»"}
-                  </p>
-                </div>
-              )}
-
-              {!isAssemblyReady && !isViewingArchive ? (
-                <AssemblyLockedCard missing={assemblyStatus?.missing ?? []} />
-              ) : (
-                <div className="space-y-2">
-                  {displayOrder.items.map((item) => (
-                    <OrderItemRow
-                      key={item.id}
-                      item={item}
-                      manual={manualMode && !autoMode}
-                      onIncrement={() => updateItemCount(item.id, 1)}
-                      onDecrement={() => updateItemCount(item.id, -1)}
-                    />
-                  ))}
-                </div>
-              )}
+              <div className="space-y-2">
+                {displayOrder.items.map((item) => (
+                  <OrderItemRow
+                    key={item.id}
+                    item={item}
+                    manual={manualMode && !autoMode}
+                    onIncrement={() => updateItemCount(item.id, 1)}
+                    onDecrement={() => updateItemCount(item.id, -1)}
+                  />
+                ))}
+              </div>
             </div>
           )}
 

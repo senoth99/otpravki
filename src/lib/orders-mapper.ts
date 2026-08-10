@@ -2,18 +2,17 @@ import { sortAssemblyItemsByUrgency } from "@/lib/assembly-sort";
 import { isBloggerOrder } from "@/lib/blogger-order";
 import { getImageUrl } from "@/lib/api";
 import { addMoscowCalendarDays, formatMoscowDate, formatSize, isMoscowToday } from "@/lib/format";
-import { URGENCY_WEIGHT } from "@/lib/urgency";
-import type { ApiUnshippedOrder } from "@/types/orders-api";
+import { deriveUrgency, resolveOrderUrgency, URGENCY_WEIGHT } from "@/lib/urgency";
+import type { ApiUnshippedOrderWithBrand } from "@/lib/server/orders-api";
 import type {
   ApiProduct,
   AssemblyItem,
-  OrderUrgency,
   ShippingOrder,
   ShippingOrderItem,
 } from "@/types/shipping";
 
-function assemblyKey(productSlug: string, size: string, isBlogger: boolean) {
-  const base = `${productSlug}-${size.toLowerCase()}`;
+function assemblyKey(productSlug: string, size: string, isBlogger: boolean, storeBrand?: string) {
+  const base = `${storeBrand ?? "brandless"}-${productSlug}-${size.toLowerCase()}`;
   return isBlogger ? `${base}-blogger` : base;
 }
 
@@ -26,16 +25,6 @@ function normalizeCity(city: string | undefined | null): string | undefined {
 function normalizeComment(comment: string | undefined | null): string | undefined {
   const trimmed = comment?.trim();
   return trimmed || undefined;
-}
-
-function deriveUrgency(createdAt: string, allInStock: boolean): OrderUrgency {
-  const ageHours = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60);
-
-  if (allInStock && ageHours >= 48) return "critical";
-  if (allInStock && ageHours >= 24) return "high";
-  if (ageHours >= 72) return "high";
-  if (ageHours >= 24) return "normal";
-  return "low";
 }
 
 function formatDeadline(createdAt: string): string {
@@ -66,13 +55,13 @@ function findProduct(index: Map<string, ApiProduct>, slug: string): ApiProduct |
 }
 
 /** Заказ можно отправить разом — всё на складе */
-function isFullyStockedOrder(order: ApiUnshippedOrder): boolean {
+function isFullyStockedOrder(order: ApiUnshippedOrderWithBrand): boolean {
   if (!order.allInStockAtWarehouse) return false;
   return order.items.length > 0 && order.items.every((line) => line.inStockAtWarehouse);
 }
 
 export function mapUnshippedOrdersToWorkspace(
-  apiOrders: ApiUnshippedOrder[],
+  apiOrders: ApiUnshippedOrderWithBrand[],
   products: ApiProduct[],
 ): { assemblyItems: AssemblyItem[]; orders: ShippingOrder[] } {
   const productIndex = buildProductIndex(products);
@@ -94,7 +83,7 @@ export function mapUnshippedOrdersToWorkspace(
       const sizeId = resolveSizeId(product, line.size);
       if (sizeId === null) continue;
 
-      const key = assemblyKey(productId, line.size, isBlogger);
+      const key = assemblyKey(productId, line.size, isBlogger, order.storeBrand);
       const imagePath = product?.images[0] ?? "";
 
       warehouseCapByKey.set(
@@ -112,7 +101,7 @@ export function mapUnshippedOrdersToWorkspace(
           productName: line.productName,
           size: formatSize(line.size),
           sizeId,
-          brand: product?.brand || "CASHER",
+          brand: order.storeBrand ?? product?.brand ?? "CASHER",
           imageUrl: imagePath ? getImageUrl(imagePath) : "",
           barcodeId: String(sizeId),
           quantity: line.quantity,
@@ -122,12 +111,12 @@ export function mapUnshippedOrdersToWorkspace(
       }
 
       shippingItems.push({
-        id: String(line.id),
+        id: `${order.storeBrand ?? "CASHER"}:${line.id}`,
         productId,
         productName: line.productName,
         size: formatSize(line.size),
         sizeId,
-        brand: product?.brand || "CASHER",
+        brand: order.storeBrand ?? product?.brand ?? "CASHER",
         imageUrl: imagePath ? getImageUrl(imagePath) : "",
         barcodeId: String(sizeId),
         quantity: line.quantity,
@@ -142,12 +131,14 @@ export function mapUnshippedOrdersToWorkspace(
       : undefined;
 
     orders.push({
-      id: String(order.id),
+      id: `${(order.storeBrand ?? "CASHER").toLowerCase()}:${order.remoteOrderId}`,
+      remoteOrderId: order.remoteOrderId,
+      storeBrand: order.storeBrand,
       orderNumber: order.orderNumber,
       isBlogger,
       customerName: order.fullName,
       createdAt: order.createdAt,
-      urgency: deriveUrgency(order.createdAt, true),
+      urgency: deriveUrgency(order.createdAt),
       deadline: formatDeadline(order.createdAt),
       items: shippingItems,
       barcodeUrl: order.barcodeUrl,
@@ -170,7 +161,8 @@ export function mapUnshippedOrdersToWorkspace(
   const assemblyItems = sortAssemblyItemsByUrgency([...assemblyMap.values()], orders);
 
   orders.sort((a, b) => {
-    const urgencyDiff = URGENCY_WEIGHT[a.urgency] - URGENCY_WEIGHT[b.urgency];
+    const urgencyDiff =
+      URGENCY_WEIGHT[resolveOrderUrgency(a)] - URGENCY_WEIGHT[resolveOrderUrgency(b)];
     if (urgencyDiff !== 0) return urgencyDiff;
     return a.orderNumber.localeCompare(b.orderNumber);
   });

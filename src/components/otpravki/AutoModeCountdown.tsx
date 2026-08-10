@@ -1,6 +1,6 @@
 "use client";
 
-import { formatOrderNumberShort } from "@/lib/format";
+import { OrderNumberDisplay } from "./OrderNumberDisplay";
 
 interface AutoModeCountdownProps {
   orderNumber: string;
@@ -23,7 +23,7 @@ export function AutoModeCountdown({
         <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Auto Mode</p>
         <p className="mt-4 text-sm text-gray-300">Заказ отправлен</p>
         <p className="mt-1 text-2xl font-bold text-white">
-          {formatOrderNumberShort(orderNumber)}
+          <OrderNumberDisplay orderNumber={orderNumber} className="justify-center" />
         </p>
 
         <div className="relative mt-10 flex h-32 w-32 items-center justify-center">

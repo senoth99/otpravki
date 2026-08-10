@@ -1,14 +1,17 @@
 import { mapUnshippedOrdersToWorkspace } from "@/lib/orders-mapper";
 import { formatApiFetchError } from "@/lib/server/api-fetch-error";
-import { fetchUnshippedOrders } from "@/lib/server/orders-api";
+import { fetchUnshippedOrders, fetchUnshippedOrdersForBrand } from "@/lib/server/orders-api";
 import { externalFetch } from "@/lib/server/external-fetch";
-import { syncProductImages } from "@/lib/server/image-cache";
 import { logSync } from "@/lib/server/sync-log";
-import { getSharedWorkspace, replaceWorkspaceFromApi } from "@/lib/server/workspace-store";
+import {
+  getSharedWorkspace,
+  replaceWorkspaceFromApi,
+  replaceWorkspaceFromApiForBrand,
+} from "@/lib/server/workspace-store";
 import type { ApiProduct } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
 
-const PRODUCTS_API = process.env.PRODUCTS_API_URL ?? "https://api.cashercollection.com";
+const PRODUCTS_API = process.env.PRODUCTS_API_URL ?? "https://api.amarix.ru";
 const PRODUCTS_URL = `${PRODUCTS_API}/products`;
 
 export interface WorkspaceApiSyncResult {
@@ -27,13 +30,11 @@ async function fetchProductsLive(): Promise<ApiProduct[]> {
   }
 
   if (!res.ok) {
-    throw new Error(`Товары недоступны: HTTP ${res.status}. Нужен интернет до api.cashercollection.com`);
+    throw new Error(`Товары недоступны: HTTP ${res.status}. Нужен интернет до api.amarix.ru`);
   }
 
   const data: ApiProduct[] = await res.json();
-  const products = data.filter((product) => product.images.length > 0);
-  void syncProductImages(products);
-  return products;
+  return data.filter((product) => product.images.length > 0);
 }
 
 export async function fetchAndSyncWorkspaceFromApi(): Promise<WorkspaceApiSyncResult> {
@@ -54,12 +55,48 @@ export async function fetchAndSyncWorkspaceFromApi(): Promise<WorkspaceApiSyncRe
 
   const fresh = {
     ...mapUnshippedOrdersToWorkspace(apiOrders, products),
-    apiOrderIds: apiOrders.map((order) => String(order.id)),
+    apiOrderIds: apiOrders.map(
+      (order) => `${(order.storeBrand ?? "CASHER").toLowerCase()}:${order.remoteOrderId}`,
+    ),
   };
 
   const workspace = await replaceWorkspaceFromApi(fresh);
 
   void logSync("api.sync.ok", {
+    apiOrders: apiOrders.length,
+    mappedOrders: fresh.orders.length,
+    activeOrders: workspace.orders.length,
+    assembly: fresh.assemblyItems.length,
+    revision: workspace.revision,
+  });
+
+  return {
+    workspace,
+    ordersCount: workspace.orders.length,
+    assemblyCount: workspace.assemblyItems.length,
+    apiOrdersCount: apiOrders.length,
+  };
+}
+
+export async function fetchAndSyncWorkspaceFromApiForBrand(
+  brand: string,
+): Promise<WorkspaceApiSyncResult> {
+  const [products, apiOrders] = await Promise.all([
+    fetchProductsLive(),
+    fetchUnshippedOrdersForBrand(brand),
+  ]);
+
+  const fresh = {
+    ...mapUnshippedOrdersToWorkspace(apiOrders, products),
+    apiOrderIds: apiOrders.map(
+      (order) => `${(order.storeBrand ?? "CASHER").toLowerCase()}:${order.remoteOrderId}`,
+    ),
+  };
+
+  const workspace = await replaceWorkspaceFromApiForBrand(brand, fresh);
+
+  void logSync("api.sync.brand.ok", {
+    brand,
     apiOrders: apiOrders.length,
     mappedOrders: fresh.orders.length,
     activeOrders: workspace.orders.length,

@@ -2,6 +2,10 @@ import { mergeShippedArchives, unionPermanentArchive } from "@/lib/shipped-archi
 import type { AssemblyItem, ShippingOrder, ShippingOrderItem } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
 
+function brandLabel(value?: string): string {
+  return value?.trim() || "CASHER";
+}
+
 function mergeAssemblyProgress(_prev: AssemblyItem, fresh: AssemblyItem): AssemblyItem {
   // Сборка восстанавливается только из session-progress, не из памяти/API.
   return fresh;
@@ -86,5 +90,46 @@ export function mergeFreshOrdersData(
     shippedArchive,
     apiOrderIds: fresh.apiOrderIds ?? fresh.orders.map((order) => order.id),
     updatedAt: Date.now(),
+  };
+}
+
+/** Свежие данные одного бренда + остальные бренды из текущей сессии */
+export function mergeFreshOrdersDataForBrand(
+  existing: SharedWorkspaceState,
+  brand: string,
+  fresh: {
+    assemblyItems: AssemblyItem[];
+    orders: ShippingOrder[];
+    apiOrderIds?: string[];
+  },
+): SharedWorkspaceState {
+  const brandNorm = brand.trim();
+  const matchesOrder = (order: ShippingOrder) => brandLabel(order.storeBrand) === brandNorm;
+  const matchesAssembly = (item: AssemblyItem) => brandLabel(item.brand) === brandNorm;
+  const brandPrefix = `${brandNorm.toLowerCase()}:`;
+
+  const brandExisting: SharedWorkspaceState = {
+    ...existing,
+    orders: existing.orders.filter(matchesOrder),
+    assemblyItems: existing.assemblyItems.filter(matchesAssembly),
+    apiOrderIds: (existing.apiOrderIds ?? []).filter((id) => id.startsWith(brandPrefix)),
+  };
+
+  const brandMerged = mergeFreshOrdersData(brandExisting, fresh);
+
+  return {
+    ...brandMerged,
+    orders: [
+      ...existing.orders.filter((order) => !matchesOrder(order)),
+      ...brandMerged.orders,
+    ],
+    assemblyItems: [
+      ...existing.assemblyItems.filter((item) => !matchesAssembly(item)),
+      ...brandMerged.assemblyItems,
+    ],
+    apiOrderIds: [
+      ...(existing.apiOrderIds ?? []).filter((id) => !id.startsWith(brandPrefix)),
+      ...(brandMerged.apiOrderIds ?? []),
+    ],
   };
 }

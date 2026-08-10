@@ -10,7 +10,7 @@ import {
   loadSessionProgress,
   saveSessionProgress,
 } from "@/lib/server/session-progress-store";
-import { mergeFreshOrdersData } from "@/lib/workspace-api-merge";
+import { mergeFreshOrdersData, mergeFreshOrdersDataForBrand } from "@/lib/workspace-api-merge";
 import { logSync } from "@/lib/server/sync-log";
 import { appendSyncEvent, forwardToRemote } from "@/lib/server/sync-store";
 
@@ -19,6 +19,21 @@ type WorkspaceListener = (state: SharedWorkspaceState) => void;
 const listeners = new Set<WorkspaceListener>();
 
 let memoryState: SharedWorkspaceState | null = null;
+
+function stripAssemblyCollected(items: AssemblyItem[]): AssemblyItem[] {
+  return items.map((item) => ({
+    ...item,
+    collectedCount: 0,
+    collectedAt: undefined,
+  }));
+}
+
+function withoutAssemblyProgress(state: SharedWorkspaceState): SharedWorkspaceState {
+  return {
+    ...state,
+    assemblyItems: stripAssemblyCollected(state.assemblyItems),
+  };
+}
 
 function broadcast(state: SharedWorkspaceState) {
   for (const listener of listeners) {
@@ -85,9 +100,9 @@ async function applySessionProgressToMemoryInner(
   };
 
   await saveSessionProgress(next);
-  memoryState = next;
-  broadcast(next);
-  return next;
+  memoryState = withoutAssemblyProgress(next);
+  broadcast(memoryState);
+  return memoryState;
 }
 
 export function applySessionProgressToMemory(
@@ -132,9 +147,9 @@ async function resetSharedWorkspaceInner(
   state = applySessionProgress(state, sessionProgress);
 
   await saveSessionProgress(state);
-  memoryState = state;
-  broadcast(state);
-  return state;
+  memoryState = withoutAssemblyProgress(state);
+  broadcast(memoryState);
+  return memoryState;
 }
 
 export function resetSharedWorkspace(
@@ -161,15 +176,17 @@ async function replaceSessionArchiveInner(shippedArchive: ShippingOrder[]): Prom
 
   const assemblyItems = reconcileAssemblyChanges(prevOrders, nextOrders, memoryState.assemblyItems);
 
-  memoryState = normalizeWorkspaceState({
-    ...memoryState,
-    orders: nextOrders,
-    assemblyItems,
-    shippedArchive,
-    revision: memoryState.revision + 1,
-    updatedAt: Date.now(),
-    updatedBy: "archive-sync",
-  });
+  memoryState = withoutAssemblyProgress(
+    normalizeWorkspaceState({
+      ...memoryState,
+      orders: nextOrders,
+      assemblyItems,
+      shippedArchive,
+      revision: memoryState.revision + 1,
+      updatedAt: Date.now(),
+      updatedBy: "archive-sync",
+    }),
+  );
   await saveSessionProgress(memoryState);
   broadcast(memoryState);
 }
@@ -221,13 +238,60 @@ async function replaceWorkspaceFromApiInner(fresh: WorkspaceData): Promise<Share
   };
 
   await saveSessionProgress(next);
-  memoryState = next;
-  broadcast(next);
-  return next;
+  memoryState = withoutAssemblyProgress(next);
+  broadcast(memoryState);
+  return memoryState;
 }
 
 export function replaceWorkspaceFromApi(fresh: WorkspaceData): Promise<SharedWorkspaceState> {
   return enqueueWorkspaceUpdate(() => replaceWorkspaceFromApiInner(fresh));
+}
+
+async function replaceWorkspaceFromApiForBrandInner(
+  brand: string,
+  fresh: WorkspaceData,
+): Promise<SharedWorkspaceState> {
+  let shippedArchive = memoryState?.shippedArchive ?? [];
+  try {
+    shippedArchive = await mergePersistedArchive(shippedArchive);
+  } catch {
+    // архив на диске недоступен — продолжаем с оперативным состоянием
+  }
+  const sessionProgress = await loadSessionProgress();
+
+  const mergeBase: SharedWorkspaceState = memoryState ?? {
+    version: 1,
+    revision: 0,
+    assemblyItems: [],
+    orders: [],
+    shippedArchive,
+    apiOrderIds: [],
+    updatedAt: 0,
+    updatedBy: "server",
+  };
+
+  let next = normalizeWorkspaceState(
+    mergeFreshOrdersDataForBrand({ ...mergeBase, shippedArchive }, brand, fresh),
+  );
+  next = applySessionProgress(next, sessionProgress);
+  next = {
+    ...next,
+    revision: (memoryState?.revision ?? 0) + 1,
+    updatedAt: Date.now(),
+    updatedBy: "api-sync",
+  };
+
+  await saveSessionProgress(next);
+  memoryState = withoutAssemblyProgress(next);
+  broadcast(memoryState);
+  return memoryState;
+}
+
+export function replaceWorkspaceFromApiForBrand(
+  brand: string,
+  fresh: WorkspaceData,
+): Promise<SharedWorkspaceState> {
+  return enqueueWorkspaceUpdate(() => replaceWorkspaceFromApiForBrandInner(brand, fresh));
 }
 
 export async function initSharedWorkspace(
@@ -273,18 +337,18 @@ async function applyWorkspaceUpdateInner(
   next.shippedArchive = next.shippedArchive.filter((order) => !activeIds.has(order.id));
 
   await saveSessionProgress(next);
-  memoryState = next;
-  broadcast(next);
+  memoryState = withoutAssemblyProgress(next);
+  broadcast(memoryState);
 
   void logSync("workspace.update", {
-    revision: next.revision,
+    revision: memoryState.revision,
     updatedBy: clientId,
-    orders: next.orders.length,
-    assembly: next.assemblyItems.length,
+    orders: memoryState.orders.length,
+    assembly: memoryState.assemblyItems.length,
   });
-  void appendSyncEvent(next).then(() => forwardToRemote(next));
+  void appendSyncEvent(memoryState).then(() => forwardToRemote(memoryState!));
 
-  return next;
+  return memoryState;
 }
 
 export function applyWorkspaceUpdate(

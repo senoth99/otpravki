@@ -7,9 +7,10 @@ import {
   canUnshipFromArchive,
   getArchiveDeliveryStatus,
 } from "@/lib/archive-status";
-import { formatMoscowDateTime, formatOrderNumberShort, formatSize } from "@/lib/format";
+import { formatMoscowDateTime, formatSize } from "@/lib/format";
 import { mergeShippedArchives } from "@/lib/shipped-archive";
 import type { ShippingOrder } from "@/types/shipping";
+import { OrderNumberDisplay } from "./OrderNumberDisplay";
 import { ProductImage } from "./ProductImage";
 
 interface ArchiveViewProps {
@@ -58,7 +59,7 @@ export function ArchiveView({ orders, shippedArchive, apiOrderIds, onUnship }: A
   const handleUnship = (order: ShippingOrder) => {
     if (!onUnship) return;
 
-    const label = formatOrderNumberShort(order.orderNumber);
+    const label = order.orderNumber;
     if (
       !window.confirm(
         `Отменить отправку заказа ${label}? Он вернётся как новый — без сборки и без сканов.`,
@@ -111,7 +112,7 @@ export function ArchiveView({ orders, shippedArchive, apiOrderIds, onUnship }: A
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-semibold text-gray-900">
-                      {formatOrderNumberShort(order.orderNumber)}
+                      <OrderNumberDisplay orderNumber={order.orderNumber} />
                     </p>
                     <span
                       className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-[11px] font-medium ${styles.badge}`}
@@ -155,7 +156,7 @@ export function ArchiveView({ orders, shippedArchive, apiOrderIds, onUnship }: A
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-xs font-medium text-gray-800">{item.productName}</p>
-                      <p className="text-[11px] text-gray-500">{item.brand} · {formatSize(item.size)}</p>
+                      <p className="text-[11px] text-gray-500">{formatSize(item.size)}</p>
                     </div>
                   </div>
                 ))}

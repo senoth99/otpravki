@@ -12,9 +12,17 @@ import {
   createWorkspace,
   logClientSync,
   pushWorkspace,
+  refreshWorkspaceFromApi,
   subscribeWorkspaceStream,
 } from "@/lib/workspace";
 
+function stripAssemblyCollected(items: AssemblyItem[]): AssemblyItem[] {
+  return items.map((item) => ({
+    ...item,
+    collectedCount: 0,
+    collectedAt: undefined,
+  }));
+}
 interface UseWorkspaceOptions {
   initialAssembly: AssemblyItem[];
   initialOrders: ShippingOrder[];
@@ -40,19 +48,34 @@ export function useWorkspace({
   const [shippedArchive, setShippedArchive] = useState(shippedArchiveRef.current);
   const [apiOrderIds, setApiOrderIds] = useState(initialApiOrderIds);
   const [isServerReachable, setIsServerReachable] = useState(true);
-  const [isInternetOnline, setIsInternetOnline] = useState(
-    () => typeof navigator !== "undefined" && navigator.onLine,
-  );
+  // Always start online so SSR HTML matches the first client render (avoids hydration mismatch).
+  const [isInternetOnline, setIsInternetOnline] = useState(true);
   const [isStreamConnected, setIsStreamConnected] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const refreshRequestIdRef = useRef(0);
 
   assemblyRef.current = assemblyItems;
   ordersRef.current = orders;
 
   const applyWorkspaceState = useCallback((workspace: SharedWorkspaceState) => {
     const next = normalizeWorkspaceState(workspace);
+    // Сборка локальная и не синкается — сохраняем collected при апдейтах с сервера.
+    const localById = new Map(assemblyRef.current.map((item) => [item.id, item]));
+    const assemblyItems = next.assemblyItems.map((item) => {
+      const local = localById.get(item.id);
+      if (!local || local.collectedCount <= 0) {
+        return { ...item, collectedCount: 0, collectedAt: undefined };
+      }
+      return {
+        ...item,
+        collectedCount: Math.min(local.collectedCount, item.quantity),
+        collectedAt: local.collectedAt,
+      };
+    });
+
     shippedArchiveRef.current = next.shippedArchive ?? [];
-    setAssemblyItems([...next.assemblyItems]);
+    setAssemblyItems(assemblyItems);
+    assemblyRef.current = assemblyItems;
     setOrders([...next.orders]);
     setShippedArchive(next.shippedArchive ?? []);
     setApiOrderIds(next.apiOrderIds ?? []);
@@ -88,11 +111,37 @@ export function useWorkspace({
     [applyWorkspaceState],
   );
 
+  const refreshFromApi = useCallback(
+    async (brand?: string) => {
+      const requestId = ++refreshRequestIdRef.current;
+      setIsSyncing(true);
+      try {
+        const result = await refreshWorkspaceFromApi(brand);
+        if (requestId !== refreshRequestIdRef.current) {
+          return { ok: false as const };
+        }
+        if (result.ok && result.workspace) {
+          applyWorkspaceState(result.workspace);
+          setIsServerReachable(true);
+          return { ok: true as const };
+        }
+        setIsServerReachable(false);
+        return { ok: false as const, error: result.error };
+      } finally {
+        if (requestId === refreshRequestIdRef.current) {
+          setIsSyncing(false);
+        }
+      }
+    },
+    [applyWorkspaceState],
+  );
+
   const persist = useCallback(
     (assembly: AssemblyItem[], ords: ShippingOrder[]) => {
       const prevArchiveIds = new Set(shippedArchiveRef.current.map((order) => order.id));
+      // collected не пишем на сервер — только список позиций и заказы/сканы.
       const workspace = normalizeWorkspaceState(
-        createWorkspace(assembly, ords, shippedArchiveRef.current),
+        createWorkspace(stripAssemblyCollected(assembly), ords, shippedArchiveRef.current),
       );
       const archive = workspace.shippedArchive ?? [];
       const newlyShipped = archive.filter((order) => !prevArchiveIds.has(order.id));
@@ -131,6 +180,7 @@ export function useWorkspace({
   }, [applyFromServer, applyWorkspaceState]);
 
   useEffect(() => {
+    setIsInternetOnline(navigator.onLine);
     const onOnline = () => setIsInternetOnline(true);
     const onOffline = () => setIsInternetOnline(false);
     window.addEventListener("online", onOnline);
@@ -141,25 +191,22 @@ export function useWorkspace({
     };
   }, []);
 
-  const updateAssembly = useCallback(
-    (items: AssemblyItem[]) => {
-      const changed = items.find((item) => {
-        const prev = assemblyRef.current.find((p) => p.id === item.id);
-        return prev && prev.collectedCount !== item.collectedCount;
-      });
-      assemblyRef.current = items;
-      setAssemblyItems(items);
-      logClientSync("assembly.change", {
-        meta: {
-          itemId: changed?.id,
-          collectedCount: changed?.collectedCount,
-          total: items.length,
-        },
-      });
-      persist(items, ordersRef.current);
-    },
-    [persist],
-  );
+  const updateAssembly = useCallback((items: AssemblyItem[]) => {
+    const changed = items.find((item) => {
+      const prev = assemblyRef.current.find((p) => p.id === item.id);
+      return prev && prev.collectedCount !== item.collectedCount;
+    });
+    assemblyRef.current = items;
+    setAssemblyItems(items);
+    logClientSync("assembly.change", {
+      meta: {
+        itemId: changed?.id,
+        collectedCount: changed?.collectedCount,
+        total: items.length,
+      },
+    });
+    // Сборка не персистится — сбросится при обновлении страницы.
+  }, []);
 
   const updateOrders = useCallback(
     (next: ShippingOrder[] | ((prev: ShippingOrder[]) => ShippingOrder[])) => {
@@ -236,5 +283,6 @@ export function useWorkspace({
     isInternetOnline,
     isStreamConnected,
     isSyncing,
+    refreshFromApi,
   };
 }

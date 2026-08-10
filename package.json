@@ -6,8 +6,7 @@
     "dev": "NODE_ENV=development node server.js",
     "build": "next build",
     "start": "NODE_ENV=production node server.js",
-    "lint": "eslint",
-    "sync-images": "node scripts/sync-product-images.mjs"
+    "lint": "eslint"
   },
   "dependencies": {
     "html5-qrcode": "^2.3.8",

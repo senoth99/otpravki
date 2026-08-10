@@ -1,5 +1,5 @@
 import type { OrderDisplayStatus } from "@/lib/order-status";
-import { URGENCY_WEIGHT } from "@/lib/urgency";
+import { resolveOrderUrgency, URGENCY_WEIGHT } from "@/lib/urgency";
 import type { ShippingOrder } from "@/types/shipping";
 
 /** Меньше = левее в списке */
@@ -17,7 +17,8 @@ export function compareOrdersForPicker(
   const statusDiff = STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status];
   if (statusDiff !== 0) return statusDiff;
 
-  const urgencyDiff = URGENCY_WEIGHT[a.order.urgency] - URGENCY_WEIGHT[b.order.urgency];
+  const urgencyDiff =
+    URGENCY_WEIGHT[resolveOrderUrgency(a.order)] - URGENCY_WEIGHT[resolveOrderUrgency(b.order)];
   if (urgencyDiff !== 0) return urgencyDiff;
 
   return a.order.orderNumber.localeCompare(b.order.orderNumber);

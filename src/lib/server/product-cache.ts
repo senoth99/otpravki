@@ -1,6 +1,5 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
-import { syncProductImages } from "@/lib/server/image-cache";
 import { externalFetch } from "@/lib/server/external-fetch";
 import type { ApiProduct } from "@/types/shipping";
 
@@ -45,7 +44,6 @@ async function fetchRemote(): Promise<ApiProduct[]> {
 export async function refreshProductsCache(): Promise<ApiProduct[]> {
   const products = await fetchRemote();
   await writeCache(products);
-  await syncProductImages(products);
   return products;
 }
 
@@ -69,7 +67,6 @@ export async function getProductsWithCache(): Promise<{
   try {
     const products = await fetchRemote();
     await writeCache(products);
-    void syncProductImages(products);
     return { products, source: "network" };
   } catch {
     if (cached) {

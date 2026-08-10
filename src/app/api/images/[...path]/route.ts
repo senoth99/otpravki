@@ -1,9 +1,10 @@
-import { readFile, realpath } from "fs/promises";
-import path from "path";
 import { NextResponse } from "next/server";
-import { getImageContentType, getImagesCacheDir } from "@/lib/server/image-cache";
+import { externalFetch } from "@/lib/server/external-fetch";
+import { getImageContentType } from "@/lib/server/image-cache";
 
 export const dynamic = "force-dynamic";
+
+const API_BASE = process.env.PRODUCTS_API_URL ?? "https://api.cashercollection.com";
 
 export async function GET(
   _request: Request,
@@ -12,37 +13,27 @@ export async function GET(
   const { path: segments } = await context.params;
   const relative = segments.join("/");
 
-  if (!relative || relative.includes("..")) {
+  if (!relative || relative.includes("..") || !relative.startsWith("uploads/")) {
     return NextResponse.json({ error: "Invalid path" }, { status: 400 });
   }
 
-  const imagesDir = await realpath(path.resolve(getImagesCacheDir()));
-  const candidate = path.resolve(imagesDir, relative);
-
-  if (!candidate.startsWith(`${imagesDir}${path.sep}`) && candidate !== imagesDir) {
-    return NextResponse.json({ error: "Invalid path" }, { status: 400 });
-  }
-
-  let filePath: string;
-  try {
-    filePath = await realpath(candidate);
-  } catch {
-    return new NextResponse(null, { status: 404 });
-  }
-
-  if (!filePath.startsWith(`${imagesDir}${path.sep}`) && filePath !== imagesDir) {
-    return NextResponse.json({ error: "Invalid path" }, { status: 400 });
-  }
+  const remoteUrl = `${API_BASE.replace(/\/$/, "")}/${relative}`;
 
   try {
-    const data = await readFile(filePath);
+    const res = await externalFetch(remoteUrl, { timeoutMs: 20_000 });
+    if (!res.ok) {
+      return new NextResponse(null, { status: res.status === 404 ? 404 : 502 });
+    }
+
+    const data = Buffer.from(await res.arrayBuffer());
     return new NextResponse(data, {
       headers: {
-        "Content-Type": getImageContentType(filePath),
-        "Cache-Control": "public, max-age=31536000, immutable",
+        "Content-Type":
+          res.headers.get("content-type") ?? getImageContentType(relative),
+        "Cache-Control": "public, max-age=86400",
       },
     });
   } catch {
-    return new NextResponse(null, { status: 404 });
+    return new NextResponse(null, { status: 502 });
   }
 }

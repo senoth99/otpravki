@@ -32,7 +32,7 @@ export interface AssemblyItem {
   isBlogger?: boolean;
 }
 
-export type OrderUrgency = "critical" | "high" | "normal" | "low";
+export type OrderUrgency = "critical" | "urgent" | "high" | "normal" | "low";
 
 export interface StaffComment {
   id: number;
@@ -59,6 +59,8 @@ export interface ShippingOrderItem {
 
 export interface ShippingOrder {
   id: string;
+  remoteOrderId?: string;
+  storeBrand?: string;
   orderNumber: string;
   /** Номер начинается с «б» — заказ для блогеров */
   isBlogger?: boolean;
