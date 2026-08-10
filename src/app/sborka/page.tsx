@@ -1,15 +1,18 @@
-import { ShippingPanel } from "@/components/otpravki";
+import { AssemblyPanel } from "@/components/otpravki/AssemblyPanel";
 import { USE_MOCK_ORDERS } from "@/lib/app-config";
 import { describeCasherLoadError } from "@/lib/casher-error";
 import { buildInitialWorkspace } from "@/lib/build-workspace";
 import { getMockResetToken } from "@/lib/server/mock-reset";
 import { fetchAndSyncWorkspaceFromApi } from "@/lib/server/workspace-api-sync";
+import { getWarehouseMap } from "@/lib/server/warehouse-map-store";
 import { getSharedWorkspace, initSharedWorkspace } from "@/lib/server/workspace-store";
+import type { WarehouseMapConfig } from "@/types/stock";
+import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Отправки | CASHER Admin",
+  title: "Сборка | CASHER Admin",
 };
 
 function EmptyState({ title, hint }: { title: string; hint: string }) {
@@ -23,44 +26,51 @@ function EmptyState({ title, hint }: { title: string; hint: string }) {
   );
 }
 
-function OtpravkiShell({
+function SborkaShell({
   assemblyItems,
   orders,
   apiOrderIds,
   shippedArchive,
   initialRevision,
+  warehouseMap,
 }: {
-  assemblyItems: Parameters<typeof ShippingPanel>[0]["assemblyItems"];
-  orders: Parameters<typeof ShippingPanel>[0]["orders"];
+  assemblyItems: AssemblyItem[];
+  orders: ShippingOrder[];
   apiOrderIds?: string[];
-  shippedArchive?: Parameters<typeof ShippingPanel>[0]["shippedArchive"];
+  shippedArchive?: ShippingOrder[];
   initialRevision?: number;
+  warehouseMap?: WarehouseMapConfig;
 }) {
   return (
-    <ShippingPanel
+    <AssemblyPanel
       assemblyItems={assemblyItems}
       orders={orders}
       apiOrderIds={apiOrderIds}
       shippedArchive={shippedArchive}
       initialRevision={initialRevision}
+      warehouseMap={warehouseMap}
     />
   );
 }
 
-export default async function OtpravkiPage() {
-  const resetToken = await getMockResetToken();
+export default async function SborkaPage() {
+  const [resetToken, warehouseMap] = await Promise.all([
+    getMockResetToken(),
+    getWarehouseMap().catch(() => ({ furniture: [], updatedAt: 0 })),
+  ]);
 
   if (!USE_MOCK_ORDERS) {
     try {
       const existing = await getSharedWorkspace();
       const workspace = existing ?? (await fetchAndSyncWorkspaceFromApi()).workspace;
       return (
-        <OtpravkiShell
+        <SborkaShell
           assemblyItems={workspace.assemblyItems}
           orders={workspace.orders}
           apiOrderIds={workspace.apiOrderIds}
           shippedArchive={workspace.shippedArchive}
           initialRevision={workspace.revision}
+          warehouseMap={warehouseMap}
         />
       );
     } catch (error) {
@@ -75,12 +85,13 @@ export default async function OtpravkiPage() {
 
   if (existing && !mockStale) {
     return (
-      <OtpravkiShell
+      <SborkaShell
         assemblyItems={existing.assemblyItems}
         orders={existing.orders}
         apiOrderIds={existing.apiOrderIds}
         shippedArchive={existing.shippedArchive}
         initialRevision={existing.revision}
+        warehouseMap={warehouseMap}
       />
     );
   }
@@ -95,10 +106,7 @@ export default async function OtpravkiPage() {
 
   if (!workspaceData) {
     return (
-      <EmptyState
-        title="Нет данных о товарах"
-        hint="Подключите интернет и обновите страницу"
-      />
+      <EmptyState title="Нет данных о товарах" hint="Подключите интернет и обновите страницу" />
     );
   }
 
@@ -109,12 +117,13 @@ export default async function OtpravkiPage() {
   );
 
   return (
-    <OtpravkiShell
+    <SborkaShell
       assemblyItems={shared.assemblyItems}
       orders={shared.orders}
       apiOrderIds={shared.apiOrderIds}
       shippedArchive={shared.shippedArchive}
       initialRevision={shared.revision}
+      warehouseMap={warehouseMap}
     />
   );
 }

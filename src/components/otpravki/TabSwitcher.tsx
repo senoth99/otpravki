@@ -8,7 +8,6 @@ interface TabSwitcherProps {
 }
 
 const TABS: { id: ShippingTab; label: string }[] = [
-  { id: "assembly", label: "Сборка" },
   { id: "shipping", label: "Отправка" },
   { id: "archive", label: "Архив" },
 ];

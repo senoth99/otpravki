@@ -86,4 +86,4 @@ export interface ShippingOrder {
   tags?: OrderTag[];
 }
 
-export type ShippingTab = "assembly" | "shipping" | "archive";
+export type ShippingTab = "shipping" | "archive";
