@@ -129,10 +129,8 @@ function FilterBlock({ title, children }: { title: string; children: ReactNode }
 }
 
 interface OtpravkiFiltersPanelProps {
-  side: "left" | "right";
   filters: OtpravkiFiltersState;
   onChange: (next: OtpravkiFiltersState) => void;
-  cities: string[];
   counts: {
     total: number;
     critical: number;
@@ -143,10 +141,8 @@ interface OtpravkiFiltersPanelProps {
 }
 
 export function OtpravkiFiltersPanel({
-  side,
   filters,
   onChange,
-  cities,
   counts,
 }: OtpravkiFiltersPanelProps) {
   const set = <K extends keyof OtpravkiFiltersState>(key: K, value: OtpravkiFiltersState[K]) => {
@@ -154,112 +150,59 @@ export function OtpravkiFiltersPanel({
   };
 
   return (
-    <aside
-      className={`hidden h-full w-56 shrink-0 flex-col gap-4 overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-4 shadow-sm lg:flex ${
-        side === "left" ? "order-first" : "order-last"
-      }`}
-    >
-      {side === "left" ? (
-        <>
-          <div>
-            <p className="text-sm font-semibold text-gray-900">Фильтры</p>
-            <p className="mt-0.5 text-[11px] text-gray-500">
-              {counts.total} заказов · {counts.ready} готовы
-            </p>
-          </div>
+    <aside className="hidden h-full w-56 shrink-0 flex-col gap-4 overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-4 shadow-sm lg:flex">
+      <div>
+        <p className="text-sm font-semibold text-gray-900">Фильтры</p>
+        <p className="mt-0.5 text-[11px] text-gray-500">
+          {counts.total} заказов · {counts.ready} готовы
+        </p>
+      </div>
 
-          <label className="block">
-            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-              Поиск
-            </span>
-            <input
-              type="search"
-              value={filters.query}
-              onChange={(e) => set("query", e.target.value)}
-              placeholder="Номер, ФИО, город…"
-              className="h-9 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
-            />
-          </label>
+      <label className="block">
+        <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+          Поиск
+        </span>
+        <input
+          type="search"
+          value={filters.query}
+          onChange={(e) => set("query", e.target.value)}
+          placeholder="Номер, ФИО, город…"
+          className="h-9 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+        />
+      </label>
 
-          <FilterBlock title="Срочность">
-            <Chip active={filters.urgency === "all"} onClick={() => set("urgency", "all")}>
-              Все
-            </Chip>
-            {(["critical", "rush", "urgent", "high", "normal"] as const).map((key) => (
-              <Chip key={key} active={filters.urgency === key} onClick={() => set("urgency", key)}>
-                {URGENCY_LABELS[key].label}
-                {key === "critical" ? ` (${counts.critical})` : ""}
-                {key === "rush" ? ` (${counts.rush})` : ""}
-              </Chip>
-            ))}
-          </FilterBlock>
+      <FilterBlock title="Срочность">
+        <Chip active={filters.urgency === "all"} onClick={() => set("urgency", "all")}>
+          Все
+        </Chip>
+        {(["critical", "rush", "urgent", "high", "normal"] as const).map((key) => (
+          <Chip key={key} active={filters.urgency === key} onClick={() => set("urgency", key)}>
+            {URGENCY_LABELS[key].label}
+            {key === "critical" ? ` (${counts.critical})` : ""}
+            {key === "rush" ? ` (${counts.rush})` : ""}
+          </Chip>
+        ))}
+      </FilterBlock>
 
-          <FilterBlock title="Тип заказа">
-            <Chip active={filters.kind === "all"} onClick={() => set("kind", "all")}>
-              Все
-            </Chip>
-            <Chip active={filters.kind === "blogger"} onClick={() => set("kind", "blogger")}>
-              Блогеры ({counts.blogger})
-            </Chip>
-            <Chip active={filters.kind === "regular"} onClick={() => set("kind", "regular")}>
-              Обычные
-            </Chip>
-          </FilterBlock>
-        </>
-      ) : (
-        <>
-          <div>
-            <p className="text-sm font-semibold text-gray-900">Ещё фильтры</p>
-            <p className="mt-0.5 text-[11px] text-gray-500">Сканы, город, комментарии</p>
-          </div>
+      <FilterBlock title="Тип заказа">
+        <Chip active={filters.kind === "all"} onClick={() => set("kind", "all")}>
+          Все
+        </Chip>
+        <Chip active={filters.kind === "blogger"} onClick={() => set("kind", "blogger")}>
+          Блогеры ({counts.blogger})
+        </Chip>
+        <Chip active={filters.kind === "regular"} onClick={() => set("kind", "regular")}>
+          Обычные
+        </Chip>
+      </FilterBlock>
 
-          <FilterBlock title="Сканирование">
-            <Chip active={filters.scan === "all"} onClick={() => set("scan", "all")}>
-              Все
-            </Chip>
-            <Chip active={filters.scan === "unscanned"} onClick={() => set("scan", "unscanned")}>
-              Не начаты
-            </Chip>
-            <Chip active={filters.scan === "partial"} onClick={() => set("scan", "partial")}>
-              В процессе
-            </Chip>
-            <Chip active={filters.scan === "ready"} onClick={() => set("scan", "ready")}>
-              Собран
-            </Chip>
-          </FilterBlock>
-
-          <FilterBlock title="Комментарии">
-            <Chip active={filters.comment === "all"} onClick={() => set("comment", "all")}>
-              Все
-            </Chip>
-            <Chip active={filters.comment === "with"} onClick={() => set("comment", "with")}>
-              Есть
-            </Chip>
-            <Chip active={filters.comment === "without"} onClick={() => set("comment", "without")}>
-              Нет
-            </Chip>
-          </FilterBlock>
-
-          <FilterBlock title="Город">
-            <Chip active={filters.city === "all"} onClick={() => set("city", "all")}>
-              Все
-            </Chip>
-            {cities.slice(0, 12).map((city) => (
-              <Chip key={city} active={filters.city === city} onClick={() => set("city", city)}>
-                {city}
-              </Chip>
-            ))}
-          </FilterBlock>
-
-          <button
-            type="button"
-            onClick={() => onChange({ ...DEFAULT_FILTERS })}
-            className="mt-auto rounded-xl border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 active:bg-gray-50"
-          >
-            Сбросить фильтры
-          </button>
-        </>
-      )}
+      <button
+        type="button"
+        onClick={() => onChange({ ...DEFAULT_FILTERS })}
+        className="mt-auto rounded-xl border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 active:bg-gray-50"
+      >
+        Сбросить фильтры
+      </button>
     </aside>
   );
 }
@@ -268,11 +211,10 @@ export function OtpravkiFiltersPanel({
 export function OtpravkiMobileFilters({
   filters,
   onChange,
-  cities,
 }: {
   filters: OtpravkiFiltersState;
   onChange: (next: OtpravkiFiltersState) => void;
-  cities: string[];
+  cities?: string[];
 }) {
   const set = <K extends keyof OtpravkiFiltersState>(key: K, value: OtpravkiFiltersState[K]) => {
     onChange({ ...filters, [key]: value });
@@ -308,28 +250,6 @@ export function OtpravkiMobileFilters({
           <option value="all">Тип: все</option>
           <option value="blogger">Блогеры</option>
           <option value="regular">Обычные</option>
-        </select>
-        <select
-          value={filters.scan}
-          onChange={(e) => set("scan", e.target.value as ScanFilter)}
-          className="h-9 shrink-0 rounded-xl border border-gray-200 bg-white px-2 text-xs"
-        >
-          <option value="all">Скан: все</option>
-          <option value="unscanned">Не начаты</option>
-          <option value="partial">В процессе</option>
-          <option value="ready">Собран</option>
-        </select>
-        <select
-          value={filters.city}
-          onChange={(e) => set("city", e.target.value)}
-          className="h-9 shrink-0 rounded-xl border border-gray-200 bg-white px-2 text-xs"
-        >
-          <option value="all">Город: все</option>
-          {cities.map((city) => (
-            <option key={city} value={city}>
-              {city}
-            </option>
-          ))}
         </select>
       </div>
     </div>

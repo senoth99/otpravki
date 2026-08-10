@@ -225,10 +225,8 @@ export function AssemblyPanel({
 
       <div className="flex min-h-0 flex-1 gap-3 overflow-hidden p-3 sm:p-4">
         <OtpravkiFiltersPanel
-          side="left"
           filters={filters}
           onChange={setFilters}
-          cities={cities}
           counts={counts}
         />
 
@@ -241,14 +239,6 @@ export function AssemblyPanel({
             warehouseMap={warehouseMap}
           />
         </main>
-
-        <OtpravkiFiltersPanel
-          side="right"
-          filters={filters}
-          onChange={setFilters}
-          cities={cities}
-          counts={counts}
-        />
       </div>
     </div>
   );
