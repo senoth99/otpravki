@@ -173,8 +173,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=${USER}
-Group=${USER}
+User=root
+Group=root
 WorkingDirectory=${APP_DIR}/.next/standalone
 Environment=NODE_ENV=production
 Environment=NODE_OPTIONS=--dns-result-order=ipv4first
@@ -194,8 +194,9 @@ EnvironmentFile=-${APP_DIR}/.env
 Environment=PORT=${PORT}
 Environment=HOSTNAME=0.0.0.0
 ExecStart=/usr/bin/env node server.js
-Restart=on-failure
+Restart=always
 RestartSec=5
+TimeoutStartSec=60
 
 [Install]
 WantedBy=multi-user.target
