@@ -78,7 +78,9 @@ export function ShippingView({
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(
     () => orders[0]?.id ?? null,
   );
-  const [viewingShippedId, setViewingShippedId] = useState<string | null>(null);
+  /** Снимок заказа после ручной печати — экран «трек напечатан» + перепечатка */
+  const [manualConfirmOrder, setManualConfirmOrder] = useState<ShippingOrder | null>(null);
+  const [reprinting, setReprinting] = useState(false);
   const [manualMode, setManualMode] = useState(false);
   const [autoMode, setAutoMode] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -149,21 +151,19 @@ export function ShippingView({
     ? orders.findIndex((order) => order.id === currentOrderId)
     : -1;
   const currentOrder = currentIndex >= 0 ? orders[currentIndex] : undefined;
-  const viewingShippedOrder = viewingShippedId
-    ? orders.find((order) => order.id === viewingShippedId) ?? null
-    : null;
-  const displayOrder = viewingShippedOrder ?? currentOrder;
+  const isManualConfirm = manualConfirmOrder !== null && !autoMode;
+  const displayOrder = isManualConfirm ? manualConfirmOrder : currentOrder;
   const isShipped = displayOrder?.barcodePrinted ?? false;
-  const isViewingArchive = viewingShippedOrder !== null;
 
   const allScanned =
     displayOrder?.items.every((i) => i.scannedCount >= i.quantity) ?? false;
   const urgency = displayOrder ? URGENCY_LABELS[resolveOrderUrgency(displayOrder)] : null;
-  const canScan = !isShipped && !countdown && !isViewingArchive;
+  const canScan = !isManualConfirm && !isShipped && !countdown;
 
   const exitAutoMode = useCallback(() => {
     setAutoMode(false);
     setCountdown(null);
+    setManualConfirmOrder(null);
     autoHandledRef.current = null;
   }, []);
 
@@ -174,6 +174,7 @@ export function ShippingView({
     }
     setManualMode(false);
     setScannerOpen(false);
+    setManualConfirmOrder(null);
     setAutoMode(true);
     const filteredOrders = activeIndices.map((index) => orders[index]);
     const filteredStatuses = activeIndices.map((index) => orderStatuses[index]);
@@ -276,21 +277,49 @@ export function ShippingView({
   );
 
   const handlePrinted = () => {
+    if (!currentOrder) return;
     setPrintModalOpen(false);
+    const shippedAt = Date.now();
+    const snapshot: ShippingOrder = {
+      ...currentOrder,
+      barcodePrinted: true,
+      barcodePrintedAt: shippedAt,
+    };
+    const shippedId = currentOrder.id;
     onOrdersChange((prev) => {
       const updated = prev.map((order) =>
-        order.id === currentOrderId
-          ? { ...order, barcodePrinted: true, barcodePrintedAt: Date.now() }
+        order.id === shippedId
+          ? { ...order, barcodePrinted: true, barcodePrintedAt: shippedAt }
           : order,
       );
-      goToNextOrder(updated, currentOrderId);
+      goToNextOrder(updated, shippedId);
       return updated;
     });
-    setViewingShippedId(null);
+    // Ручной режим: оставляем экран «трек напечатан» с перепечаткой
+    setManualConfirmOrder(snapshot);
   };
 
+  const handleDismissManualConfirm = () => {
+    setManualConfirmOrder(null);
+  };
+
+  const handleReprintConfirm = useCallback(async () => {
+    if (!manualConfirmOrder || reprinting) return;
+    setReprinting(true);
+    setPrintError(null);
+    const result = await printOrderBarcode(manualConfirmOrder.orderNumber, {
+      orderId: manualConfirmOrder.id,
+      barcodeUrl: manualConfirmOrder.barcodeUrl,
+      order: manualConfirmOrder,
+    });
+    setReprinting(false);
+    if (!result.ok) {
+      setPrintError(result.message ?? "Не удалось перепечатать баркод");
+    }
+  }, [manualConfirmOrder, reprinting]);
+
   const handleNextOrder = () => {
-    setViewingShippedId(null);
+    setManualConfirmOrder(null);
     goToNextOrder(orders);
   };
 
@@ -350,7 +379,7 @@ export function ShippingView({
       const hasNext = findFirstAutoOrderIndex(nextVisibleOrders, nextVisibleStatuses) !== null;
 
       onOrdersChange(updatedOrders);
-      setViewingShippedId(null);
+      setManualConfirmOrder(null);
       setCountdown({ orderNumber: shippedNumber, secondsLeft: 5, hasNext });
     })();
   }, [
@@ -378,7 +407,7 @@ export function ShippingView({
 
     if (countdown.secondsLeft <= 0) {
       setCountdown(null);
-      setViewingShippedId(null);
+      setManualConfirmOrder(null);
       autoHandledRef.current = null;
       const filteredOrders = activeIndices.map((index) => orders[index]);
       const filteredStatuses = activeIndices.map((index) => orderStatuses[index]);
@@ -395,12 +424,12 @@ export function ShippingView({
   }, [activeIndices, countdown, orderStatuses, orders]);
 
   useEffect(() => {
-    if (viewingShippedId) return;
+    if (manualConfirmOrder) return;
     if (currentOrder?.barcodePrinted) {
       const nextId = findNextActiveOrderId(orders, currentOrderId, selectedBrand);
       if (nextId) setCurrentOrderId(nextId);
     }
-  }, [orders, currentOrderId, currentOrder, viewingShippedId, selectedBrand]);
+  }, [orders, currentOrderId, currentOrder, manualConfirmOrder, selectedBrand]);
 
   useEffect(() => {
     if (brandOptions.length === 0) {
@@ -412,15 +441,15 @@ export function ShippingView({
   }, [brandOptions, onBrandChange, selectedBrand]);
 
   useEffect(() => {
-    if (viewingShippedId) return;
+    if (manualConfirmOrder) return;
     if (activeIndices.length === 0) return;
     if (activeIndices.includes(currentIndex)) return;
     setCurrentOrderId(orders[activeIndices[0]].id);
-  }, [currentIndex, orders, activeIndices, viewingShippedId]);
+  }, [currentIndex, orders, activeIndices, manualConfirmOrder]);
 
   const hasActiveOrders = activeIndices.length > 0;
   const hasShippableOrders = shippableIndices.length > 0;
-  const hasShippedOrders = shippedOrders.length > 0;
+  const hasShippedOrders = shippedOrders.length > 0 || isManualConfirm;
 
   if (!hasActiveOrders && !hasShippedOrders) {
     return (
@@ -437,12 +466,12 @@ export function ShippingView({
 
   const totalUnits = displayOrder?.items.reduce((sum, i) => sum + i.quantity, 0) ?? 0;
   const scannedCount = displayOrder?.items.reduce((sum, i) => sum + i.scannedCount, 0) ?? 0;
-  const hasNextUnshipped = activeIndices.some((index) => orders[index].id !== currentOrderId);
+  const hasNextUnshipped = activeIndices.length > 0;
 
-  const showActions = hasShippableOrders && !isShipped && !autoMode && !isViewingArchive;
+  const showActions = hasShippableOrders && !isManualConfirm && !isShipped && !autoMode;
 
   const handleSelectActive = (index: number) => {
-    setViewingShippedId(null);
+    setManualConfirmOrder(null);
     setCurrentOrderId(orders[index].id);
   };
 
@@ -473,14 +502,16 @@ export function ShippingView({
 
           {!displayOrder ? (
             <div className="py-6 text-center text-sm text-gray-500">Нет заказов на отправку</div>
-          ) : isShipped && !autoMode ? (
+          ) : isManualConfirm ? (
             <div className="space-y-4">
               <ShippedOrderCard
                 orderNumber={displayOrder.orderNumber}
                 customerName={displayOrder.customerName}
                 createdAt={displayOrder.createdAt}
-                hasNext={hasNextUnshipped && !isViewingArchive}
-                onNext={isViewingArchive ? undefined : handleNextOrder}
+                hasNext={hasNextUnshipped}
+                onNext={hasNextUnshipped ? handleNextOrder : handleDismissManualConfirm}
+                onReprint={handleReprintConfirm}
+                reprinting={reprinting}
               />
               <OrderComments order={displayOrder} />
             </div>
