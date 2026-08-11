@@ -8,6 +8,7 @@ import {
   getArchiveDeliveryStatus,
 } from "@/lib/archive-status";
 import { formatMoscowDateTime, formatSize } from "@/lib/format";
+import { printOrderBarcode } from "@/lib/print-barcode";
 import { mergeShippedArchives } from "@/lib/shipped-archive";
 import type { ShippingOrder } from "@/types/shipping";
 import { OrderNumberDisplay } from "./OrderNumberDisplay";
@@ -36,6 +37,8 @@ const STATUS_STYLES = {
 export function ArchiveView({ orders, shippedArchive, apiOrderIds, onUnship }: ArchiveViewProps) {
   const [unshipError, setUnshipError] = useState<string | null>(null);
   const [unshippingId, setUnshippingId] = useState<string | null>(null);
+  const [reprintingId, setReprintingId] = useState<string | null>(null);
+  const [reprintError, setReprintError] = useState<string | null>(null);
   const apiSet = useMemo(() => new Set(apiOrderIds), [apiOrderIds]);
 
   const shippedOrders = useMemo(
@@ -78,11 +81,26 @@ export function ArchiveView({ orders, shippedArchive, apiOrderIds, onUnship }: A
     }
   };
 
+  const handleReprint = async (order: ShippingOrder) => {
+    if (reprintingId) return;
+    setReprintError(null);
+    setReprintingId(order.id);
+    const result = await printOrderBarcode(order.orderNumber, {
+      orderId: order.id,
+      barcodeUrl: order.barcodeUrl,
+      order,
+    });
+    setReprintingId(null);
+    if (!result.ok) {
+      setReprintError(result.message ?? `Не удалось перепечатать ${order.orderNumber}`);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      {unshipError && (
+      {(unshipError || reprintError) && (
         <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 sm:text-sm">
-          {unshipError}
+          {unshipError ?? reprintError}
         </p>
       )}
       <div className="flex flex-wrap items-center gap-2 px-0.5 text-xs text-gray-500">
@@ -102,6 +120,7 @@ export function ArchiveView({ orders, shippedArchive, apiOrderIds, onUnship }: A
           const status = getArchiveDeliveryStatus(order.id, apiSet);
           const styles = STATUS_STYLES[status];
           const itemCount = order.items.reduce((sum, item) => sum + item.quantity, 0);
+          const isReprinting = reprintingId === order.id;
 
           return (
             <div
@@ -171,16 +190,26 @@ export function ArchiveView({ orders, shippedArchive, apiOrderIds, onUnship }: A
                     {order.trackingNumber}
                   </span>
                 )}
-                {onUnship && canUnshipFromArchive(order.id, apiSet) && (
+                <div className="ml-auto flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => handleUnship(order)}
-                    disabled={unshippingId === order.id}
-                    className="ml-auto rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-50 disabled:opacity-50"
+                    onClick={() => void handleReprint(order)}
+                    disabled={Boolean(reprintingId)}
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-900 hover:bg-gray-50 disabled:opacity-50"
                   >
-                    {unshippingId === order.id ? "Отмена…" : "Отменить отправку"}
+                    {isReprinting ? "Печать…" : "Перепечатать трек"}
                   </button>
-                )}
+                  {onUnship && canUnshipFromArchive(order.id, apiSet) && (
+                    <button
+                      type="button"
+                      onClick={() => handleUnship(order)}
+                      disabled={unshippingId === order.id}
+                      className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-50 disabled:opacity-50"
+                    >
+                      {unshippingId === order.id ? "Отмена…" : "Отменить отправку"}
+                    </button>
+                  )}
+                </div>
               </div>
 
               <p className="mt-2 text-xs leading-relaxed text-gray-500">
