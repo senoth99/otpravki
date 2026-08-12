@@ -154,9 +154,6 @@ cp "$APP_DIR/sync-log.js" .next/standalone/sync-log.js
 mkdir -p .next/standalone/scripts
 cp "$APP_DIR/scripts/crpt-get-token.py" .next/standalone/scripts/crpt-get-token.py
 chmod +x .next/standalone/scripts/crpt-get-token.py
-mkdir -p scripts
-cp "$APP_DIR/scripts/crpt-get-token.py" scripts/crpt-get-token.py
-chmod +x scripts/crpt-get-token.py
 echo "==> Зависимости standalone (socket.io, undici)..."
 npm install --prefix .next/standalone --omit=dev socket.io@^4.8.1 undici@^7.27.2
 
