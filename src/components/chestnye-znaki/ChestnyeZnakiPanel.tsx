@@ -37,6 +37,11 @@ export function ChestnyeZnakiPanel() {
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<KmItem[]>([]);
+  const [nextCursor, setNextCursor] = useState<{
+    lastEmissionDate: string;
+    sgtin: string;
+  } | null>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [busy, setBusy] = useState(false);
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -54,27 +59,41 @@ export function ChestnyeZnakiPanel() {
     window.setTimeout(() => setToast(null), 2500);
   };
 
-  const loadKm = useCallback(async () => {
+  const loadKm = useCallback(async (append = false, cursor?: typeof nextCursor) => {
     setBusy(true);
     setError(null);
-    setScreen("loading");
+    if (!append) setScreen("loading");
     try {
-      const res = await fetch("/api/chestnye-znaki/km/search", { method: "POST" });
+      const res = await fetch("/api/chestnye-znaki/km/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          maxPages: 1,
+          cursor: append && cursor ? cursor : null,
+        }),
+      });
       const data = (await res.json()) as {
         ok?: boolean;
         error?: string;
         items?: KmItem[];
         totalFetched?: number;
+        isLastPage?: boolean;
+        nextCursor?: typeof nextCursor;
       };
       if (!res.ok || !data.ok) {
         throw new Error(data.error ?? "Не удалось загрузить КМ");
       }
-      setItems(data.items ?? []);
+      const batch = data.items ?? [];
+      setItems((prev) => (append ? [...prev, ...batch] : batch));
+      setNextCursor(data.nextCursor ?? null);
+      setHasMore(Boolean(data.nextCursor) && !data.isLastPage);
       setScreen("list");
-      showToast(`Загружено: ${data.totalFetched ?? data.items?.length ?? 0}`);
+      if (!append) {
+        showToast(`Загружено: ${batch.length}${data.nextCursor ? "+" : ""}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка");
-      setScreen("error");
+      if (!append) setScreen("error");
     } finally {
       setBusy(false);
     }
@@ -96,7 +115,7 @@ export function ChestnyeZnakiPanel() {
           throw new Error(data.error ?? "Неверный PIN");
         }
         setPin("");
-        await loadKm();
+        await loadKm(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Ошибка");
         setScreen("error");
@@ -175,7 +194,7 @@ export function ChestnyeZnakiPanel() {
             <button
               type="button"
               disabled={busy}
-              onClick={() => void loadKm()}
+              onClick={() => void loadKm(false)}
               className="inline-flex h-9 shrink-0 items-center rounded-xl bg-gray-900 px-3 text-sm font-medium text-white disabled:opacity-50"
             >
               Обновить
@@ -213,7 +232,7 @@ export function ChestnyeZnakiPanel() {
           <div className="flex flex-1 items-center justify-center text-center">
             <div>
               <p className="text-sm font-medium text-gray-900">Загружаем активные КМ…</p>
-              <p className="mt-2 text-xs text-gray-500">True API · статус INTRODUCED · lp</p>
+              <p className="mt-2 text-xs text-gray-500">True API · первая страница (100 КМ)</p>
             </div>
           </div>
         )}
@@ -222,10 +241,11 @@ export function ChestnyeZnakiPanel() {
           <div className="flex min-h-0 flex-1 flex-col gap-3">
             <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3">
               <p className="text-sm font-semibold text-gray-900">
-                В обороте: {items.length}
+                Показано: {items.length}
+                {hasMore ? "+" : ""}
               </p>
               <p className="mt-0.5 text-xs text-gray-500">
-                Коды со статусом INTRODUCED на балансе организации
+                Коды INTRODUCED · по 100 за запрос
               </p>
             </div>
 
@@ -276,6 +296,18 @@ export function ChestnyeZnakiPanel() {
                     );
                   })}
                 </ul>
+                {hasMore && nextCursor && (
+                  <div className="border-t border-gray-100 p-3">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void loadKm(true, nextCursor)}
+                      className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-900 disabled:opacity-50"
+                    >
+                      {busy ? "Загрузка…" : "Загрузить ещё 100"}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

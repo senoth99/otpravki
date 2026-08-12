@@ -5,10 +5,52 @@ import path from "node:path";
 export interface CrptTokenResult {
   ok: true;
   token: string;
+  expireDate?: string;
   uuid?: string;
   certSubject?: string;
   certThumbprint?: string;
   apiUrl?: string;
+}
+
+let cachedToken: { value: string; expiresAt: number } | null = null;
+let tokenInFlight: Promise<CrptTokenResult> | null = null;
+
+function parseExpireMs(expireDate?: string): number {
+  if (!expireDate) return Date.now() + 50 * 60 * 1000;
+  const ms = Date.parse(expireDate);
+  if (Number.isNaN(ms)) return Date.now() + 50 * 60 * 1000;
+  return ms - 5 * 60 * 1000;
+}
+
+export async function getCrptSessionToken(force = false): Promise<CrptTokenResult> {
+  if (!force && cachedToken && cachedToken.expiresAt > Date.now()) {
+    return { ok: true, token: cachedToken.value };
+  }
+
+  if (!force && tokenInFlight) {
+    return tokenInFlight;
+  }
+
+  tokenInFlight = (async () => {
+    const result = await runCrptScript([]);
+    if (!result.ok) {
+      throw new Error("error" in result ? result.error : "Не удалось получить токен ЧЗ");
+    }
+    if (!("token" in result) || !result.token) {
+      throw new Error("Скрипт ЧЗ не вернул token");
+    }
+    cachedToken = {
+      value: result.token,
+      expiresAt: parseExpireMs(result.expireDate),
+    };
+    return result as CrptTokenResult;
+  })();
+
+  try {
+    return await tokenInFlight;
+  } finally {
+    tokenInFlight = null;
+  }
 }
 
 export interface CrptErrorResult {
@@ -89,17 +131,6 @@ function runCrptScript(args: string[]): Promise<CrptScriptResult | CrptDiagnoseR
       resolve({ ok: false, error: error.message });
     });
   });
-}
-
-export async function getCrptSessionToken(): Promise<CrptTokenResult> {
-  const result = await runCrptScript([]);
-  if (!result.ok) {
-    throw new Error("error" in result ? result.error : "Не удалось получить токен ЧЗ");
-  }
-  if (!("token" in result) || !result.token) {
-    throw new Error("Скрипт ЧЗ не вернул token");
-  }
-  return result;
 }
 
 export async function diagnoseCrpt(): Promise<CrptDiagnoseResult> {

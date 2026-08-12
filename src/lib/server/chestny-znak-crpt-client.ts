@@ -12,10 +12,16 @@ export interface KmRecord {
   generalPackageType?: string;
 }
 
+export interface KmSearchCursor {
+  lastEmissionDate: string;
+  sgtin: string;
+}
+
 export interface KmSearchResult {
   items: KmRecord[];
   isLastPage: boolean;
   totalFetched: number;
+  nextCursor: KmSearchCursor | null;
 }
 
 function apiV3Base(): string {
@@ -50,9 +56,9 @@ async function bearerToken(): Promise<string> {
 async function crptFetch<T>(
   base: string,
   path: string,
+  token: string,
   init: RequestInit & { json?: unknown } = {},
 ): Promise<T> {
-  const token = await bearerToken();
   const headers: Record<string, string> = {
     Accept: "application/json",
     Authorization: `Bearer ${token}`,
@@ -106,25 +112,34 @@ function mapKmRow(row: Record<string, unknown>): KmRecord {
 export async function searchActiveKm(options?: {
   perPage?: number;
   maxPages?: number;
+  cursor?: KmSearchCursor | null;
 }): Promise<KmSearchResult> {
   const perPage = options?.perPage ?? 100;
-  const maxPages = options?.maxPages ?? 20;
+  const maxPages = options?.maxPages ?? 1;
   const pg = productGroup();
   const now = new Date();
   const from =
     process.env.CRPT_SEARCH_EMISSION_FROM?.trim() || "2020-01-01T00:00:00.000Z";
   const to = now.toISOString();
+  const token = await bearerToken();
 
   const items: KmRecord[] = [];
   let isLastPage = false;
-  let pagination: Record<string, string | number> = { perPage };
+  let pagination: Record<string, string | number> = options?.cursor
+    ? {
+        perPage,
+        lastEmissionDate: options.cursor.lastEmissionDate,
+        sgtin: options.cursor.sgtin,
+      }
+    : { perPage };
   let page = 0;
+  let nextCursor: KmSearchCursor | null = null;
 
   while (page < maxPages && !isLastPage) {
     const data = await crptFetch<{
       isLastPage?: boolean;
       result?: Record<string, unknown>[];
-    }>(apiV4Base(), "/cises/search", {
+    }>(apiV4Base(), "/cises/search", token, {
       method: "POST",
       json: {
         filter: {
@@ -140,18 +155,22 @@ export async function searchActiveKm(options?: {
     items.push(...batch);
     isLastPage = Boolean(data.isLastPage) || batch.length === 0;
 
-    if (isLastPage || batch.length < perPage) break;
+    if (!isLastPage && batch.length >= perPage) {
+      const last = batch[batch.length - 1];
+      nextCursor = {
+        lastEmissionDate: last.emissionDate ?? to,
+        sgtin: last.sgtin,
+      };
+      pagination = { perPage, ...nextCursor };
+    } else {
+      nextCursor = null;
+    }
 
-    const last = batch[batch.length - 1];
-    pagination = {
-      perPage,
-      lastEmissionDate: last.emissionDate ?? to,
-      sgtin: last.sgtin,
-    };
+    if (isLastPage || batch.length < perPage) break;
     page += 1;
   }
 
-  return { items, isLastPage, totalFetched: items.length };
+  return { items, isLastPage, totalFetched: items.length, nextCursor };
 }
 
 export interface WriteOffResult {
@@ -192,9 +211,11 @@ export async function writeOffKm(
   const signature = await signCrptDetached(productDocument);
 
   const pg = productGroup();
+  const token = await bearerToken();
   const response = await crptFetch<string | { id?: string; number?: string }>(
     apiV3Base(),
     `/lk/documents/create?pg=${encodeURIComponent(pg)}`,
+    token,
     {
       method: "POST",
       json: {

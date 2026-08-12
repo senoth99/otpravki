@@ -10,8 +10,12 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as {
       maxPages?: number;
+      cursor?: { lastEmissionDate: string; sgtin: string } | null;
     };
-    const result = await searchActiveKm({ maxPages: body.maxPages ?? 20 });
+    const result = await searchActiveKm({
+      maxPages: body.maxPages ?? 1,
+      cursor: body.cursor ?? null,
+    });
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     return NextResponse.json(
