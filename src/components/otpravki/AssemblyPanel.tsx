@@ -177,13 +177,6 @@ export function AssemblyPanel({
             Честные знаки
           </a>
 
-          <a
-            href="/chestnye-znaki"
-            className="inline-flex h-9 items-center rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 active:bg-gray-50"
-          >
-            Честные знаки
-          </a>
-
           {brandOptions.length > 1 && (
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium text-gray-500">Бренд</span>

@@ -32,7 +32,6 @@ export function AppNav() {
         <NavLink href="/sborka">Сборка</NavLink>
         <NavLink href="/otpravki">Отправки</NavLink>
         <NavLink href="/chestnye-znaki">Честные знаки</NavLink>
-        <NavLink href="/chestnye-znaki">Честные знаки</NavLink>
       </div>
     </nav>
   );
