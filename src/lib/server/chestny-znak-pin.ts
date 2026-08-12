@@ -15,7 +15,7 @@ export function chestnyZnakPinCookieOptions() {
   return {
     httpOnly: true,
     sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.CHESTNY_ZNAK_COOKIE_SECURE === "true",
     path: "/",
     maxAge: PIN_TTL_SEC,
   };
