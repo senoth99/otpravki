@@ -1,14 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useHardwareScanner } from "@/hooks/useHardwareScanner";
 import type { AssemblyViewSections } from "@/lib/assembly-demand";
 import { planAssemblyRoute } from "@/lib/assembly-route";
+import { resolveAssemblyScan } from "@/lib/barcode-product";
 import { findCellLocation, locationKey } from "@/lib/warehouse-location";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { WarehouseMapConfig } from "@/types/stock";
 import { AssemblyItemCard } from "./AssemblyItemCard";
 import { AutoModeButton } from "./AutoModeButton";
+import { BarcodeScanner } from "./BarcodeScanner";
 import { BloggerBadge } from "./BloggerBadge";
+import { ScanErrorPopup } from "./ScanErrorPopup";
 
 interface AssemblyViewProps {
   sections: AssemblyViewSections;
@@ -44,6 +48,8 @@ export function AssemblyView({
   const [navOpen, setNavOpen] = useState(false);
   const [navDismissedFor, setNavDismissedFor] = useState<string | null>(null);
   const [stepsDone, setStepsDone] = useState(0);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
   const totalStepsRef = useRef(0);
 
   const route = useMemo(
@@ -138,64 +144,68 @@ export function AssemblyView({
     }
   }, [autoMode, route.length, exitAutoMode]);
 
-  const handleTake = useCallback(() => {
-    if (!autoMode || !currentItem) return;
+  const applyCollect = useCallback(
+    (targetId: string) => {
+      const visible = findVisibleItem(targetId) ?? itemFromAll(allItems, targetId);
+      if (!visible || visible.collectedCount >= visible.quantity) return false;
 
-    const visible = findVisibleItem(currentItem.id);
-    if (!visible || visible.collectedCount >= visible.quantity) return;
-
-    const willComplete = visible.collectedCount + 1 >= visible.quantity;
-    const hasNext = route.length > 1;
-    const nextRouteItem = route.length > 1 ? route[1] : undefined;
-    const nextItem = nextRouteItem ? itemFromAll(allItems, nextRouteItem.id) : undefined;
-    const nextLocation = nextItem && warehouseMap ? findCellLocation(nextItem, warehouseMap) : undefined;
-    const nextLocationKey = nextLocation ? locationKey(nextLocation) : null;
-    const stayAtLocation =
-      willComplete && hasNext && Boolean(currentLocationKey && nextLocationKey === currentLocationKey);
-
-    onItemsChange(
-      allItems.map((item) =>
-        item.id === currentItem.id && item.collectedCount < visible.quantity
-          ? { ...item, collectedCount: item.collectedCount + 1, collectedAt: Date.now() }
-          : item,
-      ),
-    );
-
-    if (willComplete) {
-      if (hasNext) {
-        advanceRoute(stayAtLocation);
-      } else {
-        exitAutoMode();
-      }
-    }
-  }, [
-    autoMode,
-    currentItem,
-    findVisibleItem,
-    allItems,
-    onItemsChange,
-    route,
-    warehouseMap,
-    currentLocationKey,
-    advanceRoute,
-    exitAutoMode,
-  ]);
-
-  const handleIncrement = useCallback(
-    (id: string) => {
-      const visible = findVisibleItem(id);
-      if (!visible) return;
-      if (autoMode && currentItem && id !== currentItem.id) return;
+      const willComplete = visible.collectedCount + 1 >= visible.quantity;
+      const isCurrent = autoMode && currentItem?.id === targetId;
+      const hasNext = route.length > 1;
+      const nextRouteItem = route.length > 1 ? route[1] : undefined;
+      const nextItem = nextRouteItem ? itemFromAll(allItems, nextRouteItem.id) : undefined;
+      const nextLocation =
+        nextItem && warehouseMap ? findCellLocation(nextItem, warehouseMap) : undefined;
+      const nextLocationKey = nextLocation ? locationKey(nextLocation) : null;
+      const stayAtLocation =
+        isCurrent &&
+        willComplete &&
+        hasNext &&
+        Boolean(currentLocationKey && nextLocationKey === currentLocationKey);
 
       onItemsChange(
         allItems.map((item) =>
-          item.id === id && item.collectedCount < visible.quantity
+          item.id === targetId && item.collectedCount < visible.quantity
             ? { ...item, collectedCount: item.collectedCount + 1, collectedAt: Date.now() }
             : item,
         ),
       );
+
+      if (isCurrent && willComplete) {
+        if (hasNext) {
+          advanceRoute(stayAtLocation);
+        } else {
+          exitAutoMode();
+        }
+      }
+
+      return true;
     },
-    [allItems, findVisibleItem, onItemsChange, autoMode, currentItem],
+    [
+      findVisibleItem,
+      allItems,
+      autoMode,
+      currentItem,
+      route,
+      warehouseMap,
+      currentLocationKey,
+      onItemsChange,
+      advanceRoute,
+      exitAutoMode,
+    ],
+  );
+
+  const handleTake = useCallback(() => {
+    if (!autoMode || !currentItem) return;
+    applyCollect(currentItem.id);
+  }, [autoMode, currentItem, applyCollect]);
+
+  const handleIncrement = useCallback(
+    (id: string) => {
+      if (autoMode && currentItem && id !== currentItem.id) return;
+      applyCollect(id);
+    },
+    [autoMode, currentItem, applyCollect],
   );
 
   const handleDecrement = useCallback(
@@ -211,6 +221,34 @@ export function AssemblyView({
     },
     [allItems, onItemsChange, autoMode],
   );
+
+  const canScan = sections.pending.length > 0 || (autoMode && Boolean(currentItem));
+
+  const validateScan = useCallback(
+    (code: string) => {
+      if (!canScan) return;
+
+      const result = resolveAssemblyScan(allItems, code, {
+        onlyItemId: autoMode ? currentItem?.id : undefined,
+      });
+      if (!result.ok) {
+        setScanError(result.message);
+        return;
+      }
+
+      const applied = applyCollect(result.item.id);
+      if (!applied) {
+        setScanError("Все единицы этой позиции уже собраны");
+        return;
+      }
+
+      setScanError(null);
+      setScannerOpen(false);
+    },
+    [canScan, allItems, autoMode, currentItem?.id, applyCollect],
+  );
+
+  useHardwareScanner(validateScan, !scannerOpen && canScan);
 
   const isEmpty = sections.pending.length === 0 && sections.completed.length === 0;
   const routeStepById = useMemo(() => {
@@ -231,13 +269,31 @@ export function AssemblyView({
             <h2 className="text-base font-semibold text-gray-900 sm:text-lg">Позиции на сегодня</h2>
             <p className="mt-0.5 text-xs text-gray-500 sm:text-sm">
               {autoMode
-                ? "AUTO MODE: маршрут по складу от ближайшей позиции"
-                : "Собранные позиции уходят вниз после переключения вкладки"}
+                ? "AUTO MODE: сканируйте текущую позицию или нажмите «Взял»"
+                : "Сканируйте штрихкод или отмечайте вручную"}
             </p>
           </div>
           {!isEmpty && (
-            <div className="self-start rounded-xl bg-gray-100 px-4 py-2 text-sm font-semibold tabular-nums text-gray-700">
-              {collectedUnits(sections)} / {totalUnits(sections)}
+            <div className="flex items-center gap-2 self-start">
+              <button
+                type="button"
+                onClick={() => setScannerOpen(true)}
+                disabled={!canScan}
+                className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-900 disabled:opacity-40"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                  />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Сканер
+              </button>
+              <div className="rounded-xl bg-gray-100 px-4 py-2 text-sm font-semibold tabular-nums text-gray-700">
+                {collectedUnits(sections)} / {totalUnits(sections)}
+              </div>
             </div>
           )}
         </div>
@@ -248,7 +304,7 @@ export function AssemblyView({
               active={autoMode}
               onClick={handleAutoModeToggle}
               title="AUTO MODE"
-              subtitleActive="Маршрут → карта → следующая позиция"
+              subtitleActive="Маршрут → карта → сканер / Взял"
               subtitleInactive="Оптимальный порядок сборки по карте склада"
             />
           </div>
@@ -386,6 +442,12 @@ export function AssemblyView({
           )}
         </div>
       )}
+
+      {scannerOpen && (
+        <BarcodeScanner onScan={validateScan} onClose={() => setScannerOpen(false)} />
+      )}
+
+      {scanError && <ScanErrorPopup message={scanError} onClose={() => setScanError(null)} />}
     </div>
   );
 }

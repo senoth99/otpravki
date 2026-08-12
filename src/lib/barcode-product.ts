@@ -1,4 +1,9 @@
-import type { ApiProduct, ShippingOrder, ShippingOrderItem } from "@/types/shipping";
+import type {
+  ApiProduct,
+  AssemblyItem,
+  ShippingOrder,
+  ShippingOrderItem,
+} from "@/types/shipping";
 
 /** Баркод «партия-артикул» → код после разделителя (например 5iuw8-1445 → 1445) */
 export function parseBarcodeArticleCode(raw: string): string {
@@ -133,6 +138,54 @@ function findProductBySizeId(products: ApiProduct[], sizeId: string): ApiProduct
     }
   }
   return null;
+}
+
+function assemblyItemMatchesArticle(item: AssemblyItem, articleCode: string): boolean {
+  const code = articleCode.trim();
+  if (!code) return false;
+  return String(item.sizeId) === code || item.barcodeId === code;
+}
+
+/** Сопоставление штрихкода с позицией сборки (по sizeId / barcodeId). */
+export function resolveAssemblyScan(
+  items: AssemblyItem[],
+  rawCode: string,
+  options?: { onlyItemId?: string },
+): { ok: true; item: AssemblyItem } | { ok: false; message: string } {
+  const articleCode = parseBarcodeArticleCode(rawCode);
+  if (!articleCode) {
+    return { ok: false, message: "Пустой штрихкод" };
+  }
+
+  const candidates = items.filter((item) => assemblyItemMatchesArticle(item, articleCode));
+  if (candidates.length === 0) {
+    return { ok: false, message: `Артикул ${articleCode} нет в сборке` };
+  }
+
+  if (options?.onlyItemId) {
+    const current = candidates.find((item) => item.id === options.onlyItemId);
+    if (!current) {
+      return { ok: false, message: `Отсканируйте текущую позицию маршрута` };
+    }
+    if (current.collectedCount >= current.quantity) {
+      return { ok: false, message: `${current.productName} — уже собрано` };
+    }
+    return { ok: true, item: current };
+  }
+
+  const pending = candidates.filter((item) => item.collectedCount < item.quantity);
+  if (pending.length === 1) {
+    return { ok: true, item: pending[0] };
+  }
+  if (pending.length > 1) {
+    return {
+      ok: false,
+      message: `Артикул ${articleCode} — несколько позиций, отметь вручную`,
+    };
+  }
+
+  const name = candidates[0]?.productName ?? `артикул ${articleCode}`;
+  return { ok: false, message: `${name} — уже собрано` };
 }
 
 export function resolveScanFromBarcode(
