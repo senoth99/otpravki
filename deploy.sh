@@ -151,6 +151,12 @@ mkdir -p .next/standalone/.next
 cp -r .next/static .next/standalone/.next/static
 cp "$APP_DIR/server.js" .next/standalone/server.js
 cp "$APP_DIR/sync-log.js" .next/standalone/sync-log.js
+mkdir -p .next/standalone/scripts
+cp "$APP_DIR/scripts/crpt-get-token.py" .next/standalone/scripts/crpt-get-token.py
+chmod +x .next/standalone/scripts/crpt-get-token.py
+mkdir -p scripts
+cp "$APP_DIR/scripts/crpt-get-token.py" scripts/crpt-get-token.py
+chmod +x scripts/crpt-get-token.py
 echo "==> Зависимости standalone (socket.io, undici)..."
 npm install --prefix .next/standalone --omit=dev socket.io@^4.8.1 undici@^7.27.2
 
@@ -190,6 +196,7 @@ Environment=BARCODE_LABEL_HEIGHT_MM=${BARCODE_LABEL_HEIGHT_MM:-150}
 Environment=BARCODE_LABEL_DPI=${BARCODE_LABEL_DPI:-203}
 Environment=BARCODE_LABEL_SCALE=${BARCODE_LABEL_SCALE:-1}
 Environment=BARCODE_LABEL_ROTATION=${BARCODE_LABEL_ROTATION:-180}
+Environment=APP_DIR=${APP_DIR}
 EnvironmentFile=-${APP_DIR}/.env
 Environment=PORT=${PORT}
 Environment=HOSTNAME=0.0.0.0
@@ -288,5 +295,13 @@ if command -v lpstat &>/dev/null; then
   echo "  Принтер (авто):"
   lpstat -p 2>/dev/null | sed 's/^/    /' || echo "    подключи USB-принтер — CUPS подхватит сам"
   echo "    проверка: curl http://127.0.0.1:${PORT}/api/print"
+  echo ""
+fi
+
+if [[ -x "$APP_DIR/scripts/setup-cryptopro-angara.sh" ]]; then
+  echo "  Честные знаки (CryptoPro / АНГАРА):"
+  "$APP_DIR/scripts/setup-cryptopro-angara.sh" 2>/dev/null | sed 's/^/    /' || true
+  echo "    UI: http://${LAN_IP:-127.0.0.1}:${PORT}/chestnye-znaki"
+  echo "    docs: $APP_DIR/docs/CRYPTOPRO-ANGARA.md"
   echo ""
 fi
