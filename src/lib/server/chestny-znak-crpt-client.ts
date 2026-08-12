@@ -1,0 +1,219 @@
+import { getCrptSessionToken, signCrptDetached } from "@/lib/server/chestny-znak-api";
+
+export interface KmRecord {
+  sgtin: string;
+  cis: string;
+  gtin?: string;
+  status?: string;
+  productGroup?: string;
+  emissionDate?: string;
+  introducedDate?: string;
+  ownerInn?: string;
+  generalPackageType?: string;
+}
+
+export interface KmSearchResult {
+  items: KmRecord[];
+  isLastPage: boolean;
+  totalFetched: number;
+}
+
+function apiV3Base(): string {
+  return (
+    process.env.CRPT_API_URL?.trim().replace(/\/$/, "") ??
+    "https://markirovka.crpt.ru/api/v3/true-api"
+  );
+}
+
+function apiV4Base(): string {
+  return (
+    process.env.CRPT_API_URL_V4?.trim().replace(/\/$/, "") ??
+    apiV3Base().replace("/api/v3/true-api", "/api/v4/true-api")
+  );
+}
+
+function productGroup(): string {
+  return (process.env.CRPT_PRODUCT_GROUP?.trim() || "lp").toLowerCase();
+}
+
+function participantInn(): string {
+  const fromEnv = process.env.CRPT_INN?.trim();
+  if (fromEnv) return fromEnv;
+  throw new Error("Не задан CRPT_INN в .env (ИНН участника оборота)");
+}
+
+async function bearerToken(): Promise<string> {
+  const session = await getCrptSessionToken();
+  return session.token;
+}
+
+async function crptFetch<T>(
+  base: string,
+  path: string,
+  init: RequestInit & { json?: unknown } = {},
+): Promise<T> {
+  const token = await bearerToken();
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    Authorization: `Bearer ${token}`,
+    ...(init.headers as Record<string, string> | undefined),
+  };
+  let body = init.body;
+  if (init.json !== undefined) {
+    headers["Content-Type"] = "application/json;charset=UTF-8";
+    body = JSON.stringify(init.json);
+  }
+  const res = await fetch(`${base}${path}`, { ...init, headers, body });
+  const text = await res.text();
+  let parsed: unknown = {};
+  if (text) {
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = { raw: text };
+    }
+  }
+  if (!res.ok) {
+    const err =
+      typeof parsed === "object" &&
+      parsed !== null &&
+      ("error_message" in parsed
+        ? String((parsed as { error_message?: string }).error_message)
+        : "message" in parsed
+          ? String((parsed as { message?: string }).message)
+          : text.slice(0, 300));
+    throw new Error(`CRPT ${res.status}: ${err || res.statusText}`);
+  }
+  return parsed as T;
+}
+
+function mapKmRow(row: Record<string, unknown>): KmRecord {
+  return {
+    sgtin: String(row.sgtin ?? row.cis ?? ""),
+    cis: String(row.cis ?? row.sgtin ?? ""),
+    gtin: row.gtin ? String(row.gtin) : undefined,
+    status: row.status ? String(row.status) : undefined,
+    productGroup: row.productGroup ? String(row.productGroup) : undefined,
+    emissionDate: row.emissionDate ? String(row.emissionDate) : undefined,
+    introducedDate: row.introducedDate ? String(row.introducedDate) : undefined,
+    ownerInn: row.ownerInn ? String(row.ownerInn) : undefined,
+    generalPackageType: row.generalPackageType
+      ? String(row.generalPackageType)
+      : undefined,
+  };
+}
+
+export async function searchActiveKm(options?: {
+  perPage?: number;
+  maxPages?: number;
+}): Promise<KmSearchResult> {
+  const perPage = options?.perPage ?? 100;
+  const maxPages = options?.maxPages ?? 20;
+  const pg = productGroup();
+  const now = new Date();
+  const from =
+    process.env.CRPT_SEARCH_EMISSION_FROM?.trim() || "2020-01-01T00:00:00.000Z";
+  const to = now.toISOString();
+
+  const items: KmRecord[] = [];
+  let isLastPage = false;
+  let pagination: Record<string, string | number> = { perPage };
+  let page = 0;
+
+  while (page < maxPages && !isLastPage) {
+    const data = await crptFetch<{
+      isLastPage?: boolean;
+      result?: Record<string, unknown>[];
+    }>(apiV4Base(), "/cises/search", {
+      method: "POST",
+      json: {
+        filter: {
+          productGroups: [pg],
+          states: [{ status: "INTRODUCED" }],
+          emissionDatePeriod: { from, to },
+        },
+        pagination,
+      },
+    });
+
+    const batch = (data.result ?? []).map(mapKmRow);
+    items.push(...batch);
+    isLastPage = Boolean(data.isLastPage) || batch.length === 0;
+
+    if (isLastPage || batch.length < perPage) break;
+
+    const last = batch[batch.length - 1];
+    pagination = {
+      perPage,
+      lastEmissionDate: last.emissionDate ?? to,
+      sgtin: last.sgtin,
+    };
+    page += 1;
+  }
+
+  return { items, isLastPage, totalFetched: items.length };
+}
+
+export interface WriteOffResult {
+  docId: string;
+  cisList: string[];
+}
+
+export async function writeOffKm(
+  cisList: string[],
+  options?: { reason?: string; docNum?: string; address?: string },
+): Promise<WriteOffResult> {
+  if (cisList.length === 0) {
+    throw new Error("Не выбраны коды маркировки");
+  }
+
+  const inn = participantInn();
+  const today = new Date().toISOString().slice(0, 10);
+  const innerDoc = {
+    participantId: inn,
+    dropoutReason:
+      options?.reason?.trim() ||
+      process.env.CRPT_WRITE_OFF_REASON?.trim() ||
+      "OTHER",
+    withChild: false,
+    sntins: cisList,
+    sourceDocType: "OTHER",
+    sourceDocDate: today,
+    sourceDocNum: options?.docNum?.trim() || `CZ-${Date.now()}`,
+    sourceDocName: "Списание товаров",
+    ...(options?.address || process.env.CRPT_WRITE_OFF_ADDRESS?.trim()
+      ? { address: options?.address || process.env.CRPT_WRITE_OFF_ADDRESS?.trim() }
+      : {}),
+  };
+
+  const productDocument = Buffer.from(JSON.stringify(innerDoc), "utf-8").toString(
+    "base64",
+  );
+  const signature = await signCrptDetached(productDocument);
+
+  const pg = productGroup();
+  const response = await crptFetch<string | { id?: string; number?: string }>(
+    apiV3Base(),
+    `/lk/documents/create?pg=${encodeURIComponent(pg)}`,
+    {
+      method: "POST",
+      json: {
+        document_format: "MANUAL",
+        product_document: productDocument,
+        type: "WRITE_OFF",
+        signature,
+      },
+    },
+  );
+
+  const docId =
+    typeof response === "string"
+      ? response.replace(/"/g, "").trim()
+      : String(response.id ?? response.number ?? "");
+
+  if (!docId) {
+    throw new Error("Документ списания создан, но ID не получен");
+  }
+
+  return { docId, cisList };
+}

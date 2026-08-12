@@ -2,87 +2,32 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
+import { PinNumpad } from "@/components/chestnye-znaki/PinNumpad";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 
-type Screen = "pin" | "loading" | "token" | "error";
+type Screen = "pin" | "list" | "loading" | "error";
 
-interface TokenPayload {
-  token: string;
-  certSubject?: string;
-  certThumbprint?: string;
-  apiUrl?: string;
-  uuid?: string;
+interface KmItem {
+  sgtin: string;
+  cis: string;
+  gtin?: string;
+  status?: string;
+  emissionDate?: string;
+  introducedDate?: string;
 }
 
-function PinPad({
-  value,
-  onChange,
-  onSubmit,
-  disabled,
-}: {
-  value: string;
-  onChange: (next: string) => void;
-  onSubmit: (fullPin: string) => void;
-  disabled?: boolean;
-}) {
-  const press = (digit: string) => {
-    if (disabled || value.length >= 4) return;
-    const next = value + digit;
-    onChange(next);
-    if (next.length === 4) {
-      onSubmit(next);
-    }
-  };
+function formatDate(iso?: string): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleDateString("ru-RU");
+  } catch {
+    return iso;
+  }
+}
 
-  return (
-    <div className="mx-auto w-full max-w-xs space-y-3">
-      <div className="flex justify-center gap-2">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <div
-            key={index}
-            className={`h-3 w-3 rounded-full ${index < value.length ? "bg-gray-900" : "bg-gray-200"}`}
-          />
-        ))}
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => (
-          <button
-            key={digit}
-            type="button"
-            disabled={disabled}
-            onClick={() => press(digit)}
-            className="h-14 rounded-xl border border-gray-200 bg-white text-xl font-semibold text-gray-900 active:bg-gray-100 disabled:opacity-40"
-          >
-            {digit}
-          </button>
-        ))}
-        <button
-          type="button"
-          disabled={disabled || value.length === 0}
-          onClick={() => onChange("")}
-          className="h-14 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-700 disabled:opacity-40"
-        >
-          Сброс
-        </button>
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => press("0")}
-          className="h-14 rounded-xl border border-gray-200 bg-white text-xl font-semibold text-gray-900 active:bg-gray-100 disabled:opacity-40"
-        >
-          0
-        </button>
-        <button
-          type="button"
-          disabled={disabled || value.length === 0}
-          onClick={() => onChange(value.slice(0, -1))}
-          className="h-14 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-700 disabled:opacity-40"
-        >
-          ⌫
-        </button>
-      </div>
-    </div>
-  );
+function shortCis(cis: string): string {
+  if (cis.length <= 28) return cis;
+  return `${cis.slice(0, 14)}…${cis.slice(-8)}`;
 }
 
 export function ChestnyeZnakiPanel() {
@@ -91,9 +36,10 @@ export function ChestnyeZnakiPanel() {
   const [screen, setScreen] = useState<Screen>("pin");
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [payload, setPayload] = useState<TokenPayload | null>(null);
+  const [items, setItems] = useState<KmItem[]>([]);
   const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   const goBack = () => {
     if (typeof window !== "undefined" && window.history.length > 1) {
@@ -103,32 +49,29 @@ export function ChestnyeZnakiPanel() {
     router.push("/otpravki");
   };
 
-  const fetchToken = useCallback(async () => {
+  const showToast = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(null), 2500);
+  };
+
+  const loadKm = useCallback(async () => {
     setBusy(true);
     setError(null);
     setScreen("loading");
     try {
-      const res = await fetch("/api/chestnye-znaki/token", { method: "POST" });
+      const res = await fetch("/api/chestnye-znaki/km/search", { method: "POST" });
       const data = (await res.json()) as {
         ok?: boolean;
         error?: string;
-        token?: string;
-        certSubject?: string;
-        certThumbprint?: string;
-        apiUrl?: string;
-        uuid?: string;
+        items?: KmItem[];
+        totalFetched?: number;
       };
-      if (!res.ok || !data.ok || !data.token) {
-        throw new Error(data.error ?? "Не удалось получить токен");
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error ?? "Не удалось загрузить КМ");
       }
-      setPayload({
-        token: data.token,
-        certSubject: data.certSubject,
-        certThumbprint: data.certThumbprint,
-        apiUrl: data.apiUrl,
-        uuid: data.uuid,
-      });
-      setScreen("token");
+      setItems(data.items ?? []);
+      setScreen("list");
+      showToast(`Загружено: ${data.totalFetched ?? data.items?.length ?? 0}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка");
       setScreen("error");
@@ -153,7 +96,7 @@ export function ChestnyeZnakiPanel() {
           throw new Error(data.error ?? "Неверный PIN");
         }
         setPin("");
-        await fetchToken();
+        await loadKm();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Ошибка");
         setScreen("error");
@@ -162,111 +105,187 @@ export function ChestnyeZnakiPanel() {
         setBusy(false);
       }
     },
-    [busy, fetchToken],
+    [busy, loadKm],
   );
 
-  const copyToken = async () => {
-    if (!payload?.token) return;
-    await navigator.clipboard.writeText(payload.token);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1500);
+  const printKm = async (item: KmItem) => {
+    setRowBusy(item.cis);
+    try {
+      const res = await fetch("/api/chestnye-znaki/km/print", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cis: item.cis, gtin: item.gtin }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string; printer?: string };
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error ?? "Ошибка печати");
+      }
+      showToast(`Напечатано${data.printer ? ` · ${data.printer}` : ""}`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Ошибка печати");
+    } finally {
+      setRowBusy(null);
+    }
+  };
+
+  const writeOffKm = async (item: KmItem) => {
+    const ok = window.confirm(
+      `Списать код?\n\nGTIN: ${item.gtin ?? "—"}\n${shortCis(item.cis)}\n\nДействие необратимо в Честном знаке.`,
+    );
+    if (!ok) return;
+
+    setRowBusy(item.cis);
+    try {
+      const res = await fetch("/api/chestnye-znaki/km/write-off", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cisList: [item.cis], reason: "OTHER" }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string; docId?: string };
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error ?? "Ошибка списания");
+      }
+      setItems((prev) => prev.filter((row) => row.cis !== item.cis));
+      showToast(`Списано · док. ${data.docId?.slice(0, 8) ?? "OK"}`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Ошибка списания");
+    } finally {
+      setRowBusy(null);
+    }
   };
 
   return (
     <div className="otpravki-shell flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-gray-50">
       <header className="safe-top shrink-0 border-b border-gray-200 bg-white px-3 py-3 sm:px-4">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={goBack}
-            className="inline-flex h-9 items-center rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 active:bg-gray-50"
-          >
-            Назад
-          </button>
-          <div>
-            <h1 className="text-lg font-bold text-gray-900">Честные знаки</h1>
-            <p className="text-xs text-gray-500">Тестовый доступ · session-токен True API</p>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={goBack}
+              className="inline-flex h-9 shrink-0 items-center rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 active:bg-gray-50"
+            >
+              Назад
+            </button>
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-bold text-gray-900">Честные знаки</h1>
+              <p className="text-xs text-gray-500">Активные КМ · печать и списание</p>
+            </div>
           </div>
+          {screen === "list" && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void loadKm()}
+              className="inline-flex h-9 shrink-0 items-center rounded-xl bg-gray-900 px-3 text-sm font-medium text-white disabled:opacity-50"
+            >
+              Обновить
+            </button>
+          )}
         </div>
       </header>
 
-      <main className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto p-4">
+      {toast && (
+        <div className="pointer-events-none fixed inset-x-0 top-16 z-50 flex justify-center px-4">
+          <div className="rounded-xl bg-gray-900 px-4 py-2 text-sm text-white shadow-lg">{toast}</div>
+        </div>
+      )}
+
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-4">
         {screen === "pin" && (
-          <div className="w-full max-w-md space-y-6 text-center">
+          <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center space-y-6 text-center">
             <div>
               <p className="text-sm font-medium text-gray-900">Введите PIN</p>
               <p className="mt-1 text-xs text-gray-500">4 цифры для доступа к модулю</p>
             </div>
-            <PinPad value={pin} onChange={setPin} onSubmit={submitPin} disabled={busy} />
+            <PinNumpad
+              value={pin}
+              onChange={(next) => {
+                setPin(next);
+                if (next.length === 4) void submitPin(next);
+              }}
+              disabled={busy}
+            />
             {error && <p className="text-sm text-red-600">{error}</p>}
           </div>
         )}
 
         {screen === "loading" && (
-          <div className="text-center">
-            <p className="text-sm font-medium text-gray-900">Получаем токен с сервера…</p>
-            <p className="mt-2 text-xs text-gray-500">КриптоПро · токен АНГАРА · True API</p>
+          <div className="flex flex-1 items-center justify-center text-center">
+            <div>
+              <p className="text-sm font-medium text-gray-900">Загружаем активные КМ…</p>
+              <p className="mt-2 text-xs text-gray-500">True API · статус INTRODUCED · lp</p>
+            </div>
           </div>
         )}
 
-        {screen === "token" && payload && (
-          <div className="w-full max-w-2xl space-y-4">
-            <div className="rounded-2xl border border-green-200 bg-green-50/70 p-4">
-              <p className="text-sm font-semibold text-green-800">Токен получен</p>
-              {payload.certSubject && (
-                <p className="mt-1 text-xs text-gray-600">{payload.certSubject}</p>
-              )}
-              {payload.certThumbprint && (
-                <p className="mt-0.5 font-mono text-[10px] text-gray-500">{payload.certThumbprint}</p>
-              )}
-            </div>
-
-            <div className="rounded-2xl border border-gray-200 bg-white p-4">
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                Session token
+        {screen === "list" && (
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3">
+              <p className="text-sm font-semibold text-gray-900">
+                В обороте: {items.length}
               </p>
-              <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-gray-50 p-3 font-mono text-xs text-gray-900">
-                {payload.token}
-              </pre>
+              <p className="mt-0.5 text-xs text-gray-500">
+                Коды со статусом INTRODUCED на балансе организации
+              </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void copyToken()}
-                className="inline-flex h-11 items-center rounded-xl bg-gray-900 px-4 text-sm font-medium text-white"
-              >
-                {copied ? "Скопировано" : "Скопировать"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setScreen("pin");
-                  setPayload(null);
-                }}
-                className="inline-flex h-11 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800"
-              >
-                Запросить снова
-              </button>
-              <button
-                type="button"
-                onClick={goBack}
-                className="inline-flex h-11 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800"
-              >
-                Назад
-              </button>
-            </div>
+            {items.length === 0 ? (
+              <div className="flex flex-1 items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white p-6 text-center text-sm text-gray-500">
+                Активных кодов маркировки не найдено
+              </div>
+            ) : (
+              <div className="min-h-0 flex-1 overflow-y-auto rounded-2xl border border-gray-200 bg-white">
+                <ul className="divide-y divide-gray-100">
+                  {items.map((item) => {
+                    const busyRow = rowBusy === item.cis;
+                    return (
+                      <li key={item.cis} className="p-3 sm:p-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-mono text-sm font-semibold text-gray-900">
+                              {item.gtin ?? "—"}
+                            </p>
+                            <p className="mt-1 break-all font-mono text-[11px] leading-snug text-gray-600">
+                              {shortCis(item.cis)}
+                            </p>
+                            <p className="mt-2 text-[11px] text-gray-400">
+                              Ввод: {formatDate(item.introducedDate ?? item.emissionDate)} ·{" "}
+                              {item.status ?? "INTRODUCED"}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 gap-2">
+                            <button
+                              type="button"
+                              disabled={busyRow}
+                              onClick={() => void printKm(item)}
+                              className="inline-flex h-10 items-center rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-900 disabled:opacity-50"
+                            >
+                              {busyRow ? "…" : "Печать"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busyRow}
+                              onClick={() => void writeOffKm(item)}
+                              className="inline-flex h-10 items-center rounded-xl border border-red-200 bg-red-50 px-3 text-sm font-medium text-red-700 disabled:opacity-50"
+                            >
+                              Списать
+                            </button>
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
           </div>
         )}
 
         {screen === "error" && (
-          <div className="w-full max-w-md space-y-4 text-center">
+          <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center space-y-4 text-center">
             <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
               {error ?? "Неизвестная ошибка"}
             </div>
-            <p className="text-xs text-gray-500">
-              Проверь КриптоПро, токен АНГАРА и переменные CRPT_* в .env. См. docs/CHESTNY_ZNAK_SETUP.md
-            </p>
             <div className="flex justify-center gap-2">
               <button
                 type="button"

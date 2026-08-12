@@ -56,6 +56,16 @@ def import_pycades():
     return pycades
 
 
+def iter_store_certificates(store) -> list:
+    """Обход Certificates (pycades 0.1.x: Count + Item, без итератора)."""
+    collection = store.Certificates
+    count = int(getattr(collection, "Count", 0) or 0)
+    certs = []
+    for index in range(1, count + 1):
+        certs.append(collection.Item(index))
+    return certs
+
+
 def list_certificates() -> list[dict]:
     pycades = import_pycades()
     store = pycades.Store()
@@ -65,7 +75,7 @@ def list_certificates() -> list[dict]:
         CAPICOM_STORE_OPEN_MAXIMUM_ALLOWED,
     )
     certs = []
-    for cert in store.Certificates:
+    for cert in iter_store_certificates(store):
         try:
             certs.append(
                 {
@@ -96,7 +106,7 @@ def find_certificate(thumbprint: str):
         CAPICOM_STORE_OPEN_MAXIMUM_ALLOWED,
     )
     cert = None
-    for item in store.Certificates:
+    for item in iter_store_certificates(store):
         if normalize_thumbprint(item.Thumbprint) == wanted:
             cert = item
             break
@@ -108,7 +118,7 @@ def find_certificate(thumbprint: str):
     return cert, pycades
 
 
-def sign_cades_bes(content: str, thumbprint: str, token_pin: str) -> str:
+def sign_cades_bes(content: str, thumbprint: str, token_pin: str, detached: bool = False) -> str:
     cert, pycades = find_certificate(thumbprint)
     signer = pycades.Signer()
     signer.Certificate = cert
@@ -118,8 +128,17 @@ def sign_cades_bes(content: str, thumbprint: str, token_pin: str) -> str:
     signed_data = pycades.SignedData()
     signed_data.ContentEncoding = CAPICOM_ENCODE_BASE64
     signed_data.Content = content
-    signature = signed_data.SignCades(signer, CADES_BES, False, CAPICOM_ENCODE_BASE64)
+    signature = signed_data.SignCades(signer, CADES_BES, detached, CAPICOM_ENCODE_BASE64)
     return re.sub(r"[\r\n\s]+", "", signature)
+
+
+def sign_detached_document(content_base64: str) -> dict:
+    thumbprint = env("CRPT_CERT_THUMBPRINT")
+    token_pin = env("CRPT_TOKEN_PIN")
+    if not content_base64:
+        raise RuntimeError("Пустой product_document для подписи")
+    signature = sign_cades_bes(content_base64, thumbprint, token_pin, detached=True)
+    return {"ok": True, "signature": signature}
 
 
 def get_token() -> dict:
@@ -140,7 +159,7 @@ def get_token() -> dict:
         payload["inn"] = inn
 
     token_resp = http_json("POST", f"{base}/auth/simpleSignIn", payload)
-    token = token_resp.get("token")
+    token = token_resp.get("token") or token_resp.get("uuidToken")
     if not token:
         raise RuntimeError(f"Токен не получен: {token_resp}")
 
@@ -148,6 +167,7 @@ def get_token() -> dict:
     return {
         "ok": True,
         "token": token,
+        "expireDate": token_resp.get("expireDate"),
         "uuid": uuid,
         "certSubject": cert.SubjectName,
         "certThumbprint": normalize_thumbprint(cert.Thumbprint),
@@ -212,6 +232,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--list-certs", action="store_true")
     parser.add_argument("--diagnose", action="store_true")
+    parser.add_argument("--sign-detached", metavar="BASE64", help="Откреплённая подпись product_document")
     args = parser.parse_args()
 
     try:
@@ -220,6 +241,9 @@ def main() -> int:
             return 0
         if args.diagnose:
             print(json.dumps(diagnose(), ensure_ascii=False))
+            return 0
+        if args.sign_detached is not None:
+            print(json.dumps(sign_detached_document(args.sign_detached), ensure_ascii=False))
             return 0
         print(json.dumps(get_token(), ensure_ascii=False))
         return 0

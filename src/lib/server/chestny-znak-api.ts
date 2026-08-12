@@ -16,7 +16,12 @@ export interface CrptErrorResult {
   error: string;
 }
 
-export type CrptScriptResult = CrptTokenResult | CrptErrorResult;
+export type CrptScriptResult = CrptTokenResult | CrptErrorResult | CrptSignResult;
+
+export interface CrptSignResult {
+  ok: true;
+  signature: string;
+}
 
 export interface CrptDiagnoseResult {
   ok: boolean;
@@ -109,4 +114,15 @@ export async function listCrptCertificates(): Promise<CrptDiagnoseResult["certif
     return result.certificates;
   }
   return [];
+}
+
+export async function signCrptDetached(contentBase64: string): Promise<string> {
+  const result = await runCrptScript(["--sign-detached", contentBase64]);
+  if (!result.ok) {
+    throw new Error("error" in result ? result.error : "Не удалось подписать документ");
+  }
+  if (!("signature" in result) || !result.signature) {
+    throw new Error("Скрипт ЧЗ не вернул signature");
+  }
+  return result.signature;
 }
