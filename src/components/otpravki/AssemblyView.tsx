@@ -20,6 +20,7 @@ interface AssemblyViewProps {
   orders: ShippingOrder[];
   onItemsChange: (items: AssemblyItem[]) => void;
   warehouseMap?: WarehouseMapConfig;
+  onFocusProduct?: (productId: string | null, autoMode: boolean) => void;
 }
 
 function totalUnits(sections: AssemblyViewSections) {
@@ -42,6 +43,7 @@ export function AssemblyView({
   orders,
   onItemsChange,
   warehouseMap,
+  onFocusProduct,
 }: AssemblyViewProps) {
   const visibleItems = [...sections.pending, ...sections.completed];
   const [autoMode, setAutoMode] = useState(false);
@@ -63,6 +65,10 @@ export function AssemblyView({
     () => (currentItem && warehouseMap ? findCellLocation(currentItem, warehouseMap) : undefined),
     [currentItem, warehouseMap],
   );
+
+  useEffect(() => {
+    onFocusProduct?.(autoMode ? (currentItem?.productId ?? null) : null, autoMode);
+  }, [autoMode, currentItem?.productId, onFocusProduct]);
   const currentLocationKey = currentLocation ? locationKey(currentLocation) : null;
 
   const locationGroup = useMemo(() => {

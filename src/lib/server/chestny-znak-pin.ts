@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
 export const CZ_PIN_COOKIE = "cz_pin_ok";
+export const ADMIN_COOKIE = "otpravki_admin";
 const PIN_TTL_SEC = 30 * 60;
 
 export function getChestnyZnakTestPin(): string {
@@ -23,5 +24,5 @@ export function chestnyZnakPinCookieOptions() {
 
 export async function hasChestnyZnakPinAccess(): Promise<boolean> {
   const jar = await cookies();
-  return jar.get(CZ_PIN_COOKIE)?.value === "1";
+  return jar.get(CZ_PIN_COOKIE)?.value === "1" || jar.get(ADMIN_COOKIE)?.value === "1";
 }

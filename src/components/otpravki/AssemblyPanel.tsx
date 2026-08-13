@@ -1,14 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { AuthHeaderStats } from "@/components/auth/AuthHeaderStats";
 import { getAssemblyViewSections } from "@/lib/assembly-demand";
+import type { AssemblyExtra } from "@/lib/assembly-extras";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import { resolveOrderUrgency } from "@/lib/urgency";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { WarehouseMapConfig } from "@/types/stock";
+import { AssemblyExtrasPanel } from "./AssemblyExtrasPanel";
 import { AssemblyView } from "./AssemblyView";
 import {
   applyOrderFilters,
@@ -46,6 +48,9 @@ export function AssemblyPanel({
   const [selectedBrand, setSelectedBrand] = useState<string>(KNOWN_BRANDS[0]);
   const [filters, setFilters] = useState<OtpravkiFiltersState>(DEFAULT_FILTERS);
   const [reloading, setReloading] = useState(false);
+  const [extras, setExtras] = useState<AssemblyExtra[]>([]);
+  const [focusProductId, setFocusProductId] = useState<string | null>(null);
+  const [autoMode, setAutoMode] = useState(false);
   const {
     assemblyItems,
     orders,
@@ -63,6 +68,30 @@ export function AssemblyPanel({
   });
 
   useOtpravkiNoSwipe();
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/assembly/extras?brand=${encodeURIComponent(selectedBrand)}`,
+          { cache: "no-store" },
+        );
+        const data = (await res.json()) as { ok?: boolean; extras?: AssemblyExtra[] };
+        if (!cancelled && data.ok) setExtras(data.extras ?? []);
+      } catch {
+        if (!cancelled) setExtras([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedBrand]);
+
+  const handleFocusProduct = useCallback((productId: string | null, nextAutoMode: boolean) => {
+    setFocusProductId(productId);
+    setAutoMode(nextAutoMode);
+  }, []);
 
   const brandOrders = useMemo(
     () => orders.filter((order) => getOrderStoreBrand(order) === selectedBrand && !order.barcodePrinted),
@@ -174,10 +203,10 @@ export function AssemblyPanel({
           </a>
 
           <a
-            href="/chestnye-znaki"
+            href="/admin"
             className="inline-flex h-9 items-center rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 active:bg-gray-50"
           >
-            Честные знаки
+            Админка
           </a>
 
           {brandOptions.length > 1 && (
@@ -248,15 +277,27 @@ export function AssemblyPanel({
           products={products}
         />
 
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-5">
-          <AssemblyView
-            sections={assemblySections}
-            allItems={filteredAssemblyItems}
-            orders={filteredOrders}
-            onItemsChange={handleFilteredAssemblyChange}
-            warehouseMap={warehouseMap}
-          />
-        </main>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 lg:flex-row">
+          <main className="order-2 min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-5 lg:order-1">
+            <AssemblyView
+              sections={assemblySections}
+              allItems={filteredAssemblyItems}
+              orders={filteredOrders}
+              onItemsChange={handleFilteredAssemblyChange}
+              warehouseMap={warehouseMap}
+              onFocusProduct={handleFocusProduct}
+            />
+          </main>
+          <div className="order-1 max-h-56 min-h-0 shrink-0 lg:order-2 lg:max-h-none lg:h-full">
+            <AssemblyExtrasPanel
+              key={selectedBrand}
+              extras={extras}
+              items={filteredAssemblyItems}
+              currentProductId={focusProductId}
+              autoMode={autoMode}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

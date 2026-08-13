@@ -163,10 +163,10 @@ export function ShippingPanel({
           </a>
 
           <a
-            href="/chestnye-znaki"
+            href="/admin"
             className="inline-flex h-9 items-center rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 active:bg-gray-50"
           >
-            Честные знаки
+            Админка
           </a>
 
           {brandOptions.length > 1 && (

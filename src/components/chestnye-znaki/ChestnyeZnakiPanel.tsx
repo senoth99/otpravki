@@ -1,12 +1,11 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthHeaderStats } from "@/components/auth/AuthHeaderStats";
-import { PinNumpad } from "@/components/chestnye-znaki/PinNumpad";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 
-type Screen = "pin" | "list" | "loading" | "error";
+type Screen = "list" | "loading" | "error";
 
 interface KmItem {
   sgtin: string;
@@ -34,8 +33,7 @@ function shortCis(cis: string): string {
 export function ChestnyeZnakiPanel() {
   useOtpravkiNoSwipe();
   const router = useRouter();
-  const [screen, setScreen] = useState<Screen>("pin");
-  const [pin, setPin] = useState("");
+  const [screen, setScreen] = useState<Screen>("loading");
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<KmItem[]>([]);
   const [nextCursor, setNextCursor] = useState<{
@@ -48,11 +46,7 @@ export function ChestnyeZnakiPanel() {
   const [toast, setToast] = useState<string | null>(null);
 
   const goBack = () => {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
-      return;
-    }
-    router.push("/otpravki");
+    router.push("/admin");
   };
 
   const showToast = (message: string) => {
@@ -100,33 +94,24 @@ export function ChestnyeZnakiPanel() {
     }
   }, []);
 
-  const submitPin = useCallback(
-    async (enteredPin: string) => {
-      if (enteredPin.length !== 4 || busy) return;
-      setBusy(true);
-      setError(null);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
       try {
-        const res = await fetch("/api/chestnye-znaki/verify-pin", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pin: enteredPin }),
-        });
-        const data = (await res.json()) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          throw new Error(data.error ?? "Неверный PIN");
+        const res = await fetch("/api/admin/session", { cache: "no-store" });
+        if (!res.ok) {
+          router.replace("/admin");
+          return;
         }
-        setPin("");
-        await loadKm(false);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Ошибка");
-        setScreen("error");
-        setPin("");
-      } finally {
-        setBusy(false);
+        if (!cancelled) await loadKm(false);
+      } catch {
+        if (!cancelled) router.replace("/admin");
       }
-    },
-    [busy, loadKm],
-  );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadKm, router]);
 
   const printKm = async (item: KmItem) => {
     setRowBusy(item.cis);
@@ -214,24 +199,6 @@ export function ChestnyeZnakiPanel() {
       )}
 
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-4">
-        {screen === "pin" && (
-          <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center space-y-6 text-center">
-            <div>
-              <p className="text-sm font-medium text-gray-900">Введите PIN</p>
-              <p className="mt-1 text-xs text-gray-500">4 цифры для доступа к модулю</p>
-            </div>
-            <PinNumpad
-              value={pin}
-              onChange={(next) => {
-                setPin(next);
-                if (next.length === 4) void submitPin(next);
-              }}
-              disabled={busy}
-            />
-            {error && <p className="text-sm text-red-600">{error}</p>}
-          </div>
-        )}
-
         {screen === "loading" && (
           <div className="flex flex-1 items-center justify-center text-center">
             <div>
@@ -326,8 +293,8 @@ export function ChestnyeZnakiPanel() {
               <button
                 type="button"
                 onClick={() => {
-                  setScreen("pin");
                   setError(null);
+                  void loadKm(false);
                 }}
                 className="inline-flex h-11 items-center rounded-xl bg-gray-900 px-4 text-sm font-medium text-white"
               >

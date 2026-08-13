@@ -31,7 +31,7 @@ export function AppNav() {
       <div className="mx-auto flex max-w-3xl items-center gap-1 px-3 py-2">
         <NavLink href="/sborka">Сборка</NavLink>
         <NavLink href="/otpravki">Отправки</NavLink>
-        <NavLink href="/chestnye-znaki">Честные знаки</NavLink>
+        <NavLink href="/admin">Админка</NavLink>
       </div>
     </nav>
   );
