@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthHeaderStats } from "@/components/auth/AuthHeaderStats";
+import { GtinProductLabel, type GtinProductInfo } from "@/components/chestnye-znaki/GtinProductLabel";
+import { toGtin14 } from "@/lib/chestny-znak-gtin";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 
 type Screen = "list" | "loading" | "error";
@@ -19,6 +21,7 @@ interface KmItem {
 interface SkuStat {
   gtin: string;
   productName: string;
+  size: string;
   remaining: number;
   writtenOff: number;
   failed: number;
@@ -57,6 +60,7 @@ export function ChestnyeZnakiPanel() {
   const [statsBusy, setStatsBusy] = useState(false);
   const [czEnabled, setCzEnabled] = useState(true);
   const [czToggleBusy, setCzToggleBusy] = useState(false);
+  const [catalog, setCatalog] = useState<Record<string, GtinProductInfo>>({});
 
   const goBack = () => {
     router.push("/admin");
@@ -107,11 +111,15 @@ export function ChestnyeZnakiPanel() {
         ok?: boolean;
         error?: string;
         rows?: SkuStat[];
+        catalog?: Record<string, GtinProductInfo>;
       };
       if (!res.ok || !data.ok) {
         throw new Error(data.error ?? "Не удалось загрузить статистику");
       }
       setStats(data.rows ?? []);
+      if (data.catalog) {
+        setCatalog((prev) => ({ ...prev, ...data.catalog }));
+      }
       setStatsError(null);
     } catch (err) {
       setStatsError(err instanceof Error ? err.message : "Ошибка статистики");
@@ -140,6 +148,7 @@ export function ChestnyeZnakiPanel() {
         totalFetched?: number;
         isLastPage?: boolean;
         nextCursor?: typeof nextCursor;
+        catalog?: Record<string, GtinProductInfo>;
       };
       if (!res.ok || !data.ok) {
         throw new Error(data.error ?? "Не удалось загрузить КМ");
@@ -148,6 +157,9 @@ export function ChestnyeZnakiPanel() {
       setItems((prev) => (append ? [...prev, ...batch] : batch));
       setNextCursor(data.nextCursor ?? null);
       setHasMore(Boolean(data.nextCursor) && !data.isLastPage);
+      if (data.catalog) {
+        setCatalog((prev) => ({ ...prev, ...data.catalog }));
+      }
       setScreen("list");
       if (!append) {
         showToast(`Загружено: ${batch.length}${data.nextCursor ? "+" : ""}`);
@@ -202,8 +214,9 @@ export function ChestnyeZnakiPanel() {
   };
 
   const writeOffKm = async (item: KmItem) => {
+    const info = catalog[toGtin14(item.gtin ?? "")];
     const ok = window.confirm(
-      `Списать код?\n\nGTIN: ${item.gtin ?? "—"}\n${shortCis(item.cis)}\n\nДействие необратимо в Честном знаке.`,
+      `Списать код?\n\n${info ? `${info.productName}${info.size ? ` · ${info.size}` : ""}\n` : ""}GTIN: ${item.gtin ?? "—"}\n${shortCis(item.cis)}\n\nДействие необратимо в Честном знаке.`,
     );
     if (!ok) return;
 
@@ -318,7 +331,6 @@ export function ChestnyeZnakiPanel() {
                   <thead className="sticky top-0 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                     <tr>
                       <th className="px-4 py-2 font-medium">Товар</th>
-                      <th className="px-4 py-2 font-medium">GTIN</th>
                       <th className="px-4 py-2 text-right font-medium">Осталось</th>
                       <th className="px-4 py-2 text-right font-medium">Списано</th>
                       <th className="px-4 py-2 text-right font-medium">Ошибки</th>
@@ -327,8 +339,23 @@ export function ChestnyeZnakiPanel() {
                   <tbody className="divide-y divide-gray-100">
                     {stats.map((row) => (
                       <tr key={row.gtin}>
-                        <td className="px-4 py-2 font-medium text-gray-900">{row.productName}</td>
-                        <td className="px-4 py-2 font-mono text-xs text-gray-600">{row.gtin}</td>
+                        <td className="px-4 py-2">
+                          <GtinProductLabel
+                            gtin={row.gtin}
+                            catalog={
+                              row.productName
+                                ? {
+                                    ...catalog,
+                                    [row.gtin]: {
+                                      productName: row.productName,
+                                      size: row.size,
+                                    },
+                                  }
+                                : catalog
+                            }
+                            compact
+                          />
+                        </td>
                         <td className="px-4 py-2 text-right tabular-nums text-gray-900">
                           {row.remaining}
                         </td>
@@ -385,9 +412,7 @@ export function ChestnyeZnakiPanel() {
                       <li key={item.cis} className="p-3 sm:p-4">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div className="min-w-0 flex-1">
-                            <p className="font-mono text-sm font-semibold text-gray-900">
-                              {item.gtin ?? "—"}
-                            </p>
+                            <GtinProductLabel gtin={item.gtin} catalog={catalog} />
                             <p className="mt-1 break-all font-mono text-[11px] leading-snug text-gray-600">
                               {shortCis(item.cis)}
                             </p>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { toGtin14 } from "@/lib/chestny-znak-gtin";
 import { fetchProducts } from "@/lib/api";
+import { getGtinProductCatalog, type GtinProductInfo } from "@/lib/server/chestny-znak-gtin-catalog";
 import { hasChestnyZnakPinAccess } from "@/lib/server/chestny-znak-pin";
 import { loadPackEvents } from "@/lib/server/chestny-znak-pack-store";
 import { getRemainingByGtin } from "@/lib/server/chestny-znak-remaining";
@@ -8,6 +9,7 @@ import { getRemainingByGtin } from "@/lib/server/chestny-znak-remaining";
 export interface ChestnyZnakSkuStat {
   gtin: string;
   productName: string;
+  size: string;
   remaining: number;
   writtenOff: number;
   failed: number;
@@ -19,10 +21,11 @@ export async function GET() {
   }
 
   try {
-    const [events, remainingByGtin, products] = await Promise.all([
+    const [events, remainingByGtin, products, catalog] = await Promise.all([
       loadPackEvents(),
       getRemainingByGtin(),
       fetchProducts().catch(() => []),
+      getGtinProductCatalog().catch((): Record<string, GtinProductInfo> => ({})),
     ]);
 
     const names = new Map<string, string>();
@@ -38,6 +41,8 @@ export async function GET() {
       if (event.productName?.trim()) names.set(gtin, event.productName.trim());
       const catalogName = event.productId ? productById.get(event.productId) : undefined;
       if (catalogName) names.set(gtin, catalogName);
+      const bound = catalog[gtin];
+      if (bound?.productName) names.set(gtin, bound.productName);
       if (event.ok) {
         writtenOff.set(gtin, (writtenOff.get(gtin) ?? 0) + 1);
       } else {
@@ -45,18 +50,31 @@ export async function GET() {
       }
     }
 
-    const gtins = new Set([...remaining.keys(), ...writtenOff.keys(), ...failed.keys()]);
+    const gtins = new Set([
+      ...remaining.keys(),
+      ...writtenOff.keys(),
+      ...failed.keys(),
+      ...Object.keys(catalog),
+    ]);
     const rows: ChestnyZnakSkuStat[] = [...gtins]
-      .map((gtin) => ({
-        gtin,
-        productName: names.get(gtin) || `GTIN ${gtin}`,
-        remaining: remaining.get(gtin) ?? 0,
-        writtenOff: writtenOff.get(gtin) ?? 0,
-        failed: failed.get(gtin) ?? 0,
-      }))
-      .sort((a, b) => a.productName.localeCompare(b.productName, "ru"));
+      .map((gtin) => {
+        const bound = catalog[gtin];
+        return {
+          gtin,
+          productName: bound?.productName || names.get(gtin) || "",
+          size: bound?.size ?? "",
+          remaining: remaining.get(gtin) ?? 0,
+          writtenOff: writtenOff.get(gtin) ?? 0,
+          failed: failed.get(gtin) ?? 0,
+        };
+      })
+      .sort((a, b) => {
+        const left = a.productName || a.gtin;
+        const right = b.productName || b.gtin;
+        return left.localeCompare(right, "ru");
+      });
 
-    return NextResponse.json({ ok: true, rows });
+    return NextResponse.json({ ok: true, rows, catalog });
   } catch (error) {
     return NextResponse.json(
       {

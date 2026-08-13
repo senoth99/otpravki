@@ -38,6 +38,7 @@ async function requestPackUnit(input: {
   itemId: string;
   productId: string;
   productName: string;
+  size: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const res = await fetch("/api/chestnye-znaki/pack-unit", {
@@ -323,6 +324,7 @@ export function ShippingView({
               itemId: item.id,
               productId: item.productId,
               productName: item.productName,
+              size: item.size,
             }),
             waitMs(PACK_UNIT_WAIT_MS),
           ]);

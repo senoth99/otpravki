@@ -3,6 +3,7 @@ import { formatApiFetchError } from "@/lib/server/api-fetch-error";
 import { fetchUnshippedOrders, fetchUnshippedOrdersForBrand } from "@/lib/server/orders-api";
 import { externalFetch } from "@/lib/server/external-fetch";
 import { logSync } from "@/lib/server/sync-log";
+import { ingestGtinCatalogFromOrders } from "@/lib/server/chestny-znak-gtin-catalog";
 import {
   getSharedWorkspace,
   replaceWorkspaceFromApi,
@@ -61,6 +62,7 @@ export async function fetchAndSyncWorkspaceFromApi(): Promise<WorkspaceApiSyncRe
   };
 
   const workspace = await replaceWorkspaceFromApi(fresh);
+  void ingestGtinCatalogFromOrders(fresh.orders).catch(() => undefined);
 
   void logSync("api.sync.ok", {
     apiOrders: apiOrders.length,
@@ -94,6 +96,7 @@ export async function fetchAndSyncWorkspaceFromApiForBrand(
   };
 
   const workspace = await replaceWorkspaceFromApiForBrand(brand, fresh);
+  void ingestGtinCatalogFromOrders(fresh.orders).catch(() => undefined);
 
   void logSync("api.sync.brand.ok", {
     brand,

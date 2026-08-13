@@ -13,6 +13,7 @@ import {
   releaseCis,
   withPackLock,
 } from "@/lib/server/chestny-znak-pack-store";
+import { upsertGtinProduct } from "@/lib/server/chestny-znak-gtin-catalog";
 import { invalidateChestnyZnakRemainingCache } from "@/lib/server/chestny-znak-remaining";
 import { isChestnyZnakPackingEnabled } from "@/lib/server/chestny-znak-settings";
 import { printKmLabel } from "@/lib/server/km-label-printer";
@@ -50,13 +51,20 @@ export async function POST(request: Request) {
     itemId?: string;
     productId?: string;
     productName?: string;
+    size?: string;
   };
+
+  const gtin = toGtin14(body.gtin ?? "");
+  if (gtin && body.productName?.trim()) {
+    void upsertGtinProduct(gtin, { productName: body.productName, size: body.size }).catch(
+      () => undefined,
+    );
+  }
 
   if (!(await isChestnyZnakPackingEnabled())) {
     return NextResponse.json({ ok: true, skipped: true, reason: "disabled" });
   }
 
-  const gtin = toGtin14(body.gtin ?? "");
   if (!gtin) {
     return NextResponse.json({ ok: false, error: "Не указан код честного знака" }, { status: 400 });
   }
