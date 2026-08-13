@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AuthHeaderStats } from "@/components/auth/AuthHeaderStats";
 import { PinNumpad } from "@/components/chestnye-znaki/PinNumpad";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 
@@ -190,16 +191,19 @@ export function ChestnyeZnakiPanel() {
               <p className="text-xs text-gray-500">Активные КМ · печать и списание</p>
             </div>
           </div>
-          {screen === "list" && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void loadKm(false)}
-              className="inline-flex h-9 shrink-0 items-center rounded-xl bg-gray-900 px-3 text-sm font-medium text-white disabled:opacity-50"
-            >
-              Обновить
-            </button>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            <AuthHeaderStats />
+            {screen === "list" && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void loadKm(false)}
+                className="inline-flex h-9 shrink-0 items-center rounded-xl bg-gray-900 px-3 text-sm font-medium text-white disabled:opacity-50"
+              >
+                Обновить
+              </button>
+            )}
+          </div>
         </div>
       </header>
 

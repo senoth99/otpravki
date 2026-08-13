@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { AuthHeaderStats } from "@/components/auth/AuthHeaderStats";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { orderIsBlogger } from "@/lib/blogger-order";
@@ -151,6 +152,8 @@ export function ShippingPanel({
             <h1 className="text-lg font-bold text-gray-900 sm:text-xl">Отправки</h1>
             <p className="text-xs text-gray-500">Отправка и архив заказов</p>
           </div>
+
+          <AuthHeaderStats />
 
           <a
             href="/sborka"

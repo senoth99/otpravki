@@ -4,7 +4,9 @@ import {
   printToBarcodePrinter,
 } from "@/lib/server/barcode-printer";
 import { requireMutatingAuth } from "@/lib/server/api-auth";
+import { requireUserSession } from "@/lib/server/auth-session";
 import { markOrderShipped } from "@/lib/server/orders-api";
+import { recordShipmentEvent } from "@/lib/server/shift-stats-store";
 import { getSharedWorkspace, persistAndReplaceArchive } from "@/lib/server/workspace-store";
 import type { ShippingOrder } from "@/types/shipping";
 
@@ -101,6 +103,20 @@ export async function POST(request: Request) {
         barcodePrintedAt: fromSession.barcodePrintedAt ?? Date.now(),
       };
       await persistAndReplaceArchive([archived]);
+
+      try {
+        const userCtx = await requireUserSession({ touch: true });
+        if (userCtx) {
+          await recordShipmentEvent({
+            ts: archived.barcodePrintedAt ?? Date.now(),
+            userId: userCtx.user.id,
+            orderId: archived.id,
+            orderNumber: archived.orderNumber,
+          });
+        }
+      } catch {
+        // статистика не должна ломать печать
+      }
     }
 
     return NextResponse.json({

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { AuthHeaderStats } from "@/components/auth/AuthHeaderStats";
 import type { ApiStockItem, WarehouseMapConfig } from "@/types/stock";
 import { StockList } from "./StockList";
 import { WarehouseMap } from "./WarehouseMap";
@@ -59,6 +60,7 @@ export function SkladPanel({ initialStock, initialMap, stockError }: SkladPanelP
             {isRefreshing ? "…" : "↻"}
           </button>
         </div>
+        <AuthHeaderStats />
         {/* Tab switcher */}
         <div className="flex w-full rounded-2xl border border-gray-200 bg-white p-1 shadow-sm sm:inline-flex sm:w-auto">
           {TABS.map((tab) => (

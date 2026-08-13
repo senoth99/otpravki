@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { AuthHeaderStats } from "@/components/auth/AuthHeaderStats";
 import { getAssemblyViewSections } from "@/lib/assembly-demand";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import { resolveOrderUrgency } from "@/lib/urgency";
@@ -162,6 +163,8 @@ export function AssemblyPanel({
             <h1 className="text-lg font-bold text-gray-900 sm:text-xl">Сборка</h1>
             <p className="text-xs text-gray-500">Позиции на сборку со склада</p>
           </div>
+
+          <AuthHeaderStats />
 
           <a
             href="/otpravki"
