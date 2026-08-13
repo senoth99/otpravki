@@ -124,8 +124,29 @@ export function ShippingView({
   const [extras, setExtras] = useState<AssemblyExtra[]>([]);
   const [packingOverlay, setPackingOverlay] = useState(false);
   const [packError, setPackError] = useState<string | null>(null);
+  const [czEnabled, setCzEnabled] = useState(true);
   const autoHandledRef = useRef<string | null>(null);
   const packingRef = useRef(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const load = () => {
+      void fetch("/api/chestnye-znaki/settings", { cache: "no-store", signal: controller.signal })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: { enabled?: boolean } | null) => {
+          if (typeof data?.enabled === "boolean") setCzEnabled(data.enabled);
+        })
+        .catch((err) => {
+          if (err instanceof Error && err.name === "AbortError") return;
+        });
+    };
+    load();
+    const timer = window.setInterval(load, 15_000);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -263,7 +284,7 @@ export function ShippingView({
       if (packingRef.current) return;
       if (item.scannedCount >= item.quantity) return;
 
-      const gtin = item.chestnyZnak?.trim();
+      const gtin = czEnabled ? item.chestnyZnak?.trim() : "";
       packingRef.current = true;
       if (gtin) setPackingOverlay(true);
       setPackError(null);
@@ -292,7 +313,7 @@ export function ShippingView({
         setPackingOverlay(false);
       }
     },
-    [incrementPackedItem],
+    [czEnabled, incrementPackedItem],
   );
 
   const validateScan = useCallback(
@@ -337,7 +358,7 @@ export function ShippingView({
       if (!order || !item) return;
 
       if (delta < 0) {
-        if (item.chestnyZnak?.trim()) return;
+        if (czEnabled && item.chestnyZnak?.trim()) return;
         onOrdersChange((prev) =>
           prev.map((entry) =>
             entry.id === currentOrderId
@@ -358,7 +379,7 @@ export function ShippingView({
 
       if (delta > 0) void packOneUnit(order, item);
     },
-    [autoMode, canScan, currentOrderId, onOrdersChange, orders, packOneUnit],
+    [autoMode, canScan, currentOrderId, czEnabled, onOrdersChange, orders, packOneUnit],
   );
 
   const handlePrint = () => {
@@ -668,6 +689,7 @@ export function ShippingView({
                       item={item}
                       manual={manualMode && !autoMode}
                       busy={packingOverlay}
+                      chestnyZnakActive={czEnabled}
                       onIncrement={() => updateItemCount(item.id, 1)}
                       onDecrement={() => updateItemCount(item.id, -1)}
                     />

@@ -13,6 +13,7 @@ import {
   releaseCis,
   withPackLock,
 } from "@/lib/server/chestny-znak-pack-store";
+import { isChestnyZnakPackingEnabled } from "@/lib/server/chestny-znak-settings";
 import { printKmLabel } from "@/lib/server/km-label-printer";
 
 function isFreeMatch(row: KmRecord, gtin: string, used: Set<string>, requireGtin: boolean) {
@@ -49,6 +50,10 @@ export async function POST(request: Request) {
     productId?: string;
     productName?: string;
   };
+
+  if (!(await isChestnyZnakPackingEnabled())) {
+    return NextResponse.json({ ok: true, skipped: true, reason: "disabled" });
+  }
 
   const gtin = toGtin14(body.gtin ?? "");
   if (!gtin) {

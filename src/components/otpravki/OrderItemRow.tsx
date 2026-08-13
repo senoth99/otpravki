@@ -15,15 +15,23 @@ interface OrderItemRowProps {
   item: ShippingOrderItem;
   manual?: boolean;
   busy?: boolean;
+  chestnyZnakActive?: boolean;
   onIncrement?: () => void;
   onDecrement?: () => void;
 }
 
-export function OrderItemRow({ item, manual, busy, onIncrement, onDecrement }: OrderItemRowProps) {
+export function OrderItemRow({
+  item,
+  manual,
+  busy,
+  chestnyZnakActive = true,
+  onIncrement,
+  onDecrement,
+}: OrderItemRowProps) {
   const isComplete = item.scannedCount >= item.quantity;
   const isPartial = item.scannedCount > 0 && !isComplete;
   const isMulti = item.quantity > 1;
-  const hasChestnyZnak = Boolean(item.chestnyZnak?.trim());
+  const hasChestnyZnak = chestnyZnakActive && Boolean(item.chestnyZnak?.trim());
 
   const badgeClass = isComplete
     ? "bg-green-500 text-white"

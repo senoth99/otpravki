@@ -55,6 +55,8 @@ export function ChestnyeZnakiPanel() {
   const [stats, setStats] = useState<SkuStat[] | null>(null);
   const [statsError, setStatsError] = useState<string | null>(null);
   const [statsBusy, setStatsBusy] = useState(false);
+  const [czEnabled, setCzEnabled] = useState(true);
+  const [czToggleBusy, setCzToggleBusy] = useState(false);
 
   const goBack = () => {
     router.push("/admin");
@@ -63,6 +65,38 @@ export function ChestnyeZnakiPanel() {
   const showToast = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(null), 2500);
+  };
+
+  const loadSettings = useCallback(async () => {
+    try {
+      const res = await fetch("/api/chestnye-znaki/settings", { cache: "no-store" });
+      const data = (await res.json()) as { ok?: boolean; enabled?: boolean };
+      if (typeof data.enabled === "boolean") setCzEnabled(data.enabled);
+    } catch {
+      // оставляем текущее значение
+    }
+  }, []);
+
+  const toggleCzEnabled = async () => {
+    const next = !czEnabled;
+    setCzToggleBusy(true);
+    try {
+      const res = await fetch("/api/chestnye-znaki/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: next }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string; enabled?: boolean };
+      if (!res.ok || !data.ok || typeof data.enabled !== "boolean") {
+        throw new Error(data.error ?? "Не удалось сохранить");
+      }
+      setCzEnabled(data.enabled);
+      showToast(data.enabled ? "Честные знаки включены" : "Честные знаки выключены");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Ошибка сохранения");
+    } finally {
+      setCzToggleBusy(false);
+    }
   };
 
   const loadStats = useCallback(async () => {
@@ -136,7 +170,7 @@ export function ChestnyeZnakiPanel() {
           return;
         }
         if (!cancelled) {
-          await Promise.all([loadKm(false), loadStats()]);
+          await Promise.all([loadKm(false), loadStats(), loadSettings()]);
         }
       } catch {
         if (!cancelled) router.replace("/admin");
@@ -145,7 +179,7 @@ export function ChestnyeZnakiPanel() {
     return () => {
       cancelled = true;
     };
-  }, [loadKm, loadStats, router]);
+  }, [loadKm, loadSettings, loadStats, router]);
 
   const printKm = async (item: KmItem) => {
     setRowBusy(item.cis);
@@ -237,6 +271,35 @@ export function ChestnyeZnakiPanel() {
       )}
 
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-4">
+        <div className="mb-3 shrink-0 rounded-2xl border border-gray-200 bg-white px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-900">Работа честных знаков</p>
+              <p className="mt-0.5 text-xs text-gray-500">
+                {czEnabled
+                  ? "При упаковке печатаем и списываем КМ"
+                  : "Отправка идёт без печати и списания КМ"}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={czEnabled}
+              aria-label="Включить честные знаки"
+              disabled={czToggleBusy}
+              onClick={() => void toggleCzEnabled()}
+              className={`relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+                czEnabled ? "bg-green-500" : "bg-gray-300"
+              }`}
+            >
+              <span
+                className={`absolute top-1 left-1 h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                  czEnabled ? "translate-x-6" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
+        </div>
         {(stats || statsError) && (
           <div className="mb-3 shrink-0 overflow-hidden rounded-2xl border border-gray-200 bg-white">
             <div className="border-b border-gray-100 px-4 py-3">
