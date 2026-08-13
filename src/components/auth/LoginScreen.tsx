@@ -66,7 +66,7 @@ export function LoginScreen({ onSuccess, onGoRegister, canRegister }: LoginScree
     <div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center gap-5 p-4">
       <div className="text-center">
         <h1 className="text-xl font-bold text-gray-900">Вход</h1>
-        <p className="mt-1 text-sm text-gray-500">Выберите смайлик и введите PIN</p>
+        <p className="mt-1 text-sm text-gray-500">Выберите аккаунт</p>
       </div>
 
       {loadingUsers ? (
