@@ -11,12 +11,14 @@ import { orderIsBlogger } from "@/lib/blogger-order";
 import { printOrderBarcode } from "@/lib/print-barcode";
 import { resolveOrderUrgency, URGENCY_LABELS } from "@/lib/urgency";
 import { BloggerBadge } from "./BloggerBadge";
+import type { AssemblyExtra } from "@/lib/assembly-extras";
 import type { ApiProduct, AssemblyItem, ShippingOrder } from "@/types/shipping";
 import { AutoModeButton } from "./AutoModeButton";
 import { AutoModeCountdown } from "./AutoModeCountdown";
 import { BarcodePrintModal } from "./BarcodePrintModal";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { OrderComments } from "./OrderComments";
+import { OrderExtrasHint } from "./OrderExtrasHint";
 import { OrderItemRow } from "./OrderItemRow";
 import { OrderNumberDisplay } from "./OrderNumberDisplay";
 import { OrderPicker } from "./OrderPicker";
@@ -90,6 +92,7 @@ export function ShippingView({
   const [autoPrintRetry, setAutoPrintRetry] = useState(0);
   const [countdown, setCountdown] = useState<CountdownState | null>(null);
   const [products, setProducts] = useState<ApiProduct[]>([]);
+  const [extras, setExtras] = useState<AssemblyExtra[]>([]);
   const autoHandledRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -104,6 +107,23 @@ export function ShippingView({
       });
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch(
+      `/api/assembly/extras?brand=${encodeURIComponent(selectedBrand)}`,
+      { cache: "no-store", signal: controller.signal },
+    )
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { extras?: AssemblyExtra[] } | null) => {
+        setExtras(data?.extras ?? []);
+      })
+      .catch((err) => {
+        if (err instanceof Error && err.name === "AbortError") return;
+        setExtras([]);
+      });
+    return () => controller.abort();
+  }, [selectedBrand]);
 
   const assemblyAllocation = useMemo(
     () => buildAssemblyAllocation(orders, assemblyItems),
@@ -556,6 +576,8 @@ export function ShippingView({
               </div>
 
               <OrderComments order={displayOrder} />
+
+              <OrderExtrasHint extras={extras} order={displayOrder} />
 
               <div className="space-y-2">
                 {displayOrder.items.map((item) => (

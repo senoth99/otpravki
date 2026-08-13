@@ -1,16 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { AuthHeaderStats } from "@/components/auth/AuthHeaderStats";
 import { getAssemblyViewSections } from "@/lib/assembly-demand";
-import type { AssemblyExtra } from "@/lib/assembly-extras";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import { resolveOrderUrgency } from "@/lib/urgency";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { WarehouseMapConfig } from "@/types/stock";
-import { AssemblyExtrasPanel } from "./AssemblyExtrasPanel";
 import { AssemblyView } from "./AssemblyView";
 import {
   applyOrderFilters,
@@ -48,9 +46,6 @@ export function AssemblyPanel({
   const [selectedBrand, setSelectedBrand] = useState<string>(KNOWN_BRANDS[0]);
   const [filters, setFilters] = useState<OtpravkiFiltersState>(DEFAULT_FILTERS);
   const [reloading, setReloading] = useState(false);
-  const [extras, setExtras] = useState<AssemblyExtra[]>([]);
-  const [focusProductId, setFocusProductId] = useState<string | null>(null);
-  const [autoMode, setAutoMode] = useState(false);
   const {
     assemblyItems,
     orders,
@@ -68,30 +63,6 @@ export function AssemblyPanel({
   });
 
   useOtpravkiNoSwipe();
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch(
-          `/api/assembly/extras?brand=${encodeURIComponent(selectedBrand)}`,
-          { cache: "no-store" },
-        );
-        const data = (await res.json()) as { ok?: boolean; extras?: AssemblyExtra[] };
-        if (!cancelled && data.ok) setExtras(data.extras ?? []);
-      } catch {
-        if (!cancelled) setExtras([]);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedBrand]);
-
-  const handleFocusProduct = useCallback((productId: string | null, nextAutoMode: boolean) => {
-    setFocusProductId(productId);
-    setAutoMode(nextAutoMode);
-  }, []);
 
   const brandOrders = useMemo(
     () => orders.filter((order) => getOrderStoreBrand(order) === selectedBrand && !order.barcodePrinted),
@@ -277,28 +248,15 @@ export function AssemblyPanel({
           products={products}
         />
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 md:flex-row">
-          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-5">
-            <AssemblyView
-              sections={assemblySections}
-              allItems={filteredAssemblyItems}
-              orders={filteredOrders}
-              onItemsChange={handleFilteredAssemblyChange}
-              warehouseMap={warehouseMap}
-              onFocusProduct={handleFocusProduct}
-            />
-          </main>
-          <div className="h-56 w-full shrink-0 md:h-auto md:w-80 md:self-stretch">
-            <AssemblyExtrasPanel
-              key={selectedBrand}
-              brand={selectedBrand}
-              extras={extras}
-              items={filteredAssemblyItems}
-              currentProductId={focusProductId}
-              autoMode={autoMode}
-            />
-          </div>
-        </div>
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-5">
+          <AssemblyView
+            sections={assemblySections}
+            allItems={filteredAssemblyItems}
+            orders={filteredOrders}
+            onItemsChange={handleFilteredAssemblyChange}
+            warehouseMap={warehouseMap}
+          />
+        </main>
       </div>
     </div>
   );
