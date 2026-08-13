@@ -13,7 +13,7 @@ export function chestnyZnakStockStatus(
     return { status: "unset", remaining: null, pending: false };
   }
   if (!remainingByGtin) {
-    return { status: "unset", remaining: null, pending: true };
+    return { status: "ok", remaining: null, pending: true };
   }
   const remaining = remainingByGtin[gtin] ?? 0;
   if (remaining <= 0) return { status: "empty", remaining, pending: false };

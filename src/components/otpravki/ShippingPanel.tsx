@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AuthHeaderStats } from "@/components/auth/AuthHeaderStats";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
@@ -65,6 +65,10 @@ export function ShippingPanel({
   });
 
   useOtpravkiNoSwipe();
+
+  useEffect(() => {
+    void refreshFromApi(selectedBrand);
+  }, [refreshFromApi, selectedBrand]);
 
   const brandOrders = useMemo(
     () => orders.filter((order) => getOrderStoreBrand(order) === selectedBrand),
@@ -141,7 +145,6 @@ export function ShippingPanel({
   const handleBrandChange = (brand: string) => {
     setSelectedBrand(brand);
     setFilters(DEFAULT_FILTERS);
-    void refreshFromApi(brand);
   };
 
   return (
@@ -191,9 +194,9 @@ export function ShippingPanel({
             type="button"
             onClick={() => {
               setReloading(true);
-              window.location.reload();
+              void refreshFromApi(selectedBrand).finally(() => setReloading(false));
             }}
-            disabled={reloading}
+            disabled={reloading || isSyncing}
             className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 active:bg-gray-50 disabled:opacity-60"
           >
             <svg
