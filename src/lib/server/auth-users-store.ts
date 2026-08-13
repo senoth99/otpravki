@@ -8,31 +8,30 @@ const USERS_FILE = path.join(AUTH_DIR, "users.json");
 
 export const MAX_AUTH_USERS = 15;
 
-/** Фиксированный пул аватаров (ровно 15). */
+/** 15 популярных Apple-смайлов для аватаров. */
 export const AUTH_EMOJI_POOL = [
-  "🦊",
-  "🐻",
-  "🐼",
-  "🦁",
-  "🐯",
-  "🐸",
-  "🦉",
-  "🦄",
-  "🐙",
-  "🐝",
-  "🦋",
-  "🐢",
-  "🐬",
-  "🐧",
-  "🐲",
+  "😂",
+  "😍",
+  "😎",
+  "🥺",
+  "😭",
+  "🤩",
+  "😇",
+  "🥳",
+  "🤔",
+  "😴",
+  "😈",
+  "🫠",
+  "🫶",
+  "🔥",
+  "✨",
 ] as const;
 
 export type AuthEmoji = (typeof AUTH_EMOJI_POOL)[number];
 
 export interface AuthUser {
   id: string;
-  letter: string;
-  emoji: AuthEmoji;
+  emoji: string;
   pinHash: string;
   pinSalt: string;
   createdAt: number;
@@ -41,12 +40,6 @@ export interface AuthUser {
 interface UsersFile {
   version: 1;
   users: AuthUser[];
-}
-
-function normalizeLetter(raw: string): string | null {
-  const letter = raw.trim().toUpperCase();
-  if (!/^[\p{L}]$/u.test(letter)) return null;
-  return letter;
 }
 
 export function isAuthEmoji(value: string): value is AuthEmoji {
@@ -77,7 +70,18 @@ async function readUsersFile(): Promise<UsersFile> {
     const raw = await readFile(USERS_FILE, "utf-8");
     const parsed = JSON.parse(raw) as UsersFile;
     if (!Array.isArray(parsed.users)) return { version: 1, users: [] };
-    return { version: 1, users: parsed.users };
+    return {
+      version: 1,
+      users: parsed.users.filter(
+        (user): user is AuthUser =>
+          Boolean(user) &&
+          typeof user.id === "string" &&
+          typeof user.emoji === "string" &&
+          user.emoji.length > 0 &&
+          typeof user.pinHash === "string" &&
+          typeof user.pinSalt === "string",
+      ),
+    };
   } catch {
     return { version: 1, users: [] };
   }
@@ -100,8 +104,8 @@ export async function getAuthUserById(id: string): Promise<AuthUser | null> {
   return users.find((user) => user.id === id) ?? null;
 }
 
-export function publicUser(user: AuthUser): { id: string; letter: string; emoji: AuthEmoji } {
-  return { id: user.id, letter: user.letter, emoji: user.emoji };
+export function publicUser(user: AuthUser): { id: string; emoji: string } {
+  return { id: user.id, emoji: user.emoji };
 }
 
 export async function listFreeEmojis(): Promise<AuthEmoji[]> {
@@ -111,14 +115,9 @@ export async function listFreeEmojis(): Promise<AuthEmoji[]> {
 }
 
 export async function registerAuthUser(input: {
-  letter: string;
   emoji: string;
   pin: string;
 }): Promise<AuthUser> {
-  const letter = normalizeLetter(input.letter);
-  if (!letter) {
-    throw new Error("Нужна одна буква");
-  }
   if (!/^\d{4}$/.test(input.pin)) {
     throw new Error("PIN должен быть из 4 цифр");
   }
@@ -133,14 +132,10 @@ export async function registerAuthUser(input: {
   if (file.users.some((user) => user.emoji === input.emoji)) {
     throw new Error("Этот смайлик уже занят");
   }
-  if (file.users.some((user) => user.letter === letter && user.emoji === input.emoji)) {
-    throw new Error("Такой аккаунт уже есть");
-  }
 
   const pinSalt = randomBytes(16).toString("hex");
   const user: AuthUser = {
     id: newUserId(),
-    letter,
     emoji: input.emoji,
     pinHash: hashPin(input.pin, pinSalt),
     pinSalt,

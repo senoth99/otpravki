@@ -13,7 +13,6 @@ import {
 
 export interface AuthUserPublic {
   id: string;
-  letter: string;
   emoji: string;
 }
 

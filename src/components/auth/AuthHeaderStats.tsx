@@ -23,7 +23,6 @@ export function AuthHeaderStats() {
           title="Статистика"
         >
           <span className="text-base leading-none">{user.emoji}</span>
-          <span className="font-bold">{user.letter}</span>
           <span className="truncate text-xs text-gray-500">
             сегодня {stats.today} · смена {stats.shift}
           </span>

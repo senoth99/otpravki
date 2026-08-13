@@ -121,7 +121,6 @@ export function lastShiftShipments(
 
 export interface UserStatsRow {
   id: string;
-  letter: string;
   emoji: string;
   total: number;
   today: number;

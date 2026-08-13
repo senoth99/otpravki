@@ -6,13 +6,11 @@ import { buildUserLiveStats } from "@/lib/server/shift-stats-store";
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as {
-      letter?: string;
       emoji?: string;
       pin?: string;
     };
 
     const user = await registerAuthUser({
-      letter: body.letter ?? "",
       emoji: body.emoji ?? "",
       pin: body.pin ?? "",
     });

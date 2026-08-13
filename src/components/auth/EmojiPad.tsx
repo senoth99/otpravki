@@ -29,7 +29,7 @@ export function EmojiPad({
             type="button"
             disabled={disabled}
             onClick={() => onChange(emoji)}
-            className={`inline-flex h-14 items-center justify-center rounded-2xl border text-2xl active:scale-[0.98] disabled:opacity-40 ${
+            className={`inline-flex h-14 items-center justify-center rounded-2xl border text-[28px] leading-none [font-family:"Apple_Color_Emoji","Segoe_UI_Emoji",sans-serif] active:scale-[0.98] disabled:opacity-40 ${
               active
                 ? "border-gray-900 bg-gray-900/5 ring-2 ring-gray-900"
                 : "border-gray-200 bg-white"

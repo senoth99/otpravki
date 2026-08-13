@@ -89,14 +89,15 @@ export function LoginScreen({ onSuccess, onGoRegister, canRegister }: LoginScree
                   setPin("");
                   setError(null);
                 }}
-                className={`flex flex-col items-center justify-center gap-1 rounded-2xl border px-2 py-3 active:scale-[0.98] disabled:opacity-40 ${
+                className={`flex items-center justify-center rounded-2xl border px-2 py-3 active:scale-[0.98] disabled:opacity-40 ${
                   active
                     ? "border-gray-900 bg-gray-900/5 ring-2 ring-gray-900"
                     : "border-gray-200 bg-white"
                 }`}
               >
-                <span className="text-3xl leading-none">{account.emoji}</span>
-                <span className="text-sm font-bold text-gray-900">{account.letter}</span>
+                <span className="text-4xl leading-none [font-family:'Apple_Color_Emoji','Segoe_UI_Emoji',sans-serif]">
+                  {account.emoji}
+                </span>
               </button>
             );
           })}
@@ -105,10 +106,7 @@ export function LoginScreen({ onSuccess, onGoRegister, canRegister }: LoginScree
 
       {selected && (
         <div className="space-y-3 rounded-2xl border border-gray-200 bg-white p-4">
-          <p className="text-center text-3xl">
-            {selected.emoji}{" "}
-            <span className="text-xl font-bold text-gray-900">{selected.letter}</span>
-          </p>
+          <p className="text-center text-4xl">{selected.emoji}</p>
           <PinNumpad
             value={pin}
             onChange={(next) => {

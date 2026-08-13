@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 
 interface AccountRow {
   id: string;
-  letter: string;
   emoji: string;
   total: number;
   today: number;
@@ -68,8 +67,7 @@ export function AllAccountsStats({ compact = false }: { compact?: boolean }) {
             {rows.map((row) => (
               <tr key={row.id}>
                 <td className="px-3 py-2">
-                  <span className="text-base">{row.emoji}</span>{" "}
-                  <span className="font-semibold text-gray-900">{row.letter}</span>
+                  <span className="text-xl leading-none">{row.emoji}</span>
                 </td>
                 <td className="px-2 py-2 tabular-nums text-gray-700">{row.today}</td>
                 <td className="px-2 py-2 tabular-nums text-gray-700">{row.lastShift}</td>

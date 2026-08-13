@@ -4,18 +4,16 @@ import { useEffect, useState } from "react";
 import { PinNumpad } from "@/components/chestnye-znaki/PinNumpad";
 import type { AuthLiveStats, AuthUserPublic } from "@/components/auth/AuthProvider";
 import { EmojiPad } from "@/components/auth/EmojiPad";
-import { LetterPad } from "@/components/auth/LetterPad";
 
 interface RegisterScreenProps {
   onSuccess: (user: AuthUserPublic, stats: AuthLiveStats) => void;
   onBack: () => void;
 }
 
-type Step = "letter" | "emoji" | "pin";
+type Step = "emoji" | "pin";
 
 export function RegisterScreen({ onSuccess, onBack }: RegisterScreenProps) {
-  const [step, setStep] = useState<Step>("letter");
-  const [letter, setLetter] = useState("");
+  const [step, setStep] = useState<Step>("emoji");
   const [emoji, setEmoji] = useState<string | null>(null);
   const [pin, setPin] = useState("");
   const [freeEmojis, setFreeEmojis] = useState<string[]>([]);
@@ -42,14 +40,14 @@ export function RegisterScreen({ onSuccess, onBack }: RegisterScreenProps) {
   }, []);
 
   const submit = async (fullPin: string) => {
-    if (!letter || !emoji || busy) return;
+    if (!emoji || busy) return;
     setBusy(true);
     setError(null);
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ letter, emoji, pin: fullPin }),
+        body: JSON.stringify({ emoji, pin: fullPin }),
       });
       const data = (await res.json()) as {
         ok?: boolean;
@@ -90,8 +88,7 @@ export function RegisterScreen({ onSuccess, onBack }: RegisterScreenProps) {
         <button
           type="button"
           onClick={() => {
-            if (step === "letter") onBack();
-            else if (step === "emoji") setStep("letter");
+            if (step === "emoji") onBack();
             else setStep("emoji");
           }}
           className="inline-flex h-9 items-center rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800"
@@ -101,32 +98,15 @@ export function RegisterScreen({ onSuccess, onBack }: RegisterScreenProps) {
         <div className="text-right">
           <h1 className="text-lg font-bold text-gray-900">Регистрация</h1>
           <p className="text-xs text-gray-500">
-            {step === "letter" && "Шаг 1 · буква"}
-            {step === "emoji" && "Шаг 2 · смайлик"}
-            {step === "pin" && "Шаг 3 · PIN"}
+            {step === "emoji" && "Шаг 1 · смайлик"}
+            {step === "pin" && "Шаг 2 · PIN"}
           </p>
         </div>
       </div>
 
-      {step === "letter" && (
-        <div className="space-y-4">
-          <LetterPad value={letter} onChange={setLetter} disabled={busy} />
-          <button
-            type="button"
-            disabled={!letter}
-            onClick={() => setStep("emoji")}
-            className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-gray-900 text-sm font-medium text-white disabled:opacity-40"
-          >
-            Дальше
-          </button>
-        </div>
-      )}
-
       {step === "emoji" && (
         <div className="space-y-4">
-          <p className="text-center text-sm text-gray-600">
-            Буква <span className="font-bold text-gray-900">{letter}</span> — выберите аватар
-          </p>
+          <p className="text-center text-sm text-gray-600">Выберите аватар</p>
           <EmojiPad
             emojis={freeEmojis}
             value={emoji}
@@ -146,9 +126,7 @@ export function RegisterScreen({ onSuccess, onBack }: RegisterScreenProps) {
 
       {step === "pin" && (
         <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-4">
-          <p className="text-center text-3xl">
-            {emoji} <span className="text-xl font-bold text-gray-900">{letter}</span>
-          </p>
+          <p className="text-center text-4xl">{emoji}</p>
           <p className="text-center text-sm text-gray-500">Придумайте PIN из 4 цифр</p>
           <PinNumpad
             value={pin}
