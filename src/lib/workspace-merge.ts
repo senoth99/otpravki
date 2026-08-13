@@ -46,6 +46,7 @@ function mergeOrderItem(a: ShippingOrderItem, b: ShippingOrderItem): ShippingOrd
     ...winner,
     scannedCount: aTime === bTime ? b.scannedCount : winner.scannedCount,
     scannedAt: Math.max(aTime, bTime) || undefined,
+    chestnyZnak: a.chestnyZnak || b.chestnyZnak,
   };
 }
 

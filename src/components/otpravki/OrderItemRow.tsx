@@ -14,14 +14,16 @@ const BTN =
 interface OrderItemRowProps {
   item: ShippingOrderItem;
   manual?: boolean;
+  busy?: boolean;
   onIncrement?: () => void;
   onDecrement?: () => void;
 }
 
-export function OrderItemRow({ item, manual, onIncrement, onDecrement }: OrderItemRowProps) {
+export function OrderItemRow({ item, manual, busy, onIncrement, onDecrement }: OrderItemRowProps) {
   const isComplete = item.scannedCount >= item.quantity;
   const isPartial = item.scannedCount > 0 && !isComplete;
   const isMulti = item.quantity > 1;
+  const hasChestnyZnak = Boolean(item.chestnyZnak?.trim());
 
   const badgeClass = isComplete
     ? "bg-green-500 text-white"
@@ -71,26 +73,30 @@ export function OrderItemRow({ item, manual, onIncrement, onDecrement }: OrderIt
           <div className="flex h-11 min-h-[44px] items-center gap-2">
             {manual ? (
               <>
-                <button
-                  type="button"
-                  onClick={onDecrement}
-                  disabled={item.scannedCount === 0}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-sm font-medium text-gray-600 transition-colors active:bg-gray-50 disabled:pointer-events-none disabled:border-transparent disabled:opacity-0"
-                  aria-label="Убрать одну штуку"
-                >
-                  −1
-                </button>
+                {hasChestnyZnak ? (
+                  <div className="h-11 w-11 shrink-0" aria-hidden />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onDecrement}
+                    disabled={item.scannedCount === 0 || busy}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-sm font-medium text-gray-600 transition-colors active:bg-gray-50 disabled:pointer-events-none disabled:border-transparent disabled:opacity-0"
+                    aria-label="Убрать одну штуку"
+                  >
+                    −1
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={onIncrement}
-                  disabled={isComplete}
+                  disabled={isComplete || busy}
                   className={`${BTN} min-w-0 flex-1 ${
                     isComplete
                       ? "cursor-default bg-green-500 text-white"
                       : "bg-gray-900 text-white active:bg-gray-800"
                   }`}
                 >
-                  {isComplete ? "Готово" : "Отметить"}
+                  {isComplete ? "Готово" : busy ? "…" : "Упаковано"}
                 </button>
               </>
             ) : (

@@ -12,7 +12,7 @@ import { printOrderBarcode } from "@/lib/print-barcode";
 import { resolveOrderUrgency, URGENCY_LABELS } from "@/lib/urgency";
 import { BloggerBadge } from "./BloggerBadge";
 import type { AssemblyExtra } from "@/lib/assembly-extras";
-import type { ApiProduct, AssemblyItem, ShippingOrder } from "@/types/shipping";
+import type { ApiProduct, AssemblyItem, ShippingOrder, ShippingOrderItem } from "@/types/shipping";
 import { AutoModeButton } from "./AutoModeButton";
 import { AutoModeCountdown } from "./AutoModeCountdown";
 import { BarcodePrintModal } from "./BarcodePrintModal";
@@ -24,6 +24,35 @@ import { OrderNumberDisplay } from "./OrderNumberDisplay";
 import { OrderPicker } from "./OrderPicker";
 import { ScanErrorPopup } from "./ScanErrorPopup";
 import { ShippedOrderCard } from "./ShippedOrderCard";
+
+const PACK_UNIT_WAIT_MS = 2000;
+
+async function waitMs(ms: number) {
+  await new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function requestPackUnit(input: {
+  gtin: string;
+  orderId: string;
+  itemId: string;
+  productId: string;
+  productName: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const res = await fetch("/api/chestnye-znaki/pack-unit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+    if (!res.ok || !data.ok) {
+      return { ok: false, error: data.error ?? "Не удалось списать честный знак" };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Нет связи с сервером честного знака" };
+  }
+}
 
 interface CountdownState {
   orderNumber: string;
@@ -93,7 +122,10 @@ export function ShippingView({
   const [countdown, setCountdown] = useState<CountdownState | null>(null);
   const [products, setProducts] = useState<ApiProduct[]>([]);
   const [extras, setExtras] = useState<AssemblyExtra[]>([]);
+  const [packingOverlay, setPackingOverlay] = useState(false);
+  const [packError, setPackError] = useState<string | null>(null);
   const autoHandledRef = useRef<string | null>(null);
+  const packingRef = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -178,7 +210,7 @@ export function ShippingView({
   const allScanned =
     displayOrder?.items.every((i) => i.scannedCount >= i.quantity) ?? false;
   const urgency = displayOrder ? URGENCY_LABELS[resolveOrderUrgency(displayOrder)] : null;
-  const canScan = !isManualConfirm && !isShipped && !countdown;
+  const canScan = !isManualConfirm && !isShipped && !countdown && !packingOverlay;
 
   const exitAutoMode = useCallback(() => {
     setAutoMode(false);
@@ -202,80 +234,131 @@ export function ShippingView({
     if (next !== null) setCurrentOrderId(filteredOrders[next].id);
   }, [activeIndices, autoMode, exitAutoMode, orderStatuses, orders]);
 
+  const incrementPackedItem = useCallback(
+    (orderId: string, itemId: string) => {
+      onOrdersChange((prev) =>
+        prev.map((order) =>
+          order.id !== orderId
+            ? order
+            : {
+                ...order,
+                items: order.items.map((item) =>
+                  item.id === itemId && item.scannedCount < item.quantity
+                    ? {
+                        ...item,
+                        scannedCount: item.scannedCount + 1,
+                        scannedAt: Date.now(),
+                      }
+                    : item,
+                ),
+              },
+        ),
+      );
+    },
+    [onOrdersChange],
+  );
+
+  const packOneUnit = useCallback(
+    async (order: ShippingOrder, item: ShippingOrderItem) => {
+      if (packingRef.current) return;
+      if (item.scannedCount >= item.quantity) return;
+
+      const gtin = item.chestnyZnak?.trim();
+      packingRef.current = true;
+      if (gtin) setPackingOverlay(true);
+      setPackError(null);
+      setScanError(null);
+
+      try {
+        if (gtin) {
+          const [packResult] = await Promise.all([
+            requestPackUnit({
+              gtin,
+              orderId: order.id,
+              itemId: item.id,
+              productId: item.productId,
+              productName: item.productName,
+            }),
+            waitMs(PACK_UNIT_WAIT_MS),
+          ]);
+          if (!packResult.ok) {
+            setPackError(packResult.error);
+            return;
+          }
+        }
+        incrementPackedItem(order.id, item.id);
+      } finally {
+        packingRef.current = false;
+        setPackingOverlay(false);
+      }
+    },
+    [incrementPackedItem],
+  );
+
   const validateScan = useCallback(
     (code: string) => {
       const orderId = currentOrderId;
-      if (!orderId || !canScan) return;
+      if (!orderId || !canScan || packingRef.current) return;
 
       if (!products.length) {
         setScanError("Каталог товаров не загружен. Обнови страницу.");
         return;
       }
 
-      onOrdersChange((prev) => {
-        const order = prev.find((entry) => entry.id === orderId);
-        if (!order) return prev;
+      const order = orders.find((entry) => entry.id === orderId);
+      if (!order) return;
 
-        const result = resolveScanFromBarcode(products, order, code);
-        if (!result.ok) {
-          setScanError(result.message);
-          return prev;
-        }
+      const result = resolveScanFromBarcode(products, order, code);
+      if (!result.ok) {
+        setScanError(result.message);
+        return;
+      }
 
-        const { item: matchedItem } = result;
-        const currentItem = order.items.find((item) => item.id === matchedItem.id);
-        if (!currentItem || currentItem.scannedCount >= currentItem.quantity) {
-          setScanError("Все единицы этой позиции уже отсканированы");
-          return prev;
-        }
+      const currentItem = order.items.find((item) => item.id === result.item.id);
+      if (!currentItem || currentItem.scannedCount >= currentItem.quantity) {
+        setScanError("Все единицы этой позиции уже отсканированы");
+        return;
+      }
 
-        setScanError(null);
-        setScannerOpen(false);
-
-        return prev.map((entry) =>
-          entry.id === orderId
-            ? {
-                ...entry,
-                items: entry.items.map((item) =>
-                  item.id === matchedItem.id
-                    ? {
-                        ...item,
-                        scannedCount: Math.min(item.scannedCount + 1, item.quantity),
-                        scannedAt: Date.now(),
-                      }
-                    : item,
-                ),
-              }
-            : entry,
-        );
-      });
+      setScanError(null);
+      setScannerOpen(false);
+      void packOneUnit(order, currentItem);
     },
-    [currentOrderId, canScan, onOrdersChange, products],
+    [canScan, currentOrderId, orders, packOneUnit, products],
   );
 
   useHardwareScanner(validateScan, !manualMode && !scannerOpen && canScan);
 
   const updateItemCount = useCallback(
     (itemId: string, delta: number) => {
-      if (!canScan || autoMode) return;
+      if (!canScan || autoMode || packingRef.current) return;
+      const order = orders.find((entry) => entry.id === currentOrderId);
+      const item = order?.items.find((entry) => entry.id === itemId);
+      if (!order || !item) return;
 
-      onOrdersChange((prev) =>
-        prev.map((order) =>
-          order.id === currentOrderId
-            ? {
-                ...order,
-                items: order.items.map((item) => {
-                  if (item.id !== itemId) return item;
-                  const next = item.scannedCount + delta;
-                  if (next < 0 || next > item.quantity) return item;
-                  return { ...item, scannedCount: next, scannedAt: Date.now() };
-                }),
-              }
-            : order,
-        ),
-      );
+      if (delta < 0) {
+        if (item.chestnyZnak?.trim()) return;
+        onOrdersChange((prev) =>
+          prev.map((entry) =>
+            entry.id === currentOrderId
+              ? {
+                  ...entry,
+                  items: entry.items.map((line) => {
+                    if (line.id !== itemId) return line;
+                    const next = line.scannedCount + delta;
+                    if (next < 0 || next > line.quantity) return line;
+                    return { ...line, scannedCount: next, scannedAt: Date.now() };
+                  }),
+                }
+              : entry,
+          ),
+        );
+        return;
+      }
+
+      if (delta > 0) void packOneUnit(order, item);
     },
-    [autoMode, canScan, currentOrderId, onOrdersChange],
+    [autoMode, canScan, currentOrderId, onOrdersChange, orders, packOneUnit],
   );
 
   const handlePrint = () => {
@@ -584,6 +667,7 @@ export function ShippingView({
                       key={item.id}
                       item={item}
                       manual={manualMode && !autoMode}
+                      busy={packingOverlay}
                       onIncrement={() => updateItemCount(item.id, 1)}
                       onDecrement={() => updateItemCount(item.id, -1)}
                     />
@@ -622,9 +706,9 @@ export function ShippingView({
             <button
               type="button"
               onClick={() => setScannerOpen(true)}
-              disabled={manualMode}
+              disabled={manualMode || packingOverlay}
               className={`inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium transition-colors ${
-                manualMode
+                manualMode || packingOverlay
                   ? "cursor-not-allowed border border-transparent bg-gray-100 text-gray-300"
                   : "bg-gray-900 text-white active:bg-gray-800"
               }`}
@@ -671,6 +755,14 @@ export function ShippingView({
 
       {scanError && <ScanErrorPopup message={scanError} onClose={() => setScanError(null)} />}
 
+      {packError && (
+        <ScanErrorPopup
+          title="Честный знак"
+          message={packError}
+          onClose={() => setPackError(null)}
+        />
+      )}
+
       {printError && (
         <ScanErrorPopup
           title="Ошибка печати"
@@ -690,6 +782,15 @@ export function ShippingView({
           onClose={() => setPrintModalOpen(false)}
           onPrinted={handlePrinted}
         />
+      )}
+
+      {packingOverlay && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white px-6 py-5 text-center shadow-xl">
+            <p className="text-sm font-semibold text-gray-900">Печать и списание честного знака…</p>
+            <p className="mt-1 text-xs text-gray-500">Подождите около 2 секунд</p>
+          </div>
+        </div>
       )}
 
       {countdown && (

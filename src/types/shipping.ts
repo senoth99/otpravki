@@ -60,6 +60,8 @@ export interface ShippingOrderItem {
   quantity: number;
   scannedCount: number;
   scannedAt?: number;
+  /** GTIN / код ЧЗ из карточки товара; пусто — ЧЗ не нужен */
+  chestnyZnak?: string | null;
 }
 
 export interface ShippingOrder {

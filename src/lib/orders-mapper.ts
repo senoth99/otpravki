@@ -58,11 +58,17 @@ function resolveWarehouseCap(line: {
   warehouseQuantity: number;
   effectiveWarehouseQuantity?: number;
 }): number {
+  const warehouse = Math.max(0, line.warehouseQuantity ?? 0);
   const effective = line.effectiveWarehouseQuantity;
-  if (typeof effective === "number" && Number.isFinite(effective) && effective > 0) {
+  if (typeof effective === "number" && Number.isFinite(effective) && effective > warehouse) {
     return effective;
   }
-  return Math.max(0, line.warehouseQuantity ?? 0);
+  return warehouse;
+}
+
+function normalizeChestnyZnak(raw: string | null | undefined): string | undefined {
+  const trimmed = raw?.trim();
+  return trimmed || undefined;
 }
 
 /** Заказ можно отправить разом — всё на складе */
@@ -132,6 +138,7 @@ export function mapUnshippedOrdersToWorkspace(
         barcodeId: String(sizeId),
         quantity: line.quantity,
         scannedCount: 0,
+        chestnyZnak: normalizeChestnyZnak(line.chestnyZnak),
       });
     }
 

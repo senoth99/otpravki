@@ -1,3 +1,4 @@
+import { toGtin14 } from "@/lib/chestny-znak-gtin";
 import { getCrptSessionToken, signCrptDetached } from "@/lib/server/chestny-znak-api";
 
 export interface KmRecord {
@@ -113,6 +114,7 @@ export async function searchActiveKm(options?: {
   perPage?: number;
   maxPages?: number;
   cursor?: KmSearchCursor | null;
+  gtin?: string;
 }): Promise<KmSearchResult> {
   const perPage = options?.perPage ?? 100;
   const maxPages = options?.maxPages ?? 1;
@@ -122,6 +124,7 @@ export async function searchActiveKm(options?: {
     process.env.CRPT_SEARCH_EMISSION_FROM?.trim() || "2020-01-01T00:00:00.000Z";
   const to = now.toISOString();
   const token = await bearerToken();
+  const gtin14 = toGtin14(options?.gtin ?? "");
 
   const items: KmRecord[] = [];
   let isLastPage = false;
@@ -136,17 +139,22 @@ export async function searchActiveKm(options?: {
   let nextCursor: KmSearchCursor | null = null;
 
   while (page < maxPages && !isLastPage) {
+    const filter: Record<string, unknown> = {
+      productGroups: [pg],
+      states: [{ status: "INTRODUCED" }],
+      emissionDatePeriod: { from, to },
+    };
+    if (gtin14) {
+      filter.gtins = [gtin14];
+    }
+
     const data = await crptFetch<{
       isLastPage?: boolean;
       result?: Record<string, unknown>[];
     }>(apiV4Base(), "/cises/search", token, {
       method: "POST",
       json: {
-        filter: {
-          productGroups: [pg],
-          states: [{ status: "INTRODUCED" }],
-          emissionDatePeriod: { from, to },
-        },
+        filter,
         pagination,
       },
     });

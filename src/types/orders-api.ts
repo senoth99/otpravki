@@ -15,9 +15,12 @@ export interface ApiOrderLineItem {
   quantity: number;
   price: number;
   warehouseQuantity: number;
-  /** Реальное доступное наличие (часто > warehouseQuantity) */
+  reservedByOtherOrders?: number;
+  availableForThisOrder?: number;
+  /** Legacy: для заказов до 13.08.2026 может быть остаток + qty */
   effectiveWarehouseQuantity?: number;
   inStockAtWarehouse: boolean;
+  chestnyZnak?: string | null;
 }
 
 export interface ApiUnshippedOrder {

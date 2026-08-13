@@ -16,6 +16,14 @@ interface KmItem {
   introducedDate?: string;
 }
 
+interface SkuStat {
+  gtin: string;
+  productName: string;
+  remaining: number;
+  writtenOff: number;
+  failed: number;
+}
+
 function formatDate(iso?: string): string {
   if (!iso) return "—";
   try {
@@ -44,6 +52,9 @@ export function ChestnyeZnakiPanel() {
   const [busy, setBusy] = useState(false);
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [stats, setStats] = useState<SkuStat[] | null>(null);
+  const [statsError, setStatsError] = useState<string | null>(null);
+  const [statsBusy, setStatsBusy] = useState(false);
 
   const goBack = () => {
     router.push("/admin");
@@ -53,6 +64,27 @@ export function ChestnyeZnakiPanel() {
     setToast(message);
     window.setTimeout(() => setToast(null), 2500);
   };
+
+  const loadStats = useCallback(async () => {
+    setStatsBusy(true);
+    try {
+      const res = await fetch("/api/chestnye-znaki/stats", { cache: "no-store" });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        rows?: SkuStat[];
+      };
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error ?? "Не удалось загрузить статистику");
+      }
+      setStats(data.rows ?? []);
+      setStatsError(null);
+    } catch (err) {
+      setStatsError(err instanceof Error ? err.message : "Ошибка статистики");
+    } finally {
+      setStatsBusy(false);
+    }
+  }, []);
 
   const loadKm = useCallback(async (append = false, cursor?: typeof nextCursor) => {
     setBusy(true);
@@ -103,7 +135,9 @@ export function ChestnyeZnakiPanel() {
           router.replace("/admin");
           return;
         }
-        if (!cancelled) await loadKm(false);
+        if (!cancelled) {
+          await Promise.all([loadKm(false), loadStats()]);
+        }
       } catch {
         if (!cancelled) router.replace("/admin");
       }
@@ -111,7 +145,7 @@ export function ChestnyeZnakiPanel() {
     return () => {
       cancelled = true;
     };
-  }, [loadKm, router]);
+  }, [loadKm, loadStats, router]);
 
   const printKm = async (item: KmItem) => {
     setRowBusy(item.cis);
@@ -152,6 +186,7 @@ export function ChestnyeZnakiPanel() {
       }
       setItems((prev) => prev.filter((row) => row.cis !== item.cis));
       showToast(`Списано · док. ${data.docId?.slice(0, 8) ?? "OK"}`);
+      void loadStats();
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Ошибка списания");
     } finally {
@@ -178,11 +213,14 @@ export function ChestnyeZnakiPanel() {
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <AuthHeaderStats />
-            {screen === "list" && (
+            {(screen === "list" || stats) && (
               <button
                 type="button"
-                disabled={busy}
-                onClick={() => void loadKm(false)}
+                disabled={busy || statsBusy}
+                onClick={() => {
+                  void loadKm(false);
+                  void loadStats();
+                }}
                 className="inline-flex h-9 shrink-0 items-center rounded-xl bg-gray-900 px-3 text-sm font-medium text-white disabled:opacity-50"
               >
                 Обновить
@@ -199,6 +237,57 @@ export function ChestnyeZnakiPanel() {
       )}
 
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-4">
+        {(stats || statsError) && (
+          <div className="mb-3 shrink-0 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+            <div className="border-b border-gray-100 px-4 py-3">
+              <p className="text-sm font-semibold text-gray-900">Статистика по SKU</p>
+              <p className="mt-0.5 text-xs text-gray-500">
+                Осталось в обороте · списано при упаковке · ошибки
+              </p>
+            </div>
+            {statsError ? (
+              <p className="px-4 py-3 text-sm text-red-600">{statsError}</p>
+            ) : !stats || stats.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-gray-500">Пока нет данных по SKU</p>
+            ) : (
+              <div className="max-h-56 overflow-auto">
+                <table className="w-full min-w-[32rem] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                    <tr>
+                      <th className="px-4 py-2 font-medium">Товар</th>
+                      <th className="px-4 py-2 font-medium">GTIN</th>
+                      <th className="px-4 py-2 text-right font-medium">Осталось</th>
+                      <th className="px-4 py-2 text-right font-medium">Списано</th>
+                      <th className="px-4 py-2 text-right font-medium">Ошибки</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {stats.map((row) => (
+                      <tr key={row.gtin}>
+                        <td className="px-4 py-2 font-medium text-gray-900">{row.productName}</td>
+                        <td className="px-4 py-2 font-mono text-xs text-gray-600">{row.gtin}</td>
+                        <td className="px-4 py-2 text-right tabular-nums text-gray-900">
+                          {row.remaining}
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums text-gray-900">
+                          {row.writtenOff}
+                        </td>
+                        <td
+                          className={`px-4 py-2 text-right tabular-nums ${
+                            row.failed > 0 ? "font-medium text-red-600" : "text-gray-900"
+                          }`}
+                        >
+                          {row.failed}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         {screen === "loading" && (
           <div className="flex flex-1 items-center justify-center text-center">
             <div>
