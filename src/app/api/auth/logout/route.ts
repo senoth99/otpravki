@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import {
-  clearSessionCookie,
   destroyAuthSession,
+  expireSessionCookieOnResponse,
   readSessionTokenFromCookies,
 } from "@/lib/server/auth-session";
 import {
@@ -10,28 +10,50 @@ import {
   recordShiftSummary,
 } from "@/lib/server/shift-stats-store";
 
-export async function POST() {
-  const token = await readSessionTokenFromCookies();
+function logoutRedirect(request: Request) {
+  return expireSessionCookieOnResponse(
+    NextResponse.redirect(new URL("/otpravki", request.url), { status: 303 }),
+  );
+}
+
+/** Если Safari открывает URL логаута как страницу — не показываем пустой 405. */
+export async function GET(request: Request) {
+  return logoutRedirect(request);
+}
+
+export async function POST(request: Request) {
+  const accept = request.headers.get("accept") ?? "";
+  const wantsJson = accept.includes("application/json");
   let shiftShipments = 0;
 
-  if (token) {
-    const session = await destroyAuthSession(token);
-    if (session) {
-      const events = await loadShipmentEvents();
-      shiftShipments = countShipmentsForShift(
-        events,
-        session.userId,
-        session.shiftStartedAt,
-      );
-      await recordShiftSummary({
-        userId: session.userId,
-        startedAt: session.shiftStartedAt,
-        endedAt: Date.now(),
-        shipments: shiftShipments,
-      });
+  try {
+    const token = await readSessionTokenFromCookies();
+    if (token) {
+      const session = await destroyAuthSession(token);
+      if (session) {
+        const events = await loadShipmentEvents();
+        shiftShipments = countShipmentsForShift(
+          events,
+          session.userId,
+          session.shiftStartedAt,
+        );
+        await recordShiftSummary({
+          userId: session.userId,
+          startedAt: session.shiftStartedAt,
+          endedAt: Date.now(),
+          shipments: shiftShipments,
+        });
+      }
     }
+  } catch {
+    // всё равно выходим
   }
 
-  await clearSessionCookie();
-  return NextResponse.json({ ok: true, shiftShipments });
+  if (!wantsJson) {
+    return logoutRedirect(request);
+  }
+
+  return expireSessionCookieOnResponse(
+    NextResponse.json({ ok: true, shiftShipments }),
+  );
 }

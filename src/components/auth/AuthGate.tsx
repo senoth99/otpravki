@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   AuthProvider,
   useAuth,
@@ -16,6 +16,8 @@ function AuthShell({ children }: { children: ReactNode }) {
   const { loading, user, setSession, lastShiftSummary, clearShiftSummary } = useAuth();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [canRegister, setCanRegister] = useState(true);
+  const keepAppMounted = useRef(false);
+  if (user) keepAppMounted.current = true;
 
   useEffect(() => {
     if (user) return;
@@ -30,7 +32,7 @@ function AuthShell({ children }: { children: ReactNode }) {
     })();
   }, [user]);
 
-  if (loading) {
+  if (loading && !keepAppMounted.current) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-gray-50 text-sm text-gray-500">
         Загрузка…
@@ -38,54 +40,50 @@ function AuthShell({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!user) {
-    return (
-      <div className="flex min-h-dvh flex-col bg-gray-50">
-        {lastShiftSummary !== null && (
-          <LogoutShiftSummary
-            shipments={lastShiftSummary}
-            onClose={clearShiftSummary}
-          />
-        )}
-
-        <header className="safe-top border-b border-gray-200 bg-white px-4 py-3">
-          <h1 className="text-lg font-bold text-gray-900">Отправки · CASHER</h1>
-          <p className="text-xs text-gray-500">Вход по смайлику и PIN</p>
-        </header>
-
-        {mode === "login" ? (
-          <LoginScreen
-            canRegister={canRegister}
-            onGoRegister={() => setMode("register")}
-            onSuccess={(nextUser: AuthUserPublic, stats: AuthLiveStats) => {
-              setSession(nextUser, stats);
-            }}
-          />
-        ) : (
-          <RegisterScreen
-            onBack={() => setMode("login")}
-            onSuccess={(nextUser: AuthUserPublic, stats: AuthLiveStats) => {
-              setSession(nextUser, stats);
-            }}
-          />
-        )}
-
-        <div className="mx-auto w-full max-w-lg px-4 pb-6">
-          <AllAccountsStats compact />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
-      {lastShiftSummary !== null && (
-        <LogoutShiftSummary
-          shipments={lastShiftSummary}
-          onClose={clearShiftSummary}
-        />
+      {keepAppMounted.current && (
+        <div className={user ? "contents" : "hidden"} aria-hidden={!user}>
+          {children}
+        </div>
       )}
-      {children}
+
+      {!user && !loading && (
+        <div className="flex min-h-dvh flex-col bg-gray-50">
+          {lastShiftSummary !== null && (
+            <LogoutShiftSummary
+              shipments={lastShiftSummary}
+              onClose={clearShiftSummary}
+            />
+          )}
+
+          <header className="safe-top border-b border-gray-200 bg-white px-4 py-3">
+            <h1 className="text-lg font-bold text-gray-900">Отправки · CASHER</h1>
+            <p className="text-xs text-gray-500">Вход по смайлику и PIN</p>
+          </header>
+
+          {mode === "login" ? (
+            <LoginScreen
+              canRegister={canRegister}
+              onGoRegister={() => setMode("register")}
+              onSuccess={(nextUser: AuthUserPublic, stats: AuthLiveStats) => {
+                setSession(nextUser, stats);
+              }}
+            />
+          ) : (
+            <RegisterScreen
+              onBack={() => setMode("login")}
+              onSuccess={(nextUser: AuthUserPublic, stats: AuthLiveStats) => {
+                setSession(nextUser, stats);
+              }}
+            />
+          )}
+
+          <div className="mx-auto w-full max-w-lg px-4 pb-6">
+            <AllAccountsStats compact />
+          </div>
+        </div>
+      )}
     </>
   );
 }

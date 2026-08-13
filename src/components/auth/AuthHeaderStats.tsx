@@ -29,7 +29,11 @@ export function AuthHeaderStats() {
         </button>
         <button
           type="button"
-          onClick={() => void logout()}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            void logout();
+          }}
           className="inline-flex h-9 items-center rounded-xl border border-red-200 bg-red-50 px-3 text-sm font-medium text-red-700"
         >
           Выйти

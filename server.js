@@ -44,7 +44,7 @@ function attachWorkspaceSocket(httpServer) {
   const { Server } = require("socket.io");
   const io = new Server(httpServer, {
     cors: { origin: getSocketCorsOrigin() },
-    transports: ["polling", "websocket"],
+    transports: ["websocket", "polling"],
     pingInterval: 10_000,
     pingTimeout: 20_000,
   });

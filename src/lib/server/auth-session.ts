@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "fs/promises";
 import path from "path";
 import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 import type { AuthUser } from "@/lib/server/auth-users-store";
 import { getAuthUserById, publicUser } from "@/lib/server/auth-users-store";
 
@@ -122,6 +123,11 @@ export async function setSessionCookie(token: string): Promise<void> {
 export async function clearSessionCookie(): Promise<void> {
   const jar = await cookies();
   jar.set(OTPRAVKI_USER_COOKIE, "", sessionCookieOptions(0));
+}
+
+export function expireSessionCookieOnResponse(response: NextResponse): NextResponse {
+  response.cookies.set(OTPRAVKI_USER_COOKIE, "", sessionCookieOptions(0));
+  return response;
 }
 
 export async function readSessionTokenFromCookies(): Promise<string | null> {

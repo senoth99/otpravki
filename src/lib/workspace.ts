@@ -183,7 +183,7 @@ export function subscribeWorkspaceStream({
   const apiSecret = process.env.NEXT_PUBLIC_OTPRAVKI_API_SECRET?.trim();
   const socket = io({
     path: "/socket.io",
-    transports: ["polling", "websocket"],
+    transports: ["websocket", "polling"],
     reconnection: true,
     reconnectionDelay: SOCKET_RECONNECT_MS,
     reconnectionAttempts: Infinity,

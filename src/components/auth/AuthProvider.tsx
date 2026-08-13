@@ -82,7 +82,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      const res = await fetch("/api/auth/logout", { method: "POST" });
+      const res = await fetch("/api/auth/logout", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      });
       const data = (await res.json()) as { ok?: boolean; shiftShipments?: number };
       if (typeof data.shiftShipments === "number") {
         setLastShiftSummary(data.shiftShipments);
