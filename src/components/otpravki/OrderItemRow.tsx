@@ -71,15 +71,15 @@ export function OrderItemRow({
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="flex items-start gap-1.5">
+            <p className="flex items-center gap-1.5">
+              <span className="min-w-0 truncate text-sm font-medium leading-snug text-gray-900">
+                {item.productName}
+              </span>
               <ChestnyZnakStatusIcon
                 status={czStock.status}
                 remaining={czStock.remaining}
                 pending={czStock.pending}
               />
-              <span className="line-clamp-2 min-w-0 text-sm font-medium leading-snug text-gray-900 sm:truncate">
-                {item.productName}
-              </span>
             </p>
             <p className="mt-0.5 text-xs text-gray-600">
               <span className="font-medium">{formatSize(item.size)}</span>
