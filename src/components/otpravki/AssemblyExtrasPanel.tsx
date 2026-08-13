@@ -13,6 +13,7 @@ interface AssemblyExtrasPanelProps {
   items: AssemblyItem[];
   currentProductId?: string | null;
   autoMode?: boolean;
+  brand?: string;
 }
 
 export function AssemblyExtrasPanel({
@@ -20,6 +21,7 @@ export function AssemblyExtrasPanel({
   items,
   currentProductId,
   autoMode,
+  brand,
 }: AssemblyExtrasPanelProps) {
   const [done, setDone] = useState<Set<string>>(() => new Set());
 
@@ -59,10 +61,10 @@ export function AssemblyExtrasPanel({
   const currentName = currentProductId ? nameById.get(currentProductId) : null;
 
   return (
-    <aside className="flex h-full max-h-full min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm lg:w-72">
-      <div className="shrink-0 border-b border-gray-100 px-3 py-3">
+    <aside className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-amber-200 bg-amber-50 shadow-sm">
+      <div className="shrink-0 border-b border-amber-200 px-3 py-3">
         <p className="text-sm font-semibold text-gray-900">Класть в заказ</p>
-        <p className="mt-0.5 text-xs text-gray-500">Допы выбранного бренда</p>
+        <p className="mt-0.5 text-xs text-gray-600">Допы{brand ? ` · ${brand}` : ""}</p>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">

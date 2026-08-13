@@ -277,8 +277,8 @@ export function AssemblyPanel({
           products={products}
         />
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 lg:flex-row">
-          <main className="order-2 min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-5 lg:order-1">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 md:flex-row">
+          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-5">
             <AssemblyView
               sections={assemblySections}
               allItems={filteredAssemblyItems}
@@ -288,9 +288,10 @@ export function AssemblyPanel({
               onFocusProduct={handleFocusProduct}
             />
           </main>
-          <div className="order-1 max-h-56 min-h-0 shrink-0 lg:order-2 lg:max-h-none lg:h-full">
+          <div className="h-56 w-full shrink-0 md:h-auto md:w-80 md:self-stretch">
             <AssemblyExtrasPanel
               key={selectedBrand}
+              brand={selectedBrand}
               extras={extras}
               items={filteredAssemblyItems}
               currentProductId={focusProductId}
