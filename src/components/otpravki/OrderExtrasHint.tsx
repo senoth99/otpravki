@@ -19,32 +19,30 @@ export function OrderExtrasHint({
   const forProducts = relevant.filter((extra) => extra.applyTo === "products");
 
   return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+    <aside className="w-full shrink-0 rounded-xl border border-amber-200 bg-amber-50 p-3 md:w-64">
       <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">
         Класть в заказ
       </p>
-      {brandWide.length > 0 && (
-        <p className="mt-1 text-sm font-medium text-gray-900">
-          {brandWide.map((extra) => extra.name).join(" · ")}
-        </p>
-      )}
-      {forProducts.length > 0 && (
-        <ul className="mt-1.5 space-y-0.5">
-          {forProducts.map((extra) => {
-            const names = extra.productIds
-              .filter((id) => productIds.includes(id))
-              .map((id) => nameById.get(id) ?? id);
-            return (
-              <li key={extra.id} className="text-sm text-gray-800">
-                <span className="font-medium">{extra.name}</span>
-                {names.length > 0 && (
-                  <span className="text-gray-500"> — {names.join(", ")}</span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
+      <ul className="mt-2 space-y-2">
+        {brandWide.map((extra) => (
+          <li key={extra.id} className="text-sm font-medium leading-snug text-gray-900">
+            {extra.name}
+          </li>
+        ))}
+        {forProducts.map((extra) => {
+          const names = extra.productIds
+            .filter((id) => productIds.includes(id))
+            .map((id) => nameById.get(id) ?? id);
+          return (
+            <li key={extra.id} className="text-sm leading-snug text-gray-900">
+              <span className="font-medium">{extra.name}</span>
+              {names.length > 0 && (
+                <span className="mt-0.5 block text-xs text-gray-500">{names.join(", ")}</span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </aside>
   );
 }

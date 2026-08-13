@@ -577,18 +577,19 @@ export function ShippingView({
 
               <OrderComments order={displayOrder} />
 
-              <OrderExtrasHint extras={extras} order={displayOrder} />
-
-              <div className="space-y-2">
-                {displayOrder.items.map((item) => (
-                  <OrderItemRow
-                    key={item.id}
-                    item={item}
-                    manual={manualMode && !autoMode}
-                    onIncrement={() => updateItemCount(item.id, 1)}
-                    onDecrement={() => updateItemCount(item.id, -1)}
-                  />
-                ))}
+              <div className="flex flex-col gap-3 md:flex-row md:items-start">
+                <div className="min-w-0 flex-1 space-y-2">
+                  {displayOrder.items.map((item) => (
+                    <OrderItemRow
+                      key={item.id}
+                      item={item}
+                      manual={manualMode && !autoMode}
+                      onIncrement={() => updateItemCount(item.id, 1)}
+                      onDecrement={() => updateItemCount(item.id, -1)}
+                    />
+                  ))}
+                </div>
+                <OrderExtrasHint extras={extras} order={displayOrder} />
               </div>
             </div>
           )}
