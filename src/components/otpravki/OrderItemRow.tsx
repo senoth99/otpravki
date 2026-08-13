@@ -1,7 +1,9 @@
 "use client";
 
 import { formatSize } from "@/lib/format";
+import { chestnyZnakStockStatus } from "@/lib/chestny-znak-status";
 import type { ShippingOrderItem } from "@/types/shipping";
+import { ChestnyZnakStatusIcon } from "./ChestnyZnakStatusIcon";
 import { ProductImage } from "./ProductImage";
 import { QuantityProgress } from "./QuantityProgress";
 
@@ -16,6 +18,7 @@ interface OrderItemRowProps {
   manual?: boolean;
   busy?: boolean;
   chestnyZnakActive?: boolean;
+  remainingByGtin?: Record<string, number> | null;
   onIncrement?: () => void;
   onDecrement?: () => void;
 }
@@ -25,6 +28,7 @@ export function OrderItemRow({
   manual,
   busy,
   chestnyZnakActive = true,
+  remainingByGtin = null,
   onIncrement,
   onDecrement,
 }: OrderItemRowProps) {
@@ -32,6 +36,7 @@ export function OrderItemRow({
   const isPartial = item.scannedCount > 0 && !isComplete;
   const isMulti = item.quantity > 1;
   const hasChestnyZnak = chestnyZnakActive && Boolean(item.chestnyZnak?.trim());
+  const czStock = chestnyZnakStockStatus(item.chestnyZnak, remainingByGtin);
 
   const badgeClass = isComplete
     ? "bg-green-500 text-white"
@@ -66,8 +71,15 @@ export function OrderItemRow({
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="line-clamp-2 text-sm font-medium leading-snug text-gray-900 sm:truncate">
-              {item.productName}
+            <p className="flex items-start gap-1.5">
+              <ChestnyZnakStatusIcon
+                status={czStock.status}
+                remaining={czStock.remaining}
+                pending={czStock.pending}
+              />
+              <span className="line-clamp-2 min-w-0 text-sm font-medium leading-snug text-gray-900 sm:truncate">
+                {item.productName}
+              </span>
             </p>
             <p className="mt-0.5 text-xs text-gray-600">
               <span className="font-medium">{formatSize(item.size)}</span>

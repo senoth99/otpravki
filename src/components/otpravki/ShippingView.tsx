@@ -12,6 +12,7 @@ import { printOrderBarcode } from "@/lib/print-barcode";
 import { resolveOrderUrgency, URGENCY_LABELS } from "@/lib/urgency";
 import { BloggerBadge } from "./BloggerBadge";
 import type { AssemblyExtra } from "@/lib/assembly-extras";
+import { toGtin14 } from "@/lib/chestny-znak-gtin";
 import type { ApiProduct, AssemblyItem, ShippingOrder, ShippingOrderItem } from "@/types/shipping";
 import { AutoModeButton } from "./AutoModeButton";
 import { AutoModeCountdown } from "./AutoModeCountdown";
@@ -125,6 +126,7 @@ export function ShippingView({
   const [packingOverlay, setPackingOverlay] = useState(false);
   const [packError, setPackError] = useState<string | null>(null);
   const [czEnabled, setCzEnabled] = useState(true);
+  const [remainingByGtin, setRemainingByGtin] = useState<Record<string, number> | null>(null);
   const autoHandledRef = useRef<string | null>(null);
   const packingRef = useRef(false);
 
@@ -142,6 +144,28 @@ export function ShippingView({
     };
     load();
     const timer = window.setInterval(load, 15_000);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const load = () => {
+      void fetch("/api/chestnye-znaki/remaining", { cache: "no-store", signal: controller.signal })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: { remaining?: Record<string, number> } | null) => {
+          if (data?.remaining && typeof data.remaining === "object") {
+            setRemainingByGtin(data.remaining);
+          }
+        })
+        .catch((err) => {
+          if (err instanceof Error && err.name === "AbortError") return;
+        });
+    };
+    load();
+    const timer = window.setInterval(load, 20_000);
     return () => {
       controller.abort();
       window.clearInterval(timer);
@@ -305,6 +329,13 @@ export function ShippingView({
           if (!packResult.ok) {
             setPackError(packResult.error);
             return;
+          }
+          const packedGtin = toGtin14(gtin);
+          if (packedGtin) {
+            setRemainingByGtin((prev) => {
+              if (!prev) return prev;
+              return { ...prev, [packedGtin]: Math.max(0, (prev[packedGtin] ?? 0) - 1) };
+            });
           }
         }
         incrementPackedItem(order.id, item.id);
@@ -690,6 +721,7 @@ export function ShippingView({
                       manual={manualMode && !autoMode}
                       busy={packingOverlay}
                       chestnyZnakActive={czEnabled}
+                      remainingByGtin={remainingByGtin}
                       onIncrement={() => updateItemCount(item.id, 1)}
                       onDecrement={() => updateItemCount(item.id, -1)}
                     />

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { toGtin14 } from "@/lib/chestny-znak-gtin";
 import { fetchProducts } from "@/lib/api";
-import { searchActiveKm } from "@/lib/server/chestny-znak-crpt-client";
 import { hasChestnyZnakPinAccess } from "@/lib/server/chestny-znak-pin";
-import { listUsedCis, loadPackEvents } from "@/lib/server/chestny-znak-pack-store";
+import { loadPackEvents } from "@/lib/server/chestny-znak-pack-store";
+import { getRemainingByGtin } from "@/lib/server/chestny-znak-remaining";
 
 export interface ChestnyZnakSkuStat {
   gtin: string;
@@ -19,23 +19,16 @@ export async function GET() {
   }
 
   try {
-    const [events, used, kmSearch, products] = await Promise.all([
+    const [events, remainingByGtin, products] = await Promise.all([
       loadPackEvents(),
-      listUsedCis(),
-      searchActiveKm({ perPage: 100, maxPages: 20 }),
+      getRemainingByGtin(),
       fetchProducts().catch(() => []),
     ]);
 
     const names = new Map<string, string>();
     const productById = new Map(products.map((product) => [product.slug, product.name]));
 
-    const remaining = new Map<string, number>();
-    for (const row of kmSearch.items) {
-      if (!row.cis || used.has(row.cis)) continue;
-      const gtin = toGtin14(row.gtin ?? "");
-      if (!gtin) continue;
-      remaining.set(gtin, (remaining.get(gtin) ?? 0) + 1);
-    }
+    const remaining = new Map<string, number>(Object.entries(remainingByGtin));
 
     const writtenOff = new Map<string, number>();
     const failed = new Map<string, number>();

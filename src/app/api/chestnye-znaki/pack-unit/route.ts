@@ -13,6 +13,7 @@ import {
   releaseCis,
   withPackLock,
 } from "@/lib/server/chestny-znak-pack-store";
+import { invalidateChestnyZnakRemainingCache } from "@/lib/server/chestny-znak-remaining";
 import { isChestnyZnakPackingEnabled } from "@/lib/server/chestny-znak-settings";
 import { printKmLabel } from "@/lib/server/km-label-printer";
 
@@ -93,11 +94,13 @@ export async function POST(request: Request) {
     }
 
     claimedCis = km.cis;
+    invalidateChestnyZnakRemainingCache();
 
     const printed = await printKmLabel({ cis: km.cis, gtin: km.gtin ?? gtin });
     if (!printed.ok) {
       await releaseCis(km.cis);
       claimedCis = null;
+      invalidateChestnyZnakRemainingCache();
       await appendPackEvent({
         ...baseEvent,
         ok: false,
@@ -134,6 +137,7 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : "Ошибка честного знака";
     if (claimedCis && !printedOk) {
       await releaseCis(claimedCis).catch(() => undefined);
+      invalidateChestnyZnakRemainingCache();
     }
     await appendPackEvent({
       ...baseEvent,
