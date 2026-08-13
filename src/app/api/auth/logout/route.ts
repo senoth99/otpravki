@@ -11,8 +11,13 @@ import {
 } from "@/lib/server/shift-stats-store";
 
 function logoutRedirect(request: Request) {
+  const host =
+    request.headers.get("x-forwarded-host") ??
+    request.headers.get("host") ??
+    "192.168.1.100:3000";
+  const proto = request.headers.get("x-forwarded-proto") ?? "http";
   return expireSessionCookieOnResponse(
-    NextResponse.redirect(new URL("/otpravki", request.url), { status: 303 }),
+    NextResponse.redirect(new URL("/otpravki", `${proto}://${host}`), { status: 303 }),
   );
 }
 
