@@ -37,3 +37,10 @@ export function applyAdminCookies(response: NextResponse): NextResponse {
   response.cookies.set(CZ_PIN_COOKIE, "1", chestnyZnakPinCookieOptions());
   return response;
 }
+
+export function clearAdminCookies(response: NextResponse): NextResponse {
+  const expired = { ...adminPinCookieOptions(), maxAge: 0 };
+  response.cookies.set(ADMIN_COOKIE, "", expired);
+  response.cookies.set(CZ_PIN_COOKIE, "", { ...chestnyZnakPinCookieOptions(), maxAge: 0 });
+  return response;
+}

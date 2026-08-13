@@ -30,6 +30,20 @@ export function AdminPanel() {
     };
   }, []);
 
+  const leaveAdmin = async () => {
+    try {
+      await fetch("/api/admin/logout", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      });
+    } catch {
+      // всё равно уходим
+    }
+    window.location.href = "/otpravki";
+  };
+
   const submitPin = async (entered: string) => {
     if (entered.length !== 4 || busy) return;
     setBusy(true);
@@ -69,12 +83,13 @@ export function AdminPanel() {
                 Назад
               </button>
             ) : (
-              <a
-                href="/otpravki"
+              <button
+                type="button"
+                onClick={() => void leaveAdmin()}
                 className="inline-flex h-9 shrink-0 items-center rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800"
               >
                 Назад
-              </a>
+              </button>
             )}
             <div className="min-w-0">
               <h1 className="truncate text-lg font-bold text-gray-900">Админка</h1>
