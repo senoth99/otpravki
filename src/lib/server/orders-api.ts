@@ -1,7 +1,6 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
-import type { ApiUnshippedOrder } from "@/types/orders-api";
-import { parseUnshippedOrdersPayload } from "@/types/orders-api";
+import { isStockGatedLine, parseUnshippedOrdersPayload, type ApiOrderLineItem } from "@/types/orders-api";
 import { formatApiFetchError } from "@/lib/server/api-fetch-error";
 import {
   ORDERS_API_BASE,
@@ -54,6 +53,120 @@ export function resolveBarcodeUrl(orderId?: string, barcodeUrl?: string, brand?:
   return null;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function asFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function asText(value: unknown): string {
+  return typeof value === "string" ? value : value == null ? "" : String(value);
+}
+
+function mapFullOrderLine(row: unknown): ApiOrderLineItem | null {
+  const rec = asRecord(row);
+  if (!rec) return null;
+  const id = asFiniteNumber(rec.id);
+  if (id == null) return null;
+
+  const product = asRecord(rec.product) ?? {};
+  const sizeObj = asRecord(rec.size);
+  const size = asText(sizeObj?.size ?? rec.size);
+  const warehouseQuantity = asFiniteNumber(rec.warehouseQuantity);
+  const sizeId = asFiniteNumber(rec.sizeId) ?? asFiniteNumber(sizeObj?.id) ?? undefined;
+  const images = Array.isArray(product.images) ? product.images : [];
+  const imagePath = typeof images[0] === "string" ? images[0] : undefined;
+  const chestnyZnak =
+    typeof product.chestnyZnak === "string"
+      ? product.chestnyZnak
+      : typeof rec.chestnyZnak === "string"
+        ? rec.chestnyZnak
+        : null;
+
+  return {
+    id,
+    productName: asText(product.name) || "Позиция",
+    productSlug: asText(product.slug) || `product-${asFiniteNumber(rec.productId) ?? id}`,
+    size: size || "—",
+    quantity: asFiniteNumber(rec.quantity) ?? 1,
+    price: asFiniteNumber(rec.price) ?? 0,
+    warehouseQuantity,
+    inStockAtWarehouse: warehouseQuantity == null ? true : warehouseQuantity > 0,
+    chestnyZnak,
+    sizeId,
+    imagePath,
+  };
+}
+
+async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  mapper: (item: T) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (true) {
+      const index = next;
+      next += 1;
+      if (index >= items.length) return;
+      results[index] = await mapper(items[index]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
+  return results;
+}
+
+/**
+ * unshipped-with-stock не отдаёт позиции без складского учёта (гифты).
+ * Добираем их из GET /orders/admin/order/:id.
+ */
+async function hydrateMissingOrderItems(
+  order: ApiUnshippedOrderWithBrand,
+  brand: BrandApiConfig,
+): Promise<ApiUnshippedOrderWithBrand> {
+  try {
+    const res = await externalFetch(
+      `${ORDERS_API_BASE}/orders/admin/order/${encodeURIComponent(order.remoteOrderId)}`,
+      {
+        headers: {
+          ...casherAuthHeaders(brand.token),
+          Accept: "application/json",
+        },
+        timeoutMs: 8_000,
+      },
+    );
+    if (!res.ok) return order;
+
+    const payload: unknown = await res.json();
+    const rec = asRecord(payload);
+    if (!Array.isArray(rec?.items)) return order;
+
+    const have = new Set(order.items.map((item) => item.id));
+    const extra: ApiOrderLineItem[] = [];
+    for (const row of rec.items) {
+      const mapped = mapFullOrderLine(row);
+      if (!mapped || have.has(mapped.id)) continue;
+      if (isStockGatedLine(mapped) && !mapped.inStockAtWarehouse) continue;
+      extra.push(mapped);
+    }
+    if (extra.length === 0) return order;
+    return { ...order, items: [...order.items, ...extra] };
+  } catch {
+    return order;
+  }
+}
+
 async function fetchBrandUnshippedOrders(brand: BrandApiConfig): Promise<ApiUnshippedOrderWithBrand[]> {
   const ordersUrl = `${ORDERS_API_BASE}${UNSHIPPED_PATH}`;
   let res: Response;
@@ -82,12 +195,13 @@ async function fetchBrandUnshippedOrders(brand: BrandApiConfig): Promise<ApiUnsh
   }
 
   const data: unknown = await res.json();
-  return parseUnshippedOrdersPayload(data).map((order) => ({
+  const orders = parseUnshippedOrdersPayload(data).map((order) => ({
     ...order,
     id: Number.parseInt(`${order.id}`, 10),
     remoteOrderId: String(order.id),
     storeBrand: brand.label,
   }));
+  return mapLimit(orders, 8, (order) => hydrateMissingOrderItems(order, brand));
 }
 
 export async function fetchUnshippedOrdersForBrand(
@@ -119,8 +233,19 @@ export async function fetchUnshippedOrders(): Promise<ApiUnshippedOrderWithBrand
     return fetchBrandUnshippedOrders(singleBrand);
   }
 
-  const chunks = await Promise.all(brands.map((brand) => fetchBrandUnshippedOrders(brand)));
-  return chunks.flat();
+  const results = await Promise.allSettled(
+    brands.map((brand) => fetchBrandUnshippedOrders(brand)),
+  );
+  const orders = results.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
+  const errors = results.flatMap((result, index) => {
+    if (result.status !== "rejected") return [];
+    const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
+    return [`${brands[index].label}: ${reason}`];
+  });
+  if (orders.length === 0 && errors.length > 0) {
+    throw new Error(errors.join("; "));
+  }
+  return orders;
 }
 
 /** PUT /orders/{id}/status — перед печатью этикетки */

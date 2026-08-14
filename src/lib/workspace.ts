@@ -19,7 +19,7 @@ export function getClientId(): string {
   return id;
 }
 
-const SYNC_TIMEOUT_MS = 20_000;
+const SYNC_TIMEOUT_MS = 45_000;
 
 function cacheBust(url: string): string {
   const sep = url.includes("?") ? "&" : "?";

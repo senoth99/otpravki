@@ -14,13 +14,25 @@ export interface ApiOrderLineItem {
   size: string;
   quantity: number;
   price: number;
-  warehouseQuantity: number;
+  /** null — позиция не на складе (гифт, промо), в unshipped-with-stock её нет */
+  warehouseQuantity: number | null;
   reservedByOtherOrders?: number;
   availableForThisOrder?: number;
   /** Legacy: для заказов до 13.08.2026 может быть остаток + qty */
   effectiveWarehouseQuantity?: number;
   inStockAtWarehouse: boolean;
   chestnyZnak?: string | null;
+  sizeId?: number;
+  imagePath?: string;
+}
+
+/** Обычный товар со складским учётом. Гифты (цена 0 / без остатка) не блокируют отгрузку. */
+export function isStockGatedLine(
+  line: Pick<ApiOrderLineItem, "warehouseQuantity" | "price">,
+): boolean {
+  if (line.warehouseQuantity == null) return false;
+  if (line.price === 0) return false;
+  return true;
 }
 
 export interface ApiUnshippedOrder {

@@ -4,6 +4,7 @@ import { getImageUrl } from "@/lib/api";
 import { addMoscowCalendarDays, formatMoscowDate, formatSize, isMoscowToday } from "@/lib/format";
 import { deriveUrgency, hasRushTag, mapOrderTags, resolveOrderUrgency, URGENCY_WEIGHT } from "@/lib/urgency";
 import type { ApiUnshippedOrderWithBrand } from "@/lib/server/orders-api";
+import { isStockGatedLine, type ApiOrderLineItem } from "@/types/orders-api";
 import type {
   ApiProduct,
   AssemblyItem,
@@ -55,10 +56,11 @@ function findProduct(index: Map<string, ApiProduct>, slug: string): ApiProduct |
 }
 
 function resolveWarehouseCap(line: {
-  warehouseQuantity: number;
+  warehouseQuantity: number | null;
   effectiveWarehouseQuantity?: number;
-}): number {
-  const warehouse = Math.max(0, line.warehouseQuantity ?? 0);
+}): number | undefined {
+  if (line.warehouseQuantity == null) return undefined;
+  const warehouse = Math.max(0, line.warehouseQuantity);
   const effective = line.effectiveWarehouseQuantity;
   if (typeof effective === "number" && Number.isFinite(effective) && effective > warehouse) {
     return effective;
@@ -71,10 +73,16 @@ function normalizeChestnyZnak(raw: string | null | undefined): string | undefine
   return trimmed || undefined;
 }
 
-/** Заказ можно отправить разом — всё на складе */
+/** Заказ можно отправить разом — складские позиции в наличии; гифты не блокируют */
 function isFullyStockedOrder(order: ApiUnshippedOrderWithBrand): boolean {
-  if (!order.allInStockAtWarehouse) return false;
-  return order.items.length > 0 && order.items.every((line) => line.inStockAtWarehouse);
+  if (order.items.length === 0) return false;
+  const gated = order.items.filter(isStockGatedLine);
+  if (gated.length === 0) return true;
+  return gated.every((line) => line.inStockAtWarehouse);
+}
+
+function resolveLineSizeId(product: ApiProduct | undefined, line: ApiOrderLineItem): number | null {
+  return resolveSizeId(product, line.size) ?? line.sizeId ?? null;
 }
 
 export function mapUnshippedOrdersToWorkspace(
@@ -93,20 +101,20 @@ export function mapUnshippedOrdersToWorkspace(
     const isBlogger = isBloggerOrder(order.orderNumber);
 
     for (const line of order.items) {
-      if (!line.inStockAtWarehouse) continue;
+      if (isStockGatedLine(line) && !line.inStockAtWarehouse) continue;
 
       const product = findProduct(productIndex, line.productSlug);
       const productId = line.productSlug;
-      const sizeId = resolveSizeId(product, line.size);
+      const sizeId = resolveLineSizeId(product, line);
       if (sizeId === null) continue;
 
       const key = assemblyKey(productId, line.size, isBlogger, order.storeBrand);
-      const imagePath = product?.images[0] ?? "";
+      const imagePath = product?.images[0] ?? line.imagePath ?? "";
 
-      warehouseCapByKey.set(
-        key,
-        Math.max(warehouseCapByKey.get(key) ?? 0, resolveWarehouseCap(line)),
-      );
+      const cap = resolveWarehouseCap(line);
+      if (cap !== undefined) {
+        warehouseCapByKey.set(key, Math.max(warehouseCapByKey.get(key) ?? 0, cap));
+      }
 
       const assemblyLine = assemblyMap.get(key);
       if (assemblyLine) {
