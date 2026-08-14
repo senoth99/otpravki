@@ -1,6 +1,11 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
-import { isStockGatedLine, parseUnshippedOrdersPayload, type ApiOrderLineItem } from "@/types/orders-api";
+import {
+  isStockGatedLine,
+  parseUnshippedOrdersPayload,
+  type ApiOrderLineItem,
+  type ApiUnshippedOrder,
+} from "@/types/orders-api";
 import { formatApiFetchError } from "@/lib/server/api-fetch-error";
 import {
   ORDERS_API_BASE,
