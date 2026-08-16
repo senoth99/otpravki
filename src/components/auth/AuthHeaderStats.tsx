@@ -30,7 +30,7 @@ export function AuthHeaderStats() {
             setStatsOpen(true);
           }}
           className="inline-flex min-h-11 max-w-[14rem] items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 pl-2.5 pr-3 text-left active:bg-gray-100 sm:max-w-none"
-          title="Статистика смены"
+          title="Статистика"
         >
           <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-lg leading-none shadow-sm">
             {user.emoji}
@@ -40,7 +40,7 @@ export function AuthHeaderStats() {
               сегодня {stats.today}
             </span>
             <span className="block truncate text-[11px] leading-tight text-gray-500">
-              смена {stats.shift}
+              всего {stats.total}
             </span>
           </span>
         </button>

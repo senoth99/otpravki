@@ -124,38 +124,24 @@ export interface UserStatsRow {
   emoji: string;
   total: number;
   today: number;
-  lastShift: number;
 }
 
-export async function buildAllAccountsStats(
-  sessionsByUser?: Map<string, AuthSession>,
-): Promise<UserStatsRow[]> {
-  const [users, events, summaries] = await Promise.all([
-    listAuthUsers(),
-    loadShipmentEvents(),
-    loadShiftSummaries(),
-  ]);
-  return users.map((user) => {
-    const session = sessionsByUser?.get(user.id) ?? null;
-    return {
-      ...publicUser(user),
-      total: countShipmentsAllTime(events, user.id),
-      today: countShipmentsToday(events, user.id),
-      lastShift: session
-        ? countShipmentsForShift(events, user.id, session.shiftStartedAt)
-        : lastClosedShiftCount(summaries, user.id),
-    };
-  });
+export async function buildAllAccountsStats(): Promise<UserStatsRow[]> {
+  const [users, events] = await Promise.all([listAuthUsers(), loadShipmentEvents()]);
+  return users.map((user) => ({
+    ...publicUser(user),
+    total: countShipmentsAllTime(events, user.id),
+    today: countShipmentsToday(events, user.id),
+  }));
 }
 
 export async function buildUserLiveStats(
   user: AuthUser,
-  session: AuthSession,
-): Promise<{ today: number; shift: number; total: number }> {
+  _session: AuthSession,
+): Promise<{ today: number; total: number }> {
   const events = await loadShipmentEvents();
   return {
     today: countShipmentsToday(events, user.id),
-    shift: countShipmentsForShift(events, user.id, session.shiftStartedAt),
     total: countShipmentsAllTime(events, user.id),
   };
 }

@@ -7,7 +7,6 @@ interface AccountRow {
   emoji: string;
   total: number;
   today: number;
-  lastShift: number;
 }
 
 export function AllAccountsStats({ compact = false }: { compact?: boolean }) {
@@ -59,7 +58,6 @@ export function AllAccountsStats({ compact = false }: { compact?: boolean }) {
             <tr>
               <th className="px-3 py-2 font-medium">Акк</th>
               <th className="px-2 py-2 font-medium">Сегодня</th>
-              <th className="px-2 py-2 font-medium">Смена</th>
               <th className="px-3 py-2 font-medium">Всего</th>
             </tr>
           </thead>
@@ -70,7 +68,6 @@ export function AllAccountsStats({ compact = false }: { compact?: boolean }) {
                   <span className="text-xl leading-none">{row.emoji}</span>
                 </td>
                 <td className="px-2 py-2 tabular-nums text-gray-700">{row.today}</td>
-                <td className="px-2 py-2 tabular-nums text-gray-700">{row.lastShift}</td>
                 <td className="px-3 py-2 tabular-nums font-medium text-gray-900">{row.total}</td>
               </tr>
             ))}
