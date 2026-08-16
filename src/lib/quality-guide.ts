@@ -95,12 +95,6 @@ export const QUALITY_GUIDE_EXAMPLES: {
     imageUrl: "/defect-examples/defect-01.jpg",
   },
   {
-    id: "defect-02",
-    title: "Полосы",
-    detail: "Брак печати",
-    imageUrl: "/defect-examples/defect-02.jpg",
-  },
-  {
     id: "defect-03",
     title: "Полосы",
     detail: "Брак печати",
