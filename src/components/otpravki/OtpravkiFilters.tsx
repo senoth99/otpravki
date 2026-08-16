@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import { resolveOrderUrgency, URGENCY_LABELS } from "@/lib/urgency";
 import type { OrderUrgency, ShippingOrder } from "@/types/shipping";
+import { ProductImage } from "./ProductImage";
 import { KeyboardField } from "./VirtualKeyboard";
 
 export type UrgencyFilter = "all" | OrderUrgency;
@@ -25,6 +26,7 @@ export interface OtpravkiFiltersState {
 export interface FilterProductOption {
   productId: string;
   productName: string;
+  imageUrl: string;
   orderCount: number;
   quantity: number;
 }
@@ -121,16 +123,19 @@ export function collectFilterProducts(orders: ShippingOrder[]): FilterProductOpt
       const id = item.productId?.trim();
       if (!id) continue;
       const existing = map.get(id);
+      const imageUrl = item.imageUrl?.trim() || existing?.imageUrl || "";
       if (!existing) {
         map.set(id, {
           productId: id,
           productName: item.productName?.trim() || id,
+          imageUrl,
           orderCount: 1,
           quantity: item.quantity,
         });
         seenInOrder.add(id);
         continue;
       }
+      if (!existing.imageUrl && imageUrl) existing.imageUrl = imageUrl;
       existing.quantity += item.quantity;
       if (!seenInOrder.has(id)) {
         existing.orderCount += 1;
@@ -145,6 +150,144 @@ function toggleProductId(selected: string[], productId: string): string[] {
   return selected.includes(productId)
     ? selected.filter((id) => id !== productId)
     : [...selected, productId];
+}
+
+function ProductFilterModal({
+  open,
+  onClose,
+  products,
+  selectedIds,
+  onConfirm,
+}: {
+  open: boolean;
+  onClose: () => void;
+  products: FilterProductOption[];
+  selectedIds: string[];
+  onConfirm: (ids: string[]) => void;
+}) {
+  const [draft, setDraft] = useState<string[]>(selectedIds);
+
+  useEffect(() => {
+    if (open) setDraft(selectedIds);
+  }, [open, selectedIds]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-2xl bg-white sm:max-w-2xl sm:rounded-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="border-b border-gray-100 px-4 py-3">
+          <p className="font-semibold text-gray-900">Фильтр по вещам</p>
+          <p className="mt-0.5 text-xs text-gray-500">
+            {draft.length === 0
+              ? "Показаны все заказы"
+              : `Выбрано: ${draft.length} · заказы с этими позициями`}
+          </p>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4">
+          {products.length === 0 ? (
+            <p className="py-12 text-center text-sm text-gray-500">Нет товаров к отправке</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {products.map((product) => {
+                const active = draft.includes(product.productId);
+                return (
+                  <button
+                    key={product.productId}
+                    type="button"
+                    onClick={() =>
+                      setDraft((prev) => toggleProductId(prev, product.productId))
+                    }
+                    className={`overflow-hidden rounded-xl border text-left transition-colors ${
+                      active
+                        ? "border-gray-900 bg-gray-900 text-white ring-2 ring-gray-900 ring-offset-1"
+                        : "border-gray-200 bg-white active:bg-gray-50"
+                    }`}
+                  >
+                    <div className="relative aspect-square w-full bg-gray-100">
+                      <ProductImage
+                        src={product.imageUrl}
+                        alt={product.productName}
+                        className="object-cover"
+                        sizes="(max-width: 640px) 45vw, 180px"
+                      />
+                      {active && (
+                        <span className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-bold text-gray-900 shadow">
+                          ✓
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-2">
+                      <p className="line-clamp-2 text-xs font-medium leading-snug">
+                        {product.productName}
+                      </p>
+                      <p
+                        className={`mt-1 text-[10px] ${active ? "text-gray-300" : "text-gray-500"}`}
+                      >
+                        {product.orderCount} зак. · {product.quantity} шт.
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-3 border-t border-gray-100 p-3 sm:p-4">
+          <button
+            type="button"
+            onClick={() => setDraft([])}
+            className="flex-1 rounded-xl border border-gray-200 py-3 text-sm font-medium text-gray-700 active:bg-gray-50"
+          >
+            Сбросить
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onConfirm(draft);
+              onClose();
+            }}
+            className="flex-1 rounded-xl bg-gray-900 py-3 text-sm font-medium text-white active:bg-gray-800"
+          >
+            Подтвердить
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProductFilterButton({
+  selectedCount,
+  onClick,
+  className = "",
+}: {
+  selectedCount: number;
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-colors ${
+        selectedCount > 0
+          ? "border-gray-900 bg-gray-900 text-white"
+          : "border-gray-200 bg-white text-gray-800 active:bg-gray-50"
+      } ${className}`}
+    >
+      Вещи
+      {selectedCount > 0 ? ` · ${selectedCount}` : ""}
+    </button>
+  );
 }
 
 function Chip({
@@ -199,6 +342,7 @@ export function OtpravkiFiltersPanel({
   counts,
   products = [],
 }: OtpravkiFiltersPanelProps) {
+  const [productsOpen, setProductsOpen] = useState(false);
   const set = <K extends keyof OtpravkiFiltersState>(key: K, value: OtpravkiFiltersState[K]) => {
     onChange({ ...filters, [key]: value });
   };
@@ -206,7 +350,8 @@ export function OtpravkiFiltersPanel({
   const selectedCount = filters.productIds.length;
 
   return (
-    <aside className="hidden h-full w-56 shrink-0 flex-col gap-4 overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-4 shadow-sm lg:flex">
+    <>
+      <aside className="hidden h-full w-56 shrink-0 flex-col gap-4 overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-4 shadow-sm lg:flex">
       <div>
         <p className="text-sm font-semibold text-gray-900">Фильтры</p>
         <p className="mt-0.5 text-[11px] text-gray-500">
@@ -254,45 +399,15 @@ export function OtpravkiFiltersPanel({
 
       {products.length > 0 && (
         <div className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-              Товар к отправке
-            </p>
-            {selectedCount > 0 && (
-              <button
-                type="button"
-                onClick={() => set("productIds", [])}
-                className="text-[10px] font-medium text-gray-500 underline-offset-2 hover:underline"
-              >
-                Сбросить ({selectedCount})
-              </button>
-            )}
-          </div>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Вещи</p>
+          <ProductFilterButton
+            selectedCount={selectedCount}
+            onClick={() => setProductsOpen(true)}
+            className="w-full py-2.5"
+          />
           <p className="text-[10px] text-gray-400">
-            {selectedCount === 0 ? "Все товары" : `Выбрано: ${selectedCount}`}
+            {selectedCount === 0 ? "Все товары" : `Фильтр: ${selectedCount} поз.`}
           </p>
-          <div className="flex max-h-64 flex-col gap-1 overflow-y-auto overscroll-contain pr-0.5">
-            {products.map((product) => {
-              const active = filters.productIds.includes(product.productId);
-              return (
-                <button
-                  key={product.productId}
-                  type="button"
-                  onClick={() => set("productIds", toggleProductId(filters.productIds, product.productId))}
-                  className={`rounded-lg px-2.5 py-2 text-left transition-colors ${
-                    active
-                      ? "bg-gray-900 text-white"
-                      : "bg-gray-100 text-gray-800 active:bg-gray-200"
-                  }`}
-                >
-                  <span className="block text-xs font-medium leading-snug">{product.productName}</span>
-                  <span className={`mt-0.5 block text-[10px] ${active ? "text-gray-300" : "text-gray-500"}`}>
-                    {product.orderCount} зак. · {product.quantity} шт.
-                  </span>
-                </button>
-              );
-            })}
-          </div>
         </div>
       )}
 
@@ -304,6 +419,15 @@ export function OtpravkiFiltersPanel({
         Сбросить фильтры
       </button>
     </aside>
+
+      <ProductFilterModal
+        open={productsOpen}
+        onClose={() => setProductsOpen(false)}
+        products={products}
+        selectedIds={filters.productIds}
+        onConfirm={(productIds) => onChange({ ...filters, productIds })}
+      />
+    </>
   );
 }
 
@@ -357,65 +481,21 @@ export function OtpravkiMobileFilters({
           <option value="regular">Обычные</option>
         </select>
         {products.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setProductsOpen((v) => !v)}
-            className={`h-9 shrink-0 rounded-xl border px-3 text-xs font-medium ${
-              selectedCount > 0
-                ? "border-gray-900 bg-gray-900 text-white"
-                : "border-gray-200 bg-white text-gray-800"
-            }`}
-          >
-            Товар{selectedCount > 0 ? ` · ${selectedCount}` : ""}
-          </button>
+          <ProductFilterButton
+            selectedCount={selectedCount}
+            onClick={() => setProductsOpen(true)}
+            className="h-9 shrink-0"
+          />
         )}
       </div>
 
-      {productsOpen && products.length > 0 && (
-        <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold text-gray-900">Товары к отправке</p>
-            <div className="flex items-center gap-2">
-              {selectedCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => set("productIds", [])}
-                  className="text-[11px] font-medium text-gray-500"
-                >
-                  Сбросить
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setProductsOpen(false)}
-                className="rounded-lg bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white"
-              >
-                Готово
-              </button>
-            </div>
-          </div>
-          <div className="grid max-h-56 grid-cols-1 gap-1.5 overflow-y-auto overscroll-contain sm:grid-cols-2">
-            {products.map((product) => {
-              const active = filters.productIds.includes(product.productId);
-              return (
-                <button
-                  key={product.productId}
-                  type="button"
-                  onClick={() => set("productIds", toggleProductId(filters.productIds, product.productId))}
-                  className={`rounded-xl px-3 py-2 text-left ${
-                    active ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-800"
-                  }`}
-                >
-                  <span className="block text-xs font-medium leading-snug">{product.productName}</span>
-                  <span className={`mt-0.5 block text-[10px] ${active ? "text-gray-300" : "text-gray-500"}`}>
-                    {product.orderCount} зак. · {product.quantity} шт.
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      <ProductFilterModal
+        open={productsOpen}
+        onClose={() => setProductsOpen(false)}
+        products={products}
+        selectedIds={filters.productIds}
+        onConfirm={(productIds) => onChange({ ...filters, productIds })}
+      />
     </div>
   );
 }
