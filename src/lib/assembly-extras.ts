@@ -7,6 +7,8 @@ export interface AssemblyExtra {
   name: string;
   applyTo: "all" | "products";
   productIds: string[];
+  /** Мокап / фото вкладаша, путь от /public */
+  imageUrl?: string;
 }
 
 export function extraAppliesToProduct(extra: AssemblyExtra, productId: string): boolean {

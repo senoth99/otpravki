@@ -34,6 +34,10 @@ function normalizeExtra(raw: unknown): AssemblyExtra | null {
     name,
     applyTo,
     productIds: applyTo === "products" ? productIds : [],
+    imageUrl:
+      typeof row.imageUrl === "string" && row.imageUrl.trim()
+        ? row.imageUrl.trim()
+        : undefined,
   };
 }
 
