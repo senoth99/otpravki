@@ -3,38 +3,37 @@
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { AuthHeaderStats } from "@/components/auth/AuthHeaderStats";
+import type { ShippingTab } from "@/types/shipping";
 
-const SECTIONS = [
-  { href: "/otpravki", label: "Отправки" },
-  { href: "/admin", label: "Админка" },
-] as const;
+function HeaderButton({
+  active,
+  children,
+  onClick,
+  href,
+}: {
+  active?: boolean;
+  children: ReactNode;
+  onClick?: () => void;
+  href?: string;
+}) {
+  const className = `inline-flex min-h-11 shrink-0 items-center justify-center rounded-2xl border px-3.5 text-sm font-medium transition-colors active:scale-[0.98] ${
+    active
+      ? "border-gray-900 bg-gray-900 text-white"
+      : "border-gray-200 bg-white text-gray-800 active:bg-gray-50"
+  }`;
 
-function SectionNav() {
-  const pathname = usePathname();
+  if (href) {
+    return (
+      <a href={href} className={className}>
+        {children}
+      </a>
+    );
+  }
 
   return (
-    <nav
-      aria-label="Разделы"
-      className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-2xl border border-gray-200 bg-gray-50 p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-    >
-      {SECTIONS.map((section) => {
-        const active =
-          pathname === section.href || pathname.startsWith(`${section.href}/`);
-        return (
-          <a
-            key={section.href}
-            href={section.href}
-            className={`inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl px-4 text-sm font-medium transition-colors active:scale-[0.98] ${
-              active
-                ? "bg-gray-900 text-white shadow-sm"
-                : "text-gray-600 active:bg-white"
-            }`}
-          >
-            {section.label}
-          </a>
-        );
-      })}
-    </nav>
+    <button type="button" onClick={onClick} className={className}>
+      {children}
+    </button>
   );
 }
 
@@ -52,10 +51,10 @@ function RefreshButton({
       disabled={busy}
       aria-label={busy ? "Обновление" : "Обновить"}
       title="Обновить"
-      className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 transition-colors active:bg-gray-50 disabled:opacity-60 sm:px-4"
+      className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-800 transition-colors active:bg-gray-50 disabled:opacity-60"
     >
       <svg
-        className={`h-4 w-4 shrink-0 ${busy ? "animate-spin" : ""}`}
+        className={`h-4 w-4 ${busy ? "animate-spin" : ""}`}
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -67,7 +66,6 @@ function RefreshButton({
           d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
         />
       </svg>
-      <span className="hidden sm:inline">{busy ? "Обновление…" : "Обновить"}</span>
     </button>
   );
 }
@@ -80,6 +78,9 @@ export interface OtpravkiPageHeaderProps {
   offline?: boolean;
   offlineMessage?: string;
   children?: ReactNode;
+  /** Вкладки Отправка/Архив на странице /otpravki */
+  shippingTab?: ShippingTab;
+  onShippingTabChange?: (tab: ShippingTab) => void;
 }
 
 export function OtpravkiPageHeader({
@@ -90,25 +91,59 @@ export function OtpravkiPageHeader({
   offline = false,
   offlineMessage,
   children,
+  shippingTab,
+  onShippingTabChange,
 }: OtpravkiPageHeaderProps) {
+  const pathname = usePathname();
+  const onOtpravki = pathname === "/otpravki" || pathname.startsWith("/otpravki/");
+  const adminActive = pathname === "/admin" || pathname.startsWith("/admin/");
+
+  const shippingActive = onOtpravki && shippingTab === "shipping";
+  const archiveActive = onOtpravki && shippingTab === "archive";
+
   return (
     <header className="safe-top shrink-0 border-b border-gray-200 bg-white">
       <div className="space-y-3 px-3 py-3 sm:px-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="truncate text-xl font-bold tracking-tight text-gray-900">
-              {title}
-            </h1>
-            {subtitle ? (
-              <p className="mt-0.5 truncate text-sm text-gray-500">{subtitle}</p>
-            ) : null}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-2">
+            <div className="min-w-0">
+              <h1 className="truncate text-xl font-bold tracking-tight text-gray-900">
+                {title}
+              </h1>
+              {subtitle ? (
+                <p className="mt-0.5 truncate text-sm text-gray-500">{subtitle}</p>
+              ) : null}
+            </div>
+            <RefreshButton busy={refreshing} onClick={onRefresh} />
           </div>
-          <AuthHeaderStats />
-        </div>
 
-        <div className="flex items-center gap-2">
-          <SectionNav />
-          <RefreshButton busy={refreshing} onClick={onRefresh} />
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {onShippingTabChange ? (
+              <>
+                <HeaderButton
+                  active={shippingActive}
+                  onClick={() => onShippingTabChange("shipping")}
+                >
+                  Отправка
+                </HeaderButton>
+                <HeaderButton
+                  active={archiveActive}
+                  onClick={() => onShippingTabChange("archive")}
+                >
+                  Архив
+                </HeaderButton>
+              </>
+            ) : (
+              <>
+                <HeaderButton href="/otpravki">Отправка</HeaderButton>
+                <HeaderButton href="/otpravki?tab=archive">Архив</HeaderButton>
+              </>
+            )}
+            <HeaderButton href="/admin" active={adminActive}>
+              Админка
+            </HeaderButton>
+            <AuthHeaderStats />
+          </div>
         </div>
 
         {offline && (

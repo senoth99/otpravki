@@ -19,7 +19,6 @@ import {
 } from "./OtpravkiFilters";
 import { OtpravkiPageHeader } from "./OtpravkiPageHeader";
 import { ShippingView } from "./ShippingView";
-import { TabSwitcher } from "./TabSwitcher";
 
 interface ShippingPanelProps {
   assemblyItems: AssemblyItem[];
@@ -69,7 +68,19 @@ export function ShippingPanel({
   useOtpravkiNoSwipe();
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const tabParam = new URLSearchParams(window.location.search).get("tab");
+    if (tabParam === "archive") setTab("archive");
+    if (tabParam === "shipping") setTab("shipping");
+  }, []);
+
+  useEffect(() => {
     if (loading) return;
+    const tabParam =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("tab")
+        : null;
+    if (tabParam === "archive" || tabParam === "shipping") return;
     setTab(user ? "shipping" : "archive");
   }, [loading, user]);
 
@@ -187,15 +198,14 @@ export function ShippingPanel({
         refreshing={reloading || isSyncing}
         offline={offline}
         offlineMessage={!isInternetOnline ? "Нет интернета" : "Сервер недоступен"}
+        shippingTab={tab}
+        onShippingTabChange={handleTabChange}
       >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <TabSwitcher active={tab} onChange={handleTabChange} />
-          {!user && (
-            <p className="text-xs text-gray-500">
-              Архив без входа · для отправки нажми «Войти»
-            </p>
-          )}
-        </div>
+        {!user && (
+          <p className="text-xs text-gray-500">
+            Архив без входа · для отправки нажми «Войти»
+          </p>
+        )}
 
         <OtpravkiMobileFilters
           filters={filters}
