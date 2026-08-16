@@ -75,11 +75,13 @@ export function OrderItemRow({
               <span className="min-w-0 truncate text-sm font-medium leading-snug text-gray-900">
                 {item.productName}
               </span>
-              <ChestnyZnakStatusIcon
-                status={czStock.status}
-                remaining={czStock.remaining}
-                pending={czStock.pending}
-              />
+              {hasChestnyZnak ? (
+                <ChestnyZnakStatusIcon
+                  status={czStock.status}
+                  remaining={czStock.remaining}
+                  pending={czStock.pending}
+                />
+              ) : null}
             </p>
             <p className="mt-0.5 text-xs text-gray-600">
               <span className="font-medium">{formatSize(item.size)}</span>

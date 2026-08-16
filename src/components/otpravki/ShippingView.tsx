@@ -308,7 +308,8 @@ export function ShippingView({
       if (packingRef.current) return;
       if (item.scannedCount >= item.quantity) return;
 
-      const gtin = czEnabled ? item.chestnyZnak?.trim() : "";
+      const gtin =
+        czEnabled && !orderIsBlogger(order) ? item.chestnyZnak?.trim() : "";
       packingRef.current = true;
       if (gtin) setPackingOverlay(true);
       setPackError(null);
@@ -389,7 +390,7 @@ export function ShippingView({
       if (!order || !item) return;
 
       if (delta < 0) {
-        if (czEnabled && item.chestnyZnak?.trim()) return;
+        if (czEnabled && !orderIsBlogger(order) && item.chestnyZnak?.trim()) return;
         onOrdersChange((prev) =>
           prev.map((entry) =>
             entry.id === currentOrderId
@@ -735,8 +736,10 @@ export function ShippingView({
                       item={item}
                       manual={manualMode && !autoMode}
                       busy={packingOverlay}
-                      chestnyZnakActive={czEnabled}
-                      remainingByGtin={remainingByGtin}
+                      chestnyZnakActive={czEnabled && !orderIsBlogger(displayOrder)}
+                      remainingByGtin={
+                        czEnabled && !orderIsBlogger(displayOrder) ? remainingByGtin : null
+                      }
                       onIncrement={() => updateItemCount(item.id, 1)}
                       onDecrement={() => updateItemCount(item.id, -1)}
                     />
