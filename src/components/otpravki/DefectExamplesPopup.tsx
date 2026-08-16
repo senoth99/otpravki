@@ -13,7 +13,7 @@ export function DefectExamplesPopup({
 
   return (
     <div
-      className="fixed inset-0 z-[96] flex flex-col bg-zinc-950"
+      className="fixed inset-0 z-[96] flex flex-col overflow-hidden bg-zinc-950"
       role="dialog"
       aria-modal="true"
       aria-label="Виды брака"
@@ -27,32 +27,31 @@ export function DefectExamplesPopup({
         ×
       </button>
 
-      <div className="min-h-0 flex-1 touch-scroll-y overflow-y-auto overscroll-contain px-3 py-4 pt-14 sm:px-4">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-          {QUALITY_GUIDE_EXAMPLES.map((example) => (
-            <article
-              key={example.id}
-              className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]"
-            >
-              <div className="relative aspect-[3/4] bg-black/40">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={example.imageUrl}
-                  alt={example.title}
-                  className="h-full w-full object-cover"
-                  draggable={false}
-                />
-              </div>
-              <div className="space-y-0.5 px-2.5 py-2.5 sm:px-3 sm:py-3">
-                <h3 className="text-sm font-semibold leading-snug text-white sm:text-base">
-                  {example.title}
-                </h3>
-                <p className="text-xs leading-snug text-white/55 sm:text-sm">{example.detail}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-        <div className="h-6 safe-bottom" />
+      <div className="grid h-full min-h-0 flex-1 grid-cols-4 grid-rows-2 gap-2 p-2 pt-12 sm:gap-3 sm:p-3 sm:pt-14">
+        {QUALITY_GUIDE_EXAMPLES.map((example) => (
+          <article
+            key={example.id}
+            className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]"
+          >
+            <div className="relative min-h-0 flex-1 bg-black/40">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={example.imageUrl}
+                alt={example.title}
+                className="absolute inset-0 h-full w-full object-cover"
+                draggable={false}
+              />
+            </div>
+            <div className="shrink-0 px-2 py-1.5 sm:px-2.5 sm:py-2">
+              <h3 className="truncate text-[11px] font-semibold leading-tight text-white sm:text-sm">
+                {example.title}
+              </h3>
+              <p className="mt-0.5 line-clamp-2 text-[10px] leading-tight text-white/55 sm:text-xs">
+                {example.detail}
+              </p>
+            </div>
+          </article>
+        ))}
       </div>
     </div>
   );
