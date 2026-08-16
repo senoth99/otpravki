@@ -115,14 +115,14 @@ export function ProductImage({
           aria-label={label}
         >
           <div
-            className="relative flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            className="relative flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-transparent"
             onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               onClick={() => setOpen(false)}
               aria-label="Закрыть"
-              className="absolute right-2 top-2 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-black/10 text-3xl leading-none text-gray-800 active:bg-black/20"
+              className="absolute right-2 top-2 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-3xl leading-none text-white active:bg-black/60"
             >
               ×
             </button>
@@ -130,10 +130,10 @@ export function ProductImage({
             <img
               src={imageSrc}
               alt={alt}
-              className="max-h-[min(70dvh,28rem)] w-full bg-white object-contain"
+              className="max-h-[min(70dvh,28rem)] w-full bg-transparent object-contain"
               draggable={false}
             />
-            <div className="border-t border-gray-100 p-3">
+            <div className="p-3">
               <button
                 type="button"
                 disabled={!hasSpecs}
@@ -143,8 +143,8 @@ export function ProductImage({
                 }}
                 className={`flex h-12 w-full items-center justify-center rounded-xl text-sm font-semibold transition-colors ${
                   hasSpecs
-                    ? "bg-gray-900 text-white active:bg-gray-800"
-                    : "cursor-not-allowed bg-gray-100 text-gray-400"
+                    ? "bg-white text-gray-900 active:bg-gray-100"
+                    : "cursor-not-allowed bg-white/25 text-white/50"
                 }`}
               >
                 Технические характеристики
