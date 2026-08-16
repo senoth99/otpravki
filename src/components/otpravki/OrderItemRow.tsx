@@ -55,9 +55,7 @@ export function OrderItemRow({
       pending={czStock.pending}
       size="md"
     />
-  ) : (
-    <div className="h-10 w-10 shrink-0" aria-hidden />
-  );
+  ) : null;
 
   return (
     <div
@@ -101,8 +99,10 @@ export function OrderItemRow({
           <div className="flex h-11 min-h-[44px] items-center gap-2">
             {manual ? (
               <>
-                {hasChestnyZnak || hideChestnyZnak ? (
+                {hasChestnyZnak ? (
                   czIcon
+                ) : hideChestnyZnak ? (
+                  <div className="h-10 w-10 shrink-0" aria-hidden />
                 ) : (
                   <button
                     type="button"
@@ -130,31 +130,29 @@ export function OrderItemRow({
                 </button>
               </>
             ) : (
-              <>
+              <div className="ml-auto flex h-11 items-center gap-1.5">
                 {czIcon}
-                <div className="flex h-11 min-w-0 flex-1 items-center justify-center">
-                  <div className={`${STATUS_BADGE} ${badgeClass}`}>
-                    {isMulti ? (
-                      <>
-                        <span className="text-sm font-bold leading-none">{item.scannedCount}</span>
-                        <span
-                          className={`mt-0.5 text-[10px] leading-none ${
-                            isComplete || isPartial ? "text-white/80" : "text-gray-400"
-                          }`}
-                        >
-                          / {item.quantity}
-                        </span>
-                      </>
-                    ) : isComplete ? (
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    ) : (
-                      <span className="text-xs font-medium">—</span>
-                    )}
-                  </div>
+                <div className={`${STATUS_BADGE} ${badgeClass}`}>
+                  {isMulti ? (
+                    <>
+                      <span className="text-sm font-bold leading-none">{item.scannedCount}</span>
+                      <span
+                        className={`mt-0.5 text-[10px] leading-none ${
+                          isComplete || isPartial ? "text-white/80" : "text-gray-400"
+                        }`}
+                      >
+                        / {item.quantity}
+                      </span>
+                    </>
+                  ) : isComplete ? (
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <span className="text-xs font-medium">—</span>
+                  )}
                 </div>
-              </>
+              </div>
             )}
           </div>
         </div>
