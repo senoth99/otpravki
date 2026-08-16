@@ -20,12 +20,15 @@ interface ChestnyZnakStatusIconProps {
   status: ChestnyZnakStockStatus;
   remaining?: number | null;
   pending?: boolean;
+  /** Как ячейка количества: h-10 × min-w-10 */
+  size?: "sm" | "md";
 }
 
 export function ChestnyZnakStatusIcon({
   status,
   remaining,
   pending,
+  size = "sm",
 }: ChestnyZnakStatusIconProps) {
   const title = pending
     ? "Загружаем остаток честного знака"
@@ -33,11 +36,16 @@ export function ChestnyZnakStatusIcon({
       ? `${LABEL[status]} · ${remaining}`
       : LABEL[status];
 
+  const box =
+    size === "md"
+      ? "h-10 min-w-10 rounded-xl px-2 text-[11px]"
+      : "h-5 min-w-5 rounded-md px-1 text-[9px]";
+
   return (
     <span
       title={title}
       aria-label={title}
-      className={`inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md px-1 text-[9px] font-bold leading-none tracking-wide ${STYLE[status]} ${
+      className={`inline-flex shrink-0 items-center justify-center font-bold leading-none tracking-wide ${box} ${STYLE[status]} ${
         pending ? "animate-pulse" : ""
       }`}
     >

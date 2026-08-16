@@ -48,6 +48,17 @@ export function OrderItemRow({
       ? "bg-amber-400 text-white"
       : "bg-gray-100 text-gray-500";
 
+  const czIcon = !hideChestnyZnak ? (
+    <ChestnyZnakStatusIcon
+      status={czStock.status}
+      remaining={czStock.remaining}
+      pending={czStock.pending}
+      size="md"
+    />
+  ) : (
+    <div className="h-10 w-10 shrink-0" aria-hidden />
+  );
+
   return (
     <div
       className={`rounded-xl border p-3 transition-colors ${
@@ -75,17 +86,8 @@ export function OrderItemRow({
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="flex min-w-0 items-center gap-1.5">
-              <span className="min-w-0 flex-1 truncate text-sm font-medium leading-snug text-gray-900">
-                {item.productName}
-              </span>
-              {!hideChestnyZnak ? (
-                <ChestnyZnakStatusIcon
-                  status={czStock.status}
-                  remaining={czStock.remaining}
-                  pending={czStock.pending}
-                />
-              ) : null}
+            <p className="truncate text-sm font-medium leading-snug text-gray-900">
+              {item.productName}
             </p>
             <p className="mt-0.5 text-xs text-gray-600">
               <span className="font-medium">{formatSize(item.size)}</span>
@@ -93,20 +95,20 @@ export function OrderItemRow({
           </div>
         </div>
 
-        <div className="flex w-44 shrink-0 flex-col gap-2">
+        <div className="flex w-48 shrink-0 flex-col gap-2">
           <QuantityProgress quantity={item.quantity} doneCount={item.scannedCount} />
 
           <div className="flex h-11 min-h-[44px] items-center gap-2">
             {manual ? (
               <>
-                {hasChestnyZnak ? (
-                  <div className="h-11 w-11 shrink-0" aria-hidden />
+                {hasChestnyZnak || hideChestnyZnak ? (
+                  czIcon
                 ) : (
                   <button
                     type="button"
                     onClick={onDecrement}
                     disabled={item.scannedCount === 0 || busy}
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-sm font-medium text-gray-600 transition-colors active:bg-gray-50 disabled:pointer-events-none disabled:border-transparent disabled:opacity-0"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-sm font-medium text-gray-600 transition-colors active:bg-gray-50 disabled:pointer-events-none disabled:border-transparent disabled:opacity-0"
                     aria-label="Убрать одну штуку"
                   >
                     −1
@@ -129,7 +131,7 @@ export function OrderItemRow({
               </>
             ) : (
               <>
-                <div className="h-11 w-11 shrink-0" aria-hidden />
+                {czIcon}
                 <div className="flex h-11 min-w-0 flex-1 items-center justify-center">
                   <div className={`${STATUS_BADGE} ${badgeClass}`}>
                     {isMulti ? (
