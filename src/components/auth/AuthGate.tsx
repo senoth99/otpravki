@@ -13,10 +13,15 @@ import { LoginScreen } from "@/components/auth/LoginScreen";
 import { LogoutShiftSummary } from "@/components/auth/LogoutShiftSummary";
 import { RegisterScreen } from "@/components/auth/RegisterScreen";
 
-/** Архив на /otpravki можно смотреть без входа; отправка и остальные разделы — только после логина */
-function isGuestArchivePath(pathname: string | null): boolean {
+/** Без логина: архив/отправки (/otpravki) и сборка (/sborka). Остальное — после входа. */
+function isGuestPublicPath(pathname: string | null): boolean {
   if (!pathname) return false;
-  return pathname === "/otpravki" || pathname.startsWith("/otpravki/");
+  return (
+    pathname === "/otpravki" ||
+    pathname.startsWith("/otpravki/") ||
+    pathname === "/sborka" ||
+    pathname.startsWith("/sborka/")
+  );
 }
 
 function AuthLoginPanel({
@@ -93,13 +98,13 @@ function AuthLoginPanel({
 function AuthShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { loading, user, loginOpen, closeLogin } = useAuth();
-  const guestArchive = isGuestArchivePath(pathname);
+  const guestPublic = isGuestPublicPath(pathname);
   const keepAppMounted = useRef(false);
-  if (user || guestArchive) keepAppMounted.current = true;
+  if (user || guestPublic) keepAppMounted.current = true;
 
-  const showApp = Boolean(user) || guestArchive;
-  const showBlockingLogin = !user && !loading && !guestArchive;
-  const showLoginOverlay = !user && !loading && guestArchive && loginOpen;
+  const showApp = Boolean(user) || guestPublic;
+  const showBlockingLogin = !user && !loading && !guestPublic;
+  const showLoginOverlay = !user && !loading && guestPublic && loginOpen;
 
   if (loading && !keepAppMounted.current) {
     return (

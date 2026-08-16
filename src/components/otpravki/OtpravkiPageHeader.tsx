@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { AuthHeaderStats } from "@/components/auth/AuthHeaderStats";
 
 const SECTIONS = [
-  { href: "/sborka", label: "Сборка" },
   { href: "/otpravki", label: "Отправки" },
   { href: "/sklad", label: "Склад" },
   { href: "/admin", label: "Админка" },
