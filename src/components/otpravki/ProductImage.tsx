@@ -39,9 +39,11 @@ export function ProductImage({ src, alt, className, sizes }: ProductImageProps) 
       alt={alt}
       fill
       unoptimized
-      className={className}
+      draggable={false}
+      className={`select-none [-webkit-user-drag:none] ${className ?? ""}`}
       sizes={sizes}
       onError={() => setFailed(true)}
+      onDragStart={(event) => event.preventDefault()}
     />
   );
 }

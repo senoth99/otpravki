@@ -74,6 +74,15 @@ export function usePointerDragScroll() {
       const el = findScrollParent(event.target as Element | null);
       if (!el) return;
 
+      // Иначе Firefox/Chrome тащат картинку вместо скролла списка
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        (target instanceof HTMLImageElement || target.closest("img"))
+      ) {
+        event.preventDefault();
+      }
+
       session = {
         el,
         pointerId: event.pointerId,
@@ -107,7 +116,7 @@ export function usePointerDragScroll() {
       endSession(session.moved);
     };
 
-    document.addEventListener("pointerdown", onPointerDown, { passive: true });
+    document.addEventListener("pointerdown", onPointerDown, { passive: false });
     document.addEventListener("pointermove", onPointerMove, { passive: false });
     document.addEventListener("pointerup", onPointerUp);
     document.addEventListener("pointercancel", onPointerUp);

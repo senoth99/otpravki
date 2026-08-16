@@ -75,7 +75,15 @@ body.otpravki-noswipe {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
 
-/* Скроллбары скрыты — листаем свайпом; скролл работает */
+/* Картинки не выделяются и не уезжают «призраком» при свайпе */
+img,
+svg,
+video {
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+}
 * {
   scrollbar-width: none;
   -ms-overflow-style: none;

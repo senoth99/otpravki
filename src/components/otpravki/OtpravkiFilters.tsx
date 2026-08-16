@@ -198,7 +198,7 @@ function ProductFilterModal({
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 touch-scroll-y overflow-y-auto overscroll-contain p-3 sm:p-4">
+        <div className="min-h-0 flex-1 touch-scroll-y select-none overflow-y-auto overscroll-contain p-3 sm:p-4">
           {products.length === 0 ? (
             <p className="py-12 text-center text-sm text-gray-500">Нет товаров к отправке</p>
           ) : (
