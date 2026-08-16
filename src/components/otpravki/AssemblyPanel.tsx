@@ -168,33 +168,38 @@ export function AssemblyPanel({
 
           <a
             href="/otpravki"
-            className="inline-flex h-9 items-center rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 active:bg-gray-50"
+            className="inline-flex min-h-11 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 active:bg-gray-50"
           >
             Отправки
           </a>
 
           <a
             href="/admin"
-            className="inline-flex h-9 items-center rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 active:bg-gray-50"
+            className="inline-flex min-h-11 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 active:bg-gray-50"
           >
             Админка
           </a>
 
           {brandOptions.length > 1 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-gray-500">Бренд</span>
-              <select
-                value={selectedBrand}
-                onChange={(e) => handleBrandChange(e.target.value)}
-                disabled={isSyncing || reloading}
-                className="h-9 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 focus:border-gray-400 focus:outline-none disabled:opacity-60"
-              >
-                {brandOptions.map((brand) => (
-                  <option key={brand} value={brand}>
+            <div className="flex flex-wrap items-center gap-2">
+              {brandOptions.map((brand) => {
+                const active = brand === selectedBrand;
+                return (
+                  <button
+                    key={brand}
+                    type="button"
+                    onClick={() => handleBrandChange(brand)}
+                    disabled={isSyncing || reloading}
+                    className={`inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-medium transition-colors active:scale-[0.98] disabled:opacity-60 ${
+                      active
+                        ? "border-gray-900 bg-gray-900 text-white"
+                        : "border-gray-200 bg-white text-gray-800 active:bg-gray-50"
+                    }`}
+                  >
                     {brand}
-                  </option>
-                ))}
-              </select>
+                  </button>
+                );
+              })}
             </div>
           )}
 
@@ -205,7 +210,7 @@ export function AssemblyPanel({
               window.location.reload();
             }}
             disabled={reloading}
-            className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800 active:bg-gray-50 disabled:opacity-60"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 active:bg-gray-50 disabled:opacity-60"
           >
             <svg
               className={`h-4 w-4 ${reloading || isSyncing ? "animate-spin" : ""}`}

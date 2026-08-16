@@ -245,7 +245,7 @@ function ProductFilterModal({
           <button
             type="button"
             onClick={() => setDraft([])}
-            className="flex-1 rounded-xl border border-gray-200 py-3 text-sm font-medium text-gray-700 active:bg-gray-50"
+            className="min-h-12 flex-1 rounded-xl border border-gray-200 py-3 text-sm font-medium text-gray-700 active:bg-gray-50"
           >
             Сбросить
           </button>
@@ -255,7 +255,7 @@ function ProductFilterModal({
               onConfirm(draft);
               onClose();
             }}
-            className="flex-1 rounded-xl bg-gray-900 py-3 text-sm font-medium text-white active:bg-gray-800"
+            className="min-h-12 flex-1 rounded-xl bg-gray-900 py-3 text-sm font-medium text-white active:bg-gray-800"
           >
             Подтвердить
           </button>
@@ -278,7 +278,7 @@ function ProductFilterButton({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-colors ${
+      className={`inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors active:scale-[0.98] ${
         selectedCount > 0
           ? "border-gray-900 bg-gray-900 text-white"
           : "border-gray-200 bg-white text-gray-800 active:bg-gray-50"
@@ -303,7 +303,7 @@ function Chip({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-lg px-2.5 py-1.5 text-left text-xs font-medium transition-colors ${
+      className={`min-h-11 rounded-xl px-3.5 py-2.5 text-left text-sm font-medium transition-colors active:scale-[0.98] ${
         active
           ? "bg-gray-900 text-white"
           : "bg-gray-100 text-gray-700 active:bg-gray-200"
@@ -368,7 +368,7 @@ export function OtpravkiFiltersPanel({
           onChange={(next) => set("query", next)}
           placeholder="Номер, ФИО, город…"
           title="Поиск заказа"
-          className="h-9 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+          className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
         />
       </label>
 
@@ -403,7 +403,7 @@ export function OtpravkiFiltersPanel({
           <ProductFilterButton
             selectedCount={selectedCount}
             onClick={() => setProductsOpen(true)}
-            className="w-full py-2.5"
+            className="w-full py-3"
           />
           <p className="text-[10px] text-gray-400">
             {selectedCount === 0 ? "Все товары" : `Фильтр: ${selectedCount} поз.`}
@@ -414,7 +414,7 @@ export function OtpravkiFiltersPanel({
       <button
         type="button"
         onClick={() => onChange({ ...DEFAULT_FILTERS })}
-        className="mt-auto rounded-xl border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 active:bg-gray-50"
+        className="mt-auto min-h-11 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-700 active:bg-gray-50"
       >
         Сбросить фильтры
       </button>
@@ -431,7 +431,7 @@ export function OtpravkiFiltersPanel({
   );
 }
 
-/** Компактные фильтры для мобилки */
+/** Компактные фильтры для мобилки / сенсорного монитора */
 export function OtpravkiMobileFilters({
   filters,
   onChange,
@@ -450,43 +450,48 @@ export function OtpravkiMobileFilters({
   const selectedCount = filters.productIds.length;
 
   return (
-    <div className="space-y-2 lg:hidden">
+    <div className="space-y-3 lg:hidden">
       <KeyboardField
         value={filters.query}
         onChange={(next) => set("query", next)}
         placeholder="Поиск заказа…"
         title="Поиск заказа"
-        className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+        className="h-12 w-full rounded-xl border border-gray-200 bg-white px-3 text-base text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
       />
-      <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <select
-          value={filters.urgency}
-          onChange={(e) => set("urgency", e.target.value as UrgencyFilter)}
-          className="h-9 shrink-0 rounded-xl border border-gray-200 bg-white px-2 text-xs"
-        >
-          <option value="all">Срочность: все</option>
-          <option value="critical">Критический</option>
-          <option value="rush">Срочно (тег)</option>
-          <option value="urgent">Срочно</option>
-          <option value="high">Высокий</option>
-          <option value="normal">Обычный</option>
-        </select>
-        <select
-          value={filters.kind}
-          onChange={(e) => set("kind", e.target.value as KindFilter)}
-          className="h-9 shrink-0 rounded-xl border border-gray-200 bg-white px-2 text-xs"
-        >
-          <option value="all">Тип: все</option>
-          <option value="blogger">Блогеры</option>
-          <option value="regular">Обычные</option>
-        </select>
-        {products.length > 0 && (
-          <ProductFilterButton
-            selectedCount={selectedCount}
-            onClick={() => setProductsOpen(true)}
-            className="h-9 shrink-0"
-          />
-        )}
+
+      <div className="space-y-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Срочность</p>
+        <div className="flex flex-wrap gap-2">
+          <Chip active={filters.urgency === "all"} onClick={() => set("urgency", "all")}>
+            Все
+          </Chip>
+          {(["critical", "rush", "urgent", "high", "normal"] as const).map((key) => (
+            <Chip key={key} active={filters.urgency === key} onClick={() => set("urgency", key)}>
+              {URGENCY_LABELS[key].label}
+            </Chip>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Тип</p>
+        <div className="flex flex-wrap gap-2">
+          <Chip active={filters.kind === "all"} onClick={() => set("kind", "all")}>
+            Все
+          </Chip>
+          <Chip active={filters.kind === "blogger"} onClick={() => set("kind", "blogger")}>
+            Блогеры
+          </Chip>
+          <Chip active={filters.kind === "regular"} onClick={() => set("kind", "regular")}>
+            Обычные
+          </Chip>
+          {products.length > 0 && (
+            <ProductFilterButton
+              selectedCount={selectedCount}
+              onClick={() => setProductsOpen(true)}
+            />
+          )}
+        </div>
       </div>
 
       <ProductFilterModal

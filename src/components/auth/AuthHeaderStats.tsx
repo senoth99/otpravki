@@ -19,7 +19,7 @@ export function AuthHeaderStats() {
             void refresh();
             setStatsOpen(true);
           }}
-          className="inline-flex h-9 max-w-full items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-2.5 text-sm font-medium text-gray-900"
+          className="inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-900 active:bg-gray-50"
           title="Статистика"
         >
           <span className="text-base leading-none">{user.emoji}</span>
@@ -34,7 +34,7 @@ export function AuthHeaderStats() {
             event.stopPropagation();
             void logout();
           }}
-          className="inline-flex h-9 items-center rounded-xl border border-red-200 bg-red-50 px-3 text-sm font-medium text-red-700"
+          className="inline-flex min-h-11 items-center rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-medium text-red-700 active:bg-red-100"
         >
           Выйти
         </button>
@@ -48,7 +48,7 @@ export function AuthHeaderStats() {
               <button
                 type="button"
                 onClick={() => setStatsOpen(false)}
-                className="inline-flex h-9 items-center rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium"
+                className="inline-flex min-h-11 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium active:bg-gray-50"
               >
                 Закрыть
               </button>

@@ -67,7 +67,7 @@ export function BarcodePrintModal({
             type="button"
             onClick={onClose}
             disabled={printing}
-            className="flex-1 rounded-xl border border-gray-200 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            className="min-h-12 flex-1 rounded-xl border border-gray-200 py-3 text-sm font-medium text-gray-700 active:bg-gray-50 disabled:opacity-50"
           >
             Отмена
           </button>
@@ -75,7 +75,7 @@ export function BarcodePrintModal({
             type="button"
             onClick={handlePrint}
             disabled={printing}
-            className="flex-1 rounded-xl bg-gray-900 py-3 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+            className="min-h-12 flex-1 rounded-xl bg-gray-900 py-3 text-sm font-medium text-white active:bg-gray-800 disabled:opacity-50"
           >
             {printing ? "Печать…" : "Печать"}
           </button>

@@ -48,7 +48,7 @@ export function ShippedOrderCard({
             type="button"
             onClick={onReprint}
             disabled={reprinting}
-            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 text-sm font-medium text-gray-900 active:bg-gray-50 disabled:opacity-50"
+            className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 text-sm font-medium text-gray-900 active:scale-[0.98] active:bg-gray-50 disabled:opacity-50"
           >
             <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path
@@ -65,7 +65,7 @@ export function ShippedOrderCard({
             type="button"
             onClick={onNext}
             disabled={reprinting}
-            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 text-sm font-medium text-white active:bg-gray-800 disabled:opacity-50"
+            className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 text-sm font-medium text-white active:scale-[0.98] active:bg-gray-800 disabled:opacity-50"
           >
             Следующий заказ
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -78,7 +78,7 @@ export function ShippedOrderCard({
             type="button"
             onClick={onNext}
             disabled={reprinting}
-            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 text-sm font-medium text-white active:bg-gray-800 disabled:opacity-50"
+            className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 text-sm font-medium text-white active:scale-[0.98] active:bg-gray-800 disabled:opacity-50"
           >
             Готово
           </button>

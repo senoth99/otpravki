@@ -279,7 +279,7 @@ export function AssemblyView({
                 type="button"
                 onClick={() => setScannerOpen(true)}
                 disabled={!canScan}
-                className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-900 disabled:opacity-40"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 active:bg-gray-50 disabled:opacity-40"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path

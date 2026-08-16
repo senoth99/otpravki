@@ -44,6 +44,11 @@ body.otpravki-noswipe {
   user-select: text;
 }
 
+/* Горизонтальные ленты заказов/фильтров внутри pan-y шелла */
+.otpravki-shell .touch-pan-x {
+  touch-action: pan-x;
+}
+
 .safe-top {
   padding-top: max(0.75rem, env(safe-area-inset-top));
 }

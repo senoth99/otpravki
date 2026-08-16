@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHardwareScanner } from "@/hooks/useHardwareScanner";
+import { useHorizontalSwipe } from "@/hooks/useHorizontalSwipe";
 import { buildAssemblyAllocation } from "@/lib/assembly-status";
 import { resolveScanFromBarcode } from "@/lib/barcode-product";
 import { formatMoscowDate } from "@/lib/format";
 import { getOrderDisplayStatus } from "@/lib/order-status";
-import { findFirstAutoOrderIndex } from "@/lib/order-sort";
+import { findFirstAutoOrderIndex, getSortedOrderIndices } from "@/lib/order-sort";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import { printOrderBarcode } from "@/lib/print-barcode";
 import { resolveOrderUrgency, URGENCY_LABELS } from "@/lib/urgency";
@@ -608,6 +609,52 @@ export function ShippingView({
   const hasShippableOrders = shippableIndices.length > 0;
   const hasShippedOrders = shippedOrders.length > 0 || isManualConfirm;
 
+  const sortedActiveIndices = useMemo(
+    () =>
+      getSortedOrderIndices(
+        activeIndices.map((index) => orders[index]),
+        activeIndices.map((index) => orderStatuses[index]),
+      ).map((sortedPos) => activeIndices[sortedPos]),
+    [activeIndices, orders, orderStatuses],
+  );
+
+  const swipeToNeighbor = useCallback(
+    (direction: -1 | 1) => {
+      if (autoMode || isManualConfirm || packingOverlay || printModalOpen || scannerOpen) {
+        return;
+      }
+      if (sortedActiveIndices.length < 2 || currentIndex < 0) return;
+      const pos = sortedActiveIndices.indexOf(currentIndex);
+      if (pos < 0) return;
+      const nextPos =
+        (pos + direction + sortedActiveIndices.length) % sortedActiveIndices.length;
+      setManualConfirmOrder(null);
+      setCurrentOrderId(orders[sortedActiveIndices[nextPos]].id);
+    },
+    [
+      autoMode,
+      currentIndex,
+      isManualConfirm,
+      orders,
+      packingOverlay,
+      printModalOpen,
+      scannerOpen,
+      sortedActiveIndices,
+    ],
+  );
+
+  const { handlers: orderSwipeHandlers } = useHorizontalSwipe({
+    enabled:
+      hasActiveOrders &&
+      !autoMode &&
+      !isManualConfirm &&
+      !packingOverlay &&
+      !printModalOpen &&
+      !scannerOpen,
+    onSwipeLeft: () => swipeToNeighbor(1),
+    onSwipeRight: () => swipeToNeighbor(-1),
+  });
+
   if (!hasActiveOrders && !hasShippedOrders) {
     return (
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
@@ -640,6 +687,7 @@ export function ShippingView({
       className={`overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm ${
         showActions ? "pb-28 sm:pb-0" : ""
       }`}
+      {...orderSwipeHandlers}
     >
       <div className="border-b border-gray-100 px-1 py-1 sm:px-2">
         <AutoModeButton active={autoMode} onClick={handleAutoModeToggle} />
@@ -747,7 +795,7 @@ export function ShippingView({
                   return next;
                 });
               }}
-              className={`inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border text-sm font-medium transition-colors ${
+              className={`inline-flex h-14 w-full items-center justify-center gap-2 rounded-xl border text-sm font-medium transition-colors active:scale-[0.98] ${
                 manualMode
                   ? "border-gray-900 bg-gray-900 text-white"
                   : "border-gray-200 bg-white text-gray-700 active:bg-gray-50"
@@ -763,7 +811,7 @@ export function ShippingView({
               type="button"
               onClick={() => setScannerOpen(true)}
               disabled={manualMode || packingOverlay}
-              className={`inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium transition-colors ${
+              className={`inline-flex h-14 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium transition-colors active:scale-[0.98] ${
                 manualMode || packingOverlay
                   ? "cursor-not-allowed border border-transparent bg-gray-100 text-gray-300"
                   : "bg-gray-900 text-white active:bg-gray-800"
@@ -784,7 +832,7 @@ export function ShippingView({
               type="button"
               onClick={handlePrint}
               disabled={!allScanned}
-              className={`inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium transition-colors ${
+              className={`inline-flex h-14 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium transition-colors active:scale-[0.98] ${
                 allScanned
                   ? "bg-blue-600 text-white active:bg-blue-700"
                   : "cursor-not-allowed bg-gray-100 text-gray-400"
