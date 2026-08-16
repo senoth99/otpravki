@@ -194,7 +194,7 @@ export function AssemblyPanel({
           brandDisabled={reloading || isSyncing}
         />
 
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-5">
+        <main className="min-h-0 min-w-0 flex-1 touch-scroll-y overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-5">
           <AssemblyView
             sections={assemblySections}
             allItems={filteredAssemblyItems}

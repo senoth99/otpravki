@@ -190,7 +190,7 @@ function ProductFilterModal({
           </p>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4">
+        <div className="min-h-0 flex-1 touch-scroll-y overflow-y-auto overscroll-contain p-3 sm:p-4">
           {products.length === 0 ? (
             <p className="py-12 text-center text-sm text-gray-500">Нет товаров к отправке</p>
           ) : (
@@ -399,7 +399,7 @@ export function OtpravkiFiltersPanel({
 
   return (
     <>
-      <aside className="hidden h-full w-60 shrink-0 flex-col gap-5 overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-4 shadow-sm lg:flex">
+      <aside className="hidden h-full w-60 shrink-0 flex-col gap-5 touch-scroll-y overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-4 shadow-sm lg:flex">
         <div>
           <p className="text-sm font-semibold text-gray-900">
             {brandOnly ? "Архив" : "Фильтры"}

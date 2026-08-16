@@ -52,7 +52,7 @@ export function QualityGuidePanel() {
         </aside>
 
         {/* Правая колонка — текст */}
-        <main className="min-h-0 space-y-5 overflow-y-auto overscroll-contain px-4 py-5 pb-8 sm:px-6">
+        <main className="min-h-0 touch-scroll-y space-y-5 overflow-y-auto overscroll-contain px-4 py-5 pb-8 sm:px-6">
           <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
             <h2 className="text-xl font-bold tracking-tight text-gray-900">
               Три рубежа качества

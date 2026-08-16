@@ -102,7 +102,7 @@ export function AdminPanel() {
         </div>
       </header>
 
-      <main className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
+      <main className="min-h-0 flex-1 touch-scroll-y overflow-y-auto p-3 sm:p-4">
         {view === "loading" && (
           <p className="py-16 text-center text-sm text-gray-500">Загрузка…</p>
         )}

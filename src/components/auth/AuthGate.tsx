@@ -144,13 +144,13 @@ function AuthShell({ children }: { children: ReactNode }) {
       ) : null}
 
       {showBlockingLogin ? (
-        <div className="fixed inset-0 z-[70] overflow-y-auto bg-gray-50">
+        <div className="fixed inset-0 z-[70] touch-scroll-y overflow-y-auto bg-gray-50">
           <AuthLoginPanel />
         </div>
       ) : null}
 
       {showLoginOverlay ? (
-        <div className="fixed inset-0 z-[80] overflow-y-auto bg-gray-50">
+        <div className="fixed inset-0 z-[80] touch-scroll-y overflow-y-auto bg-gray-50">
           <AuthLoginPanel embedded onClose={closeLogin} />
         </div>
       ) : null}

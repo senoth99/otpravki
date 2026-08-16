@@ -25,10 +25,10 @@ html.otpravki-noswipe,
 body.otpravki-noswipe {
   overscroll-behavior: none;
   overscroll-behavior-x: none;
-  overscroll-behavior-y: none;
-  touch-action: pan-y;
   overflow-x: hidden;
   position: relative;
+  /* Разрешаем вертикальный pan одним пальцем по всей странице */
+  touch-action: pan-y;
 }
 
 .otpravki-shell {
@@ -42,11 +42,22 @@ body.otpravki-noswipe {
 .otpravki-shell textarea {
   -webkit-user-select: text;
   user-select: text;
+  touch-action: auto;
+}
+
+/* Списки / блоки со скроллом — свайп одним пальцем вверх-вниз */
+.overflow-y-auto,
+.overflow-y-scroll,
+.touch-scroll-y {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 /* Горизонтальная лента заказов */
 .otpravki-shell .touch-pan-x {
   touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
 }
 
 .safe-top {

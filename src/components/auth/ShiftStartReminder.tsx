@@ -58,7 +58,7 @@ export function ShiftStartReminder({ emoji, onContinue }: ShiftStartReminderProp
           </p>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4">
+        <div className="min-h-0 flex-1 touch-scroll-y space-y-4 overflow-y-auto overscroll-contain px-5 py-4">
           <div>
             <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">
               Твои задачи
