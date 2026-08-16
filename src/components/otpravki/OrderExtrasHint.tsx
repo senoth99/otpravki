@@ -79,7 +79,7 @@ export function OrderExtrasHint({
           onClick={() => setPreview(null)}
         >
           <div
-            className="flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-2xl bg-white sm:max-w-sm sm:rounded-2xl"
+            className="flex w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white sm:rounded-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="relative border-b border-gray-100 px-4 py-3 pr-14">
@@ -95,13 +95,13 @@ export function OrderExtrasHint({
               </button>
             </div>
 
-            <div className="min-h-0 flex-1 touch-scroll-y overflow-y-auto overscroll-contain p-4">
-              <figure className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50">
+            <div className="p-3 sm:p-4">
+              <figure className="aspect-video overflow-hidden rounded-2xl border border-gray-200 bg-gray-100">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={preview.imageUrl}
                   alt={preview.name}
-                  className="mx-auto max-h-48 w-auto max-w-full object-contain bg-gray-100"
+                  className="h-full w-full object-contain"
                   draggable={false}
                 />
               </figure>
