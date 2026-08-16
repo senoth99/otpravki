@@ -115,41 +115,41 @@ export function ProductImage({
           aria-label={label}
         >
           <div
-            className="relative flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-transparent"
+            className="mx-auto flex w-fit max-w-full flex-col"
             onClick={(event) => event.stopPropagation()}
           >
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Закрыть"
-              className="absolute right-2 top-2 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-3xl leading-none text-white active:bg-black/60"
-            >
-              ×
-            </button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={imageSrc}
-              alt={alt}
-              className="max-h-[min(70dvh,28rem)] w-full bg-transparent object-contain"
-              draggable={false}
-            />
-            <div className="p-3">
+            <div className="relative overflow-hidden rounded-2xl">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imageSrc}
+                alt={alt}
+                className="block h-auto max-h-[min(70dvh,28rem)] max-w-full bg-transparent object-contain"
+                draggable={false}
+              />
               <button
                 type="button"
-                disabled={!hasSpecs}
-                onClick={() => {
-                  if (!hasSpecs) return;
-                  setSpecsOpen(true);
-                }}
-                className={`flex h-12 w-full items-center justify-center rounded-xl text-sm font-semibold transition-colors ${
-                  hasSpecs
-                    ? "bg-white text-gray-900 active:bg-gray-100"
-                    : "cursor-not-allowed bg-white/25 text-white/50"
-                }`}
+                onClick={() => setOpen(false)}
+                aria-label="Закрыть"
+                className="absolute right-2 top-2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-2xl leading-none text-white active:bg-black/60"
               >
-                Технические характеристики
+                ×
               </button>
             </div>
+            <button
+              type="button"
+              disabled={!hasSpecs}
+              onClick={() => {
+                if (!hasSpecs) return;
+                setSpecsOpen(true);
+              }}
+              className={`mt-3 flex h-12 w-full items-center justify-center rounded-xl text-sm font-semibold transition-colors ${
+                hasSpecs
+                  ? "bg-white text-gray-900 active:bg-gray-100"
+                  : "cursor-not-allowed bg-white/25 text-white/50"
+              }`}
+            >
+              Технические характеристики
+            </button>
           </div>
         </div>
       ) : null}
