@@ -5,7 +5,7 @@ import {
   QUALITY_GUIDE_EXAMPLES,
   QUALITY_GUIDE_SECTIONS,
   QUALITY_GUIDE_SOURCE,
-  QUALITY_GUIDE_VIDEO_SRC,
+  QUALITY_GUIDE_VIDEO_SOURCES,
 } from "@/lib/quality-guide";
 
 export function QualityGuidePanel() {
@@ -41,8 +41,10 @@ export function QualityGuidePanel() {
                   controls
                   playsInline
                   preload="metadata"
-                  src={QUALITY_GUIDE_VIDEO_SRC}
                 >
+                  {QUALITY_GUIDE_VIDEO_SOURCES.map((source) => (
+                    <source key={source.src} src={source.src} type={source.type} />
+                  ))}
                   Ваш браузер не поддерживает видео.
                 </video>
               </div>
