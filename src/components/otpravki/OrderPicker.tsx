@@ -16,44 +16,18 @@ interface OrderPickerProps {
   visibleIndices?: number[];
 }
 
-function tabClass(status: OrderDisplayStatus, active: boolean): string {
+function tabClass(active: boolean): string {
   if (active) {
-    switch (status) {
-      case "shipped":
-        return "border-green-600 bg-green-600 text-white shadow-sm";
-      case "assembled":
-      case "ready-to-ship":
-        return "border-gray-900 bg-gray-900 text-white shadow-sm";
-      default:
-        return "border-gray-300 bg-gray-100 text-gray-700";
-    }
+    return "border-gray-900 bg-gray-900 text-white shadow-sm";
   }
-
-  switch (status) {
-    case "shipped":
-      return "border-green-200 bg-green-50 text-green-800";
-    case "assembled":
-    case "ready-to-ship":
-      return "border-gray-200 bg-white text-gray-900";
-    default:
-      return "border-gray-200 bg-gray-50 text-gray-400";
-  }
-}
-
-function subtextClass(status: OrderDisplayStatus, active: boolean): string {
-  if (active && status !== "awaiting-assembly") return "text-white/70";
-  if (active) return "text-gray-500";
-  if (status === "shipped") return "text-green-600";
-  return "text-gray-400";
+  return "border-gray-200 bg-white text-gray-900";
 }
 
 function OrderTabContent({
   order,
-  status,
   active,
 }: {
   order: ShippingOrder;
-  status: OrderDisplayStatus;
   active: boolean;
 }) {
   return (
@@ -61,7 +35,11 @@ function OrderTabContent({
       <p className="w-full truncate text-sm font-semibold leading-tight">
         {formatOrderNumberShort(order.orderNumber)}
       </p>
-      <p className={`mt-0.5 w-full truncate text-[11px] leading-tight ${subtextClass(status, active)}`}>
+      <p
+        className={`mt-0.5 w-full truncate text-[11px] leading-tight ${
+          active ? "text-white/70" : "text-gray-400"
+        }`}
+      >
         {order.createdAt ? `от ${formatMoscowDate(order.createdAt)}` : ""}
       </p>
     </>
@@ -120,7 +98,6 @@ export function OrderPicker({
 
   const positionInSorted = sortedIndices.indexOf(currentIndex);
   const currentOrder = orders[currentIndex];
-  const currentStatus = statuses[currentIndex];
   const pendingCount = orders.filter((o) => !o.barcodePrinted).length;
   const showStrip = poolIndices.length > 0 && poolIndices.length <= 16;
 
@@ -158,9 +135,9 @@ export function OrderPicker({
         <NavButton label="Предыдущий заказ" onClick={goPrev} disabled={locked} direction="prev" />
 
         <div
-          className={`relative min-h-12 min-w-0 flex-1 rounded-xl border px-3 py-2.5 text-left ${tabClass(currentStatus, true)}`}
+          className={`relative min-h-12 min-w-0 flex-1 rounded-xl border px-3 py-2.5 text-left ${tabClass(true)}`}
         >
-          <OrderTabContent order={currentOrder} status={currentStatus} active />
+          <OrderTabContent order={currentOrder} active />
         </div>
 
         <NavButton label="Следующий заказ" onClick={goNext} disabled={locked} direction="next" />
@@ -190,13 +167,9 @@ export function OrderPicker({
                 data-active-order={active ? "true" : undefined}
                 onClick={() => onSelect(index)}
                 disabled={locked && !active}
-                className={`relative flex h-14 w-[6.25rem] shrink-0 snap-start flex-col items-center justify-center rounded-xl border px-2 py-1.5 text-center transition-all active:scale-[0.98] disabled:cursor-default ${tabClass(statuses[index], active)}`}
+                className={`relative flex h-14 w-[6.25rem] shrink-0 snap-start flex-col items-center justify-center rounded-xl border px-2 py-1.5 text-center transition-all active:scale-[0.98] disabled:cursor-default ${tabClass(active)}`}
               >
-                <OrderTabContent
-                  order={orders[index]}
-                  status={statuses[index]}
-                  active={active}
-                />
+                <OrderTabContent order={orders[index]} active={active} />
               </button>
             );
           })}
