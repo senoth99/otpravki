@@ -181,13 +181,21 @@ function ProductFilterModal({
         className="flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-2xl bg-white sm:max-w-2xl sm:rounded-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="border-b border-gray-100 px-4 py-3">
+        <div className="relative border-b border-gray-100 px-4 py-3 pr-14">
           <p className="font-semibold text-gray-900">Фильтр по вещам</p>
           <p className="mt-0.5 text-xs text-gray-500">
             {draft.length === 0
               ? "Показаны все заказы"
               : `Выбрано: ${draft.length} · заказы с этими позициями`}
           </p>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Закрыть"
+            className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-xl text-2xl leading-none text-gray-500 active:bg-gray-100 active:text-gray-900"
+          >
+            ×
+          </button>
         </div>
 
         <div className="min-h-0 flex-1 touch-scroll-y overflow-y-auto overscroll-contain p-3 sm:p-4">
