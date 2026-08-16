@@ -33,6 +33,8 @@ interface AuthContextValue {
   user: AuthUserPublic | null;
   stats: AuthLiveStats | null;
   lastShiftSummary: number | null;
+  shiftReminderOpen: boolean;
+  dismissShiftReminder: () => void;
   loginOpen: boolean;
   openLogin: () => void;
   closeLogin: () => void;
@@ -52,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUserPublic | null>(null);
   const [stats, setStats] = useState<AuthLiveStats | null>(null);
   const [lastShiftSummary, setLastShiftSummary] = useState<number | null>(null);
+  const [shiftReminderOpen, setShiftReminderOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const lastActivityRef = useRef(Date.now());
 
@@ -100,9 +103,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setUser(null);
     setStats(null);
+    setShiftReminderOpen(false);
   }, []);
 
   const clearShiftSummary = useCallback(() => setLastShiftSummary(null), []);
+  const dismissShiftReminder = useCallback(() => setShiftReminderOpen(false), []);
   const openLogin = useCallback(() => setLoginOpen(true), []);
   const closeLogin = useCallback(() => setLoginOpen(false), []);
 
@@ -112,6 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     lastActivityRef.current = Date.now();
     setLastShiftSummary(null);
     setLoginOpen(false);
+    setShiftReminderOpen(true);
   }, []);
 
   useEffect(() => {
@@ -177,6 +183,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       stats,
       lastShiftSummary,
+      shiftReminderOpen,
+      dismissShiftReminder,
       loginOpen,
       openLogin,
       closeLogin,
@@ -190,6 +198,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       stats,
       lastShiftSummary,
+      shiftReminderOpen,
+      dismissShiftReminder,
       loginOpen,
       openLogin,
       closeLogin,

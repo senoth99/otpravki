@@ -97,6 +97,8 @@ export function OtpravkiPageHeader({
   const pathname = usePathname();
   const onOtpravki = pathname === "/otpravki" || pathname.startsWith("/otpravki/");
   const adminActive = pathname === "/admin" || pathname.startsWith("/admin/");
+  const guideActive =
+    pathname === "/instrukciya" || pathname.startsWith("/instrukciya/");
 
   const shippingActive = onOtpravki && shippingTab === "shipping";
   const archiveActive = onOtpravki && shippingTab === "archive";
@@ -118,6 +120,9 @@ export function OtpravkiPageHeader({
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
+            <HeaderButton href="/instrukciya" active={guideActive}>
+              Инструкция
+            </HeaderButton>
             {onShippingTabChange ? (
               <>
                 <HeaderButton

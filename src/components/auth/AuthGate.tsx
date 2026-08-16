@@ -12,15 +12,18 @@ import { AllAccountsStats } from "@/components/auth/AllAccountsStats";
 import { LoginScreen } from "@/components/auth/LoginScreen";
 import { LogoutShiftSummary } from "@/components/auth/LogoutShiftSummary";
 import { RegisterScreen } from "@/components/auth/RegisterScreen";
+import { ShiftStartReminder } from "@/components/auth/ShiftStartReminder";
 
-/** Без логина: архив/отправки (/otpravki) и сборка (/sborka). Остальное — после входа. */
+/** Без логина: архив/отправки, сборка, инструкция. Остальное — после входа. */
 function isGuestPublicPath(pathname: string | null): boolean {
   if (!pathname) return false;
   return (
     pathname === "/otpravki" ||
     pathname.startsWith("/otpravki/") ||
     pathname === "/sborka" ||
-    pathname.startsWith("/sborka/")
+    pathname.startsWith("/sborka/") ||
+    pathname === "/instrukciya" ||
+    pathname.startsWith("/instrukciya/")
   );
 }
 
@@ -97,7 +100,14 @@ function AuthLoginPanel({
 
 function AuthShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { loading, user, loginOpen, closeLogin } = useAuth();
+  const {
+    loading,
+    user,
+    loginOpen,
+    closeLogin,
+    shiftReminderOpen,
+    dismissShiftReminder,
+  } = useAuth();
   const guestPublic = isGuestPublicPath(pathname);
   const keepAppMounted = useRef(false);
   if (user || guestPublic) keepAppMounted.current = true;
@@ -124,6 +134,10 @@ function AuthShell({ children }: { children: ReactNode }) {
         <div className="fixed inset-0 z-[80] overflow-y-auto bg-gray-50">
           <AuthLoginPanel embedded onClose={closeLogin} />
         </div>
+      )}
+
+      {user && shiftReminderOpen && (
+        <ShiftStartReminder emoji={user.emoji} onContinue={dismissShiftReminder} />
       )}
     </>
   );
