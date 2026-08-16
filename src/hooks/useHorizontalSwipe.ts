@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, type RefObject, type TouchEvent } from "react";
+import { useCallback, useRef, type PointerEvent, type RefObject } from "react";
 
 interface UseHorizontalSwipeOptions {
   onSwipeLeft?: () => void;
@@ -13,72 +13,97 @@ interface UseHorizontalSwipeOptions {
 }
 
 /**
- * Горизонтальный свайп пальцем для сенсорного монитора.
- * Не мешает вертикальному скроллу и не трогает multi-touch (pinch блокируется отдельно).
+ * Горизонтальный свайп для сенсорного монитора.
+ * Pointer Events — touch-экраны часто эмулируют мышь и не шлют touch*.
  */
 export function useHorizontalSwipe<T extends HTMLElement = HTMLElement>({
   onSwipeLeft,
   onSwipeRight,
-  threshold = 64,
-  axisLockRatio = 1.2,
+  threshold = 48,
+  axisLockRatio = 1.15,
   enabled = true,
 }: UseHorizontalSwipeOptions): {
   ref: RefObject<T | null>;
   handlers: {
-    onTouchStart: (event: TouchEvent<T>) => void;
-    onTouchEnd: (event: TouchEvent<T>) => void;
-    onTouchCancel: () => void;
+    onPointerDown: (event: PointerEvent<T>) => void;
+    onPointerUp: (event: PointerEvent<T>) => void;
+    onPointerCancel: () => void;
   };
 } {
   const ref = useRef<T | null>(null);
-  const startRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  const startRef = useRef<{
+    x: number;
+    y: number;
+    t: number;
+    id: number;
+  } | null>(null);
 
-  const onTouchStart = useCallback(
-    (event: TouchEvent<T>) => {
+  const onPointerDown = useCallback(
+    (event: PointerEvent<T>) => {
       if (!enabled) return;
-      if (event.touches.length !== 1) {
+      if (event.button !== 0) return;
+      const target = event.target as Element | null;
+      if (target?.closest?.("[data-no-swipe]")) {
         startRef.current = null;
         return;
       }
-      const touch = event.touches[0];
-      startRef.current = { x: touch.clientX, y: touch.clientY, t: Date.now() };
+
+      startRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+        t: Date.now(),
+        id: event.pointerId,
+      };
+
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        /* ignore */
+      }
     },
     [enabled],
   );
 
-  const onTouchCancel = useCallback(() => {
+  const finish = useCallback(() => {
     startRef.current = null;
   }, []);
 
-  const onTouchEnd = useCallback(
-    (event: TouchEvent<T>) => {
+  const onPointerCancel = useCallback(() => {
+    finish();
+  }, [finish]);
+
+  const onPointerUp = useCallback(
+    (event: PointerEvent<T>) => {
       if (!enabled) {
-        startRef.current = null;
+        finish();
         return;
       }
+
       const start = startRef.current;
       startRef.current = null;
-      if (!start || event.changedTouches.length !== 1) return;
+      if (!start || event.pointerId !== start.id) return;
 
-      const touch = event.changedTouches[0];
-      const dx = touch.clientX - start.x;
-      const dy = touch.clientY - start.y;
+      const target = event.target as Element | null;
+      if (target?.closest?.("[data-no-swipe]")) return;
+
+      const dx = event.clientX - start.x;
+      const dy = event.clientY - start.y;
       const absX = Math.abs(dx);
       const absY = Math.abs(dy);
       const elapsed = Date.now() - start.t;
 
-      if (elapsed > 800) return;
+      if (elapsed > 1000) return;
       if (absX < threshold) return;
       if (absX < absY * axisLockRatio) return;
 
       if (dx < 0) onSwipeLeft?.();
       else onSwipeRight?.();
     },
-    [axisLockRatio, enabled, onSwipeLeft, onSwipeRight, threshold],
+    [axisLockRatio, enabled, finish, onSwipeLeft, onSwipeRight, threshold],
   );
 
   return {
     ref,
-    handlers: { onTouchStart, onTouchEnd, onTouchCancel },
+    handlers: { onPointerDown, onPointerUp, onPointerCancel },
   };
 }

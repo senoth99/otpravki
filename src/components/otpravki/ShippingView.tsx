@@ -701,7 +701,7 @@ export function ShippingView({
 
   return (
     <div
-      className={`overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm ${
+      className={`touch-pan-y overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm ${
         showActions ? "pb-28 sm:pb-0" : ""
       }`}
       {...orderSwipeHandlers}

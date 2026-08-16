@@ -192,7 +192,6 @@ export function OrderPicker({
           {pendingCount < orders.length && (
             <span className="ml-1.5 text-gray-400">· осталось {pendingCount}</span>
           )}
-          <span className="ml-1.5 hidden text-gray-400 sm:inline">· свайп ← →</span>
         </p>
         <KeyboardField
           value={search}
@@ -207,6 +206,7 @@ export function OrderPicker({
       {showStrip && (
         <div
           ref={stripRef}
+          data-no-swipe
           className="touch-pan-x flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {sortedIndices.map((index) => {
