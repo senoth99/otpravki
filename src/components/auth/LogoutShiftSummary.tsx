@@ -7,7 +7,7 @@ interface LogoutShiftSummaryProps {
 
 export function LogoutShiftSummary({ shipments, onClose }: LogoutShiftSummaryProps) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl">
         <p className="text-sm font-medium text-gray-500">Смена завершена</p>
         <p className="mt-3 text-4xl font-bold tabular-nums text-gray-900">{shipments}</p>

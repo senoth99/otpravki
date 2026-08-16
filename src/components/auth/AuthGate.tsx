@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import {
   AuthProvider,
@@ -116,14 +116,12 @@ function AuthShell({ children }: { children: ReactNode }) {
     dismissShiftReminder,
   } = useAuth();
   const guestPublic = isGuestPublicPath(pathname);
-  const keepAppMounted = useRef(false);
-  if (user || guestPublic) keepAppMounted.current = true;
 
   const showApp = Boolean(user) || guestPublic;
   const showBlockingLogin = !user && !loading && !guestPublic;
   const showLoginOverlay = !user && !loading && guestPublic && loginOpen;
 
-  if (loading && !keepAppMounted.current) {
+  if (loading && !showApp && !showBlockingLogin) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-gray-50 text-sm text-gray-500">
         Загрузка…
@@ -133,19 +131,23 @@ function AuthShell({ children }: { children: ReactNode }) {
 
   return (
     <>
-      {keepAppMounted.current && showApp && <div className="contents">{children}</div>}
+      {showApp ? <div className="contents">{children}</div> : null}
 
-      {showBlockingLogin && <AuthLoginPanel />}
+      {showBlockingLogin ? (
+        <div className="fixed inset-0 z-[70] overflow-y-auto bg-gray-50">
+          <AuthLoginPanel />
+        </div>
+      ) : null}
 
-      {showLoginOverlay && (
+      {showLoginOverlay ? (
         <div className="fixed inset-0 z-[80] overflow-y-auto bg-gray-50">
           <AuthLoginPanel embedded onClose={closeLogin} />
         </div>
-      )}
+      ) : null}
 
-      {user && shiftReminderOpen && (
+      {user && shiftReminderOpen ? (
         <ShiftStartReminder emoji={user.emoji} onContinue={dismissShiftReminder} />
-      )}
+      ) : null}
     </>
   );
 }

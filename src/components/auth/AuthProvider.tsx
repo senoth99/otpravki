@@ -87,23 +87,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [applyMe]);
 
   const logout = useCallback(async () => {
+    let shiftShipments: number | null = null;
     try {
       const res = await fetch("/api/auth/logout", {
         method: "POST",
         cache: "no-store",
         credentials: "same-origin",
         headers: { Accept: "application/json" },
+        redirect: "manual",
       });
-      const data = (await res.json()) as { ok?: boolean; shiftShipments?: number };
-      if (typeof data.shiftShipments === "number") {
-        setLastShiftSummary(data.shiftShipments);
+      if (res.ok) {
+        const data = (await res.json()) as { ok?: boolean; shiftShipments?: number };
+        if (typeof data.shiftShipments === "number") {
+          shiftShipments = data.shiftShipments;
+        }
+      }
+    } catch {
+      // всё равно выходим
+    }
+
+    setUser(null);
+    setStats(null);
+    setShiftReminderOpen(false);
+    setLoginOpen(false);
+
+    try {
+      if (shiftShipments !== null) {
+        sessionStorage.setItem("otpravki:lastShiftShipments", String(shiftShipments));
+      } else {
+        sessionStorage.removeItem("otpravki:lastShiftShipments");
       }
     } catch {
       // ignore
     }
-    setUser(null);
-    setStats(null);
-    setShiftReminderOpen(false);
+
+    // Жёсткий переход на логин — без «пустой» SPA-размонтировки на /otpravki
+    window.location.assign("/otpravki");
   }, []);
 
   const clearShiftSummary = useCallback(() => setLastShiftSummary(null), []);
@@ -118,6 +137,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLastShiftSummary(null);
     setLoginOpen(false);
     setShiftReminderOpen(true);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("otpravki:lastShiftShipments");
+      if (raw == null) return;
+      sessionStorage.removeItem("otpravki:lastShiftShipments");
+      const value = Number(raw);
+      if (Number.isFinite(value)) setLastShiftSummary(value);
+    } catch {
+      // ignore
+    }
   }, []);
 
   useEffect(() => {
