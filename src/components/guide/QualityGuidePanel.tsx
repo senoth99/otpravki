@@ -118,14 +118,23 @@ export function QualityGuidePanel() {
             <p className="mt-1 text-sm text-gray-500">
               Типовые случаи из регламента — на что смотреть глазами.
             </p>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {QUALITY_GUIDE_EXAMPLES.map((example) => (
                 <div
-                  key={example.title}
-                  className="rounded-2xl border border-gray-100 bg-gray-50 px-3.5 py-3"
+                  key={example.id}
+                  className="overflow-hidden rounded-2xl border border-gray-100 bg-gray-50"
                 >
-                  <p className="text-sm font-semibold text-gray-900">{example.title}</p>
-                  <p className="mt-0.5 text-xs text-gray-500">{example.detail}</p>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={example.imageUrl}
+                    alt={example.title}
+                    className="aspect-[4/5] w-full object-cover"
+                    draggable={false}
+                  />
+                  <div className="px-3.5 py-3">
+                    <p className="text-sm font-semibold text-gray-900">{example.title}</p>
+                    <p className="mt-0.5 text-xs text-gray-500">{example.detail}</p>
+                  </div>
                 </div>
               ))}
             </div>

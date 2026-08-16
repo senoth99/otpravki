@@ -82,14 +82,70 @@ export const QUALITY_GUIDE_SECTIONS: QualityGuideSection[] = [
   },
 ];
 
-export const QUALITY_GUIDE_EXAMPLES: { title: string; detail: string }[] = [
-  { title: "Надпись слишком низко", detail: "Брак термопресса" },
-  { title: "Полосы на принте", detail: "Брак печати" },
-  { title: "Размерник на внешней стороне", detail: "Брак зоны оприходования" },
-  { title: "Отклеенная плёнка", detail: "Брак термопресса — быстро изнашивается" },
-  { title: "Производственные пятна", detail: "Брак склада / производства" },
-  { title: "Прожиг", detail: "Брак склада / производства" },
-  { title: "Искажение принта", detail: "Брак принтера" },
-  { title: "Точка на изделии", detail: "Брак печати / принтера" },
-  { title: "Зацепки", detail: "Брак производства / склада (хлопок и джерси)" },
+export const QUALITY_GUIDE_EXAMPLES: {
+  id: string;
+  title: string;
+  detail: string;
+  imageUrl: string;
+}[] = [
+  {
+    id: "defect-01",
+    title: "Надпись слишком низко",
+    detail: "Брак термопресса",
+    imageUrl: "/defect-examples/defect-01.jpg",
+  },
+  {
+    id: "defect-02",
+    title: "Полосы",
+    detail: "Брак печати",
+    imageUrl: "/defect-examples/defect-02.jpg",
+  },
+  {
+    id: "defect-03",
+    title: "Полосы",
+    detail: "Брак печати",
+    imageUrl: "/defect-examples/defect-03.jpg",
+  },
+  {
+    id: "defect-04",
+    title: "Размерник на внешней стороне",
+    detail: "Брак зоны оприходования",
+    imageUrl: "/defect-examples/defect-04.jpg",
+  },
+  {
+    id: "defect-05",
+    title: "Отклеенная плёнка",
+    detail: "Брак термопресса. При плохом нанесении очень быстро изнашивается",
+    imageUrl: "/defect-examples/defect-05.jpg",
+  },
+  {
+    id: "defect-06",
+    title: "Производственные пятна",
+    detail: "Брак склада / производства",
+    imageUrl: "/defect-examples/defect-06.jpg",
+  },
+  {
+    id: "defect-07",
+    title: "Прожиг",
+    detail: "Брак склада / производства",
+    imageUrl: "/defect-examples/defect-07.jpg",
+  },
+  {
+    id: "defect-08",
+    title: "Точка на изделии",
+    detail: "Брак печати / принтера (разные случаи)",
+    imageUrl: "/defect-examples/defect-08.jpg",
+  },
+  {
+    id: "defect-09",
+    title: "Зацепки",
+    detail: "Брак производства / склада. Могут быть на хлопке и на джерси",
+    imageUrl: "/defect-examples/defect-09.jpg",
+  },
+  {
+    id: "defect-10",
+    title: "Искажение принта",
+    detail: "Брак печати",
+    imageUrl: "/defect-examples/defect-10.jpg",
+  },
 ];

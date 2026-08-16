@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { toLocalImageUrl } from "@/lib/image-url";
 import { findTechSpecImages } from "@/lib/tech-specs";
+import { DefectExamplesPopup } from "./DefectExamplesPopup";
 
 interface ProductImageProps {
   src: string;
@@ -27,6 +28,7 @@ export function ProductImage({
   const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState(false);
   const [specsOpen, setSpecsOpen] = useState(false);
+  const [defectsOpen, setDefectsOpen] = useState(false);
   const [specIndex, setSpecIndex] = useState(0);
   const imageSrc = toLocalImageUrl(src);
   const techImages = findTechSpecImages(productName || alt);
@@ -37,16 +39,16 @@ export function ProductImage({
   }, [src]);
 
   useEffect(() => {
-    if (!open && !specsOpen) return;
+    if (!open && !specsOpen && !defectsOpen) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        if (specsOpen) setSpecsOpen(false);
-        else setOpen(false);
-      }
+      if (event.key !== "Escape") return;
+      if (defectsOpen) setDefectsOpen(false);
+      else if (specsOpen) setSpecsOpen(false);
+      else setOpen(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, specsOpen]);
+  }, [open, specsOpen, defectsOpen]);
 
   useEffect(() => {
     if (!specsOpen) setSpecIndex(0);
@@ -123,7 +125,7 @@ export function ProductImage({
               <img
                 src={imageSrc}
                 alt={alt}
-                className="block h-auto max-h-[min(70dvh,28rem)] max-w-full bg-transparent object-contain"
+                className="block h-auto max-h-[min(62dvh,26rem)] max-w-full bg-transparent object-contain"
                 draggable={false}
               />
               <button
@@ -135,21 +137,30 @@ export function ProductImage({
                 ×
               </button>
             </div>
-            <button
-              type="button"
-              disabled={!hasSpecs}
-              onClick={() => {
-                if (!hasSpecs) return;
-                setSpecsOpen(true);
-              }}
-              className={`mt-3 flex h-12 w-full items-center justify-center rounded-xl text-sm font-semibold transition-colors ${
-                hasSpecs
-                  ? "bg-white text-gray-900 active:bg-gray-100"
-                  : "cursor-not-allowed bg-white/25 text-white/50"
-              }`}
-            >
-              Технические характеристики
-            </button>
+            <div className="mt-3 flex w-full flex-col gap-2">
+              <button
+                type="button"
+                disabled={!hasSpecs}
+                onClick={() => {
+                  if (!hasSpecs) return;
+                  setSpecsOpen(true);
+                }}
+                className={`flex h-12 w-full items-center justify-center rounded-xl text-sm font-semibold transition-colors ${
+                  hasSpecs
+                    ? "bg-white text-gray-900 active:bg-gray-100"
+                    : "cursor-not-allowed bg-white/25 text-white/50"
+                }`}
+              >
+                Технические характеристики
+              </button>
+              <button
+                type="button"
+                onClick={() => setDefectsOpen(true)}
+                className="flex h-12 w-full items-center justify-center rounded-xl bg-white/90 text-sm font-semibold text-gray-900 active:bg-white"
+              >
+                Виды брака
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -212,6 +223,8 @@ export function ProductImage({
           )}
         </div>
       ) : null}
+
+      <DefectExamplesPopup open={defectsOpen} onClose={() => setDefectsOpen(false)} />
     </>
   );
 }
