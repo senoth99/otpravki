@@ -31,7 +31,27 @@ export function QualityGuidePanel() {
       </header>
 
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-2">
-        {/* Левая колонка — текст */}
+        {/* Левая колонка — вертикальное видео 9:16 */}
+        <aside className="flex min-h-[50vh] flex-col border-b border-gray-200 bg-gray-100 lg:min-h-0 lg:border-b-0 lg:border-r lg:bg-white">
+          <div className="flex min-h-0 flex-1 items-center justify-center p-4 sm:p-6">
+            <div className="flex h-full max-h-full w-auto flex-col items-center justify-center gap-3">
+              <div className="aspect-[9/16] h-full max-h-[min(100%,calc(100dvh-7rem))] overflow-hidden rounded-[1.75rem] border border-gray-200 bg-black shadow-lg">
+                <video
+                  className="h-full w-full object-cover object-center"
+                  controls
+                  playsInline
+                  preload="metadata"
+                  src={QUALITY_GUIDE_VIDEO_SRC}
+                >
+                  Ваш браузер не поддерживает видео.
+                </video>
+              </div>
+              <p className="shrink-0 text-center text-xs text-gray-500">Памятка · 9:16</p>
+            </div>
+          </div>
+        </aside>
+
+        {/* Правая колонка — текст */}
         <main className="min-h-0 space-y-5 overflow-y-auto overscroll-contain px-4 py-5 pb-8 sm:px-6">
           <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
             <h2 className="text-xl font-bold tracking-tight text-gray-900">
@@ -121,26 +141,6 @@ export function QualityGuidePanel() {
             </a>
           </p>
         </main>
-
-        {/* Правая колонка — вертикальное видео 9:16 как Reels */}
-        <aside className="order-first flex min-h-[50vh] flex-col border-b border-gray-200 bg-gray-100 lg:order-none lg:min-h-0 lg:border-b-0 lg:border-l lg:bg-white">
-          <div className="flex min-h-0 flex-1 items-center justify-center p-4 sm:p-6">
-            <div className="flex h-full max-h-full w-auto flex-col items-center justify-center gap-3">
-              <div className="h-full max-h-[min(100%,calc(100dvh-7rem))] aspect-[9/16] overflow-hidden rounded-[1.75rem] border border-gray-200 bg-black shadow-lg">
-                <video
-                  className="h-full w-full object-cover object-center"
-                  controls
-                  playsInline
-                  preload="metadata"
-                  src={QUALITY_GUIDE_VIDEO_SRC}
-                >
-                  Ваш браузер не поддерживает видео.
-                </video>
-              </div>
-              <p className="shrink-0 text-center text-xs text-gray-500">Памятка · 9:16</p>
-            </div>
-          </div>
-        </aside>
       </div>
     </div>
   );
