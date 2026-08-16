@@ -122,23 +122,23 @@ export function QualityGuidePanel() {
           </p>
         </main>
 
-        {/* Правая колонка — видео (на мобилке сверху через order) */}
-        <aside className="order-first flex min-h-0 flex-col border-b border-gray-200 bg-white lg:order-none lg:border-b-0 lg:border-l">
-          <div className="flex min-h-0 flex-1 flex-col justify-center gap-3 p-4 sm:p-5">
-            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-black shadow-sm">
-              <video
-                className="aspect-video w-full bg-black"
-                controls
-                playsInline
-                preload="metadata"
-                src={QUALITY_GUIDE_VIDEO_SRC}
-              >
-                Ваш браузер не поддерживает видео.
-              </video>
+        {/* Правая колонка — вертикальное видео 9:16 как Reels */}
+        <aside className="order-first flex min-h-[50vh] flex-col border-b border-gray-200 bg-gray-100 lg:order-none lg:min-h-0 lg:border-b-0 lg:border-l lg:bg-white">
+          <div className="flex min-h-0 flex-1 items-center justify-center p-4 sm:p-6">
+            <div className="flex h-full max-h-full w-auto flex-col items-center justify-center gap-3">
+              <div className="h-full max-h-[min(100%,calc(100dvh-7rem))] aspect-[9/16] overflow-hidden rounded-[1.75rem] border border-gray-200 bg-black shadow-lg">
+                <video
+                  className="h-full w-full object-cover object-center"
+                  controls
+                  playsInline
+                  preload="metadata"
+                  src={QUALITY_GUIDE_VIDEO_SRC}
+                >
+                  Ваш браузер не поддерживает видео.
+                </video>
+              </div>
+              <p className="shrink-0 text-center text-xs text-gray-500">Памятка · 9:16</p>
             </div>
-            <p className="text-center text-xs text-gray-500 lg:text-left">
-              Видео-памятка для смены. Смотри со звуком при необходимости.
-            </p>
           </div>
         </aside>
       </div>
