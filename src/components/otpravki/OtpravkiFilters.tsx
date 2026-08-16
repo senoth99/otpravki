@@ -428,7 +428,17 @@ export function OtpravkiFiltersPanel({
           />
         )}
 
-        {!brandOnly && (
+        {brandOnly ? (
+          <FilterSection title="Поиск">
+            <KeyboardField
+              value={filters.query}
+              onChange={(next) => set("query", next)}
+              placeholder="Номер, ФИО, город, трек…"
+              title="Поиск в архиве"
+              className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+            />
+          </FilterSection>
+        ) : (
           <>
             <FilterSection title="Поиск">
               <KeyboardField
@@ -558,7 +568,17 @@ export function OtpravkiMobileFilters({
         />
       )}
 
-      {!brandOnly && (
+      {brandOnly ? (
+        <FilterSection title="Поиск">
+          <KeyboardField
+            value={filters.query}
+            onChange={(next) => set("query", next)}
+            placeholder="Поиск в архиве…"
+            title="Поиск в архиве"
+            className="h-12 w-full rounded-xl border border-gray-200 bg-white px-3 text-base text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+          />
+        </FilterSection>
+      ) : (
         <>
           <FilterSection title="Поиск">
             <KeyboardField

@@ -237,6 +237,8 @@ export function ShippingPanel({
               )}
               apiOrderIds={apiOrderIds}
               onUnship={unshipFromArchive}
+              query={filters.query}
+              onQueryChange={(query) => setFilters((prev) => ({ ...prev, query }))}
             />
           )}
         </main>

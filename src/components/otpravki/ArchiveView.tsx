@@ -13,7 +13,6 @@ import { mergeShippedArchives } from "@/lib/shipped-archive";
 import type { ShippingOrder } from "@/types/shipping";
 import { OrderNumberDisplay } from "./OrderNumberDisplay";
 import { ProductImage } from "./ProductImage";
-import { KeyboardField } from "./VirtualKeyboard";
 
 interface ArchiveViewProps {
   orders: ShippingOrder[];
@@ -23,6 +22,8 @@ interface ArchiveViewProps {
   /** Гость: только просмотр, без отмены/перепечати */
   readOnly?: boolean;
   onRequestLogin?: () => void;
+  query?: string;
+  onQueryChange?: (query: string) => void;
 }
 
 const STATUS_STYLES = {
@@ -63,8 +64,9 @@ export function ArchiveView({
   onUnship,
   readOnly = false,
   onRequestLogin,
+  query = "",
+  onQueryChange,
 }: ArchiveViewProps) {
-  const [query, setQuery] = useState("");
   const [unshipError, setUnshipError] = useState<string | null>(null);
   const [unshippingId, setUnshippingId] = useState<string | null>(null);
   const [reprintingId, setReprintingId] = useState<string | null>(null);
@@ -132,27 +134,18 @@ export function ArchiveView({
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <KeyboardField
-          value={query}
-          onChange={setQuery}
-          placeholder="Поиск: номер, ФИО, город, трек, смайлик…"
-          title="Поиск в архиве"
-          className="h-12 w-full rounded-xl border border-gray-200 bg-white px-3 text-base text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
-        />
-        <div className="flex flex-wrap items-center gap-2 px-0.5 text-xs text-gray-500">
-          <span>
-            {query.trim()
-              ? `${shippedOrders.length} из ${allShipped.length}`
-              : `${allShipped.length} отправлено`}
-          </span>
-          {inTransitCount > 0 && (
-            <>
-              <span className="text-gray-300">·</span>
-              <span className="text-amber-700">{inTransitCount} в обработке</span>
-            </>
-          )}
-        </div>
+      <div className="flex flex-wrap items-center gap-2 px-0.5 text-xs text-gray-500">
+        <span>
+          {query.trim()
+            ? `${shippedOrders.length} из ${allShipped.length}`
+            : `${allShipped.length} отправлено`}
+        </span>
+        {inTransitCount > 0 && (
+          <>
+            <span className="text-gray-300">·</span>
+            <span className="text-amber-700">{inTransitCount} в обработке</span>
+          </>
+        )}
       </div>
 
       {(unshipError || reprintError) && (
@@ -172,13 +165,15 @@ export function ArchiveView({
         <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center">
           <p className="text-sm font-medium text-gray-700">Ничего не найдено</p>
           <p className="mt-1 text-xs text-gray-500">Измени запрос или сбрось поиск</p>
-          <button
-            type="button"
-            onClick={() => setQuery("")}
-            className="mt-3 inline-flex min-h-11 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 active:bg-gray-50"
-          >
-            Сбросить поиск
-          </button>
+          {onQueryChange ? (
+            <button
+              type="button"
+              onClick={() => onQueryChange("")}
+              className="mt-3 inline-flex min-h-11 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 active:bg-gray-50"
+            >
+              Сбросить поиск
+            </button>
+          ) : null}
         </div>
       ) : (
         <div className="grid gap-2.5 sm:gap-3">
