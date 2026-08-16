@@ -84,7 +84,6 @@ export function OrderPicker({
   locked,
   visibleIndices,
 }: OrderPickerProps) {
-  const stripRef = useRef<HTMLDivElement>(null);
   const poolIndices = visibleIndices ?? orders.map((_, index) => index);
 
   const sortedIndices = useMemo(
