@@ -54,6 +54,13 @@ body.otpravki-noswipe {
   overscroll-behavior-y: contain;
 }
 
+/* Drag-scroll на мониторах с эмуляцией мыши */
+.is-drag-scrolling {
+  cursor: grabbing;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 /* Горизонтальная лента заказов */
 .otpravki-shell .touch-pan-x {
   touch-action: pan-x;

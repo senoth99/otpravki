@@ -13,6 +13,7 @@ import { LoginScreen } from "@/components/auth/LoginScreen";
 import { LogoutShiftSummary } from "@/components/auth/LogoutShiftSummary";
 import { RegisterScreen } from "@/components/auth/RegisterScreen";
 import { ShiftStartReminder } from "@/components/auth/ShiftStartReminder";
+import { usePointerDragScroll } from "@/hooks/usePointerDragScroll";
 
 /** Без логина можно только инструкцию. Остальное — после входа. */
 function isGuestPublicPath(pathname: string | null): boolean {
@@ -106,6 +107,7 @@ function AuthLoginPanel({
 }
 
 function AuthShell({ children }: { children: ReactNode }) {
+  usePointerDragScroll();
   const pathname = usePathname();
   const {
     loading,

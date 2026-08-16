@@ -206,6 +206,7 @@ export function OrderPicker({
       {showStrip && (
         <div
           ref={stripRef}
+          data-no-drag-scroll
           className="touch-pan-x flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {sortedIndices.map((index) => {
