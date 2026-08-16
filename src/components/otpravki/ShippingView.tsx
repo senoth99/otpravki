@@ -18,7 +18,6 @@ import type { ApiProduct, AssemblyItem, ShippingOrder, ShippingOrderItem } from 
 import { AutoModeButton } from "./AutoModeButton";
 import { AutoModeCountdown } from "./AutoModeCountdown";
 import { BarcodePrintModal } from "./BarcodePrintModal";
-import { BarcodeScanner } from "./BarcodeScanner";
 import { OrderComments } from "./OrderComments";
 import { OrderExtrasHint } from "./OrderExtrasHint";
 import { OrderItemRow } from "./OrderItemRow";
@@ -118,7 +117,6 @@ export function ShippingView({
   const [reprinting, setReprinting] = useState(false);
   const [manualMode, setManualMode] = useState(false);
   const [autoMode, setAutoMode] = useState(false);
-  const [scannerOpen, setScannerOpen] = useState(false);
   const [printModalOpen, setPrintModalOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
@@ -273,7 +271,6 @@ export function ShippingView({
       return;
     }
     setManualMode(false);
-    setScannerOpen(false);
     setManualConfirmOrder(null);
     setAutoMode(true);
     const filteredOrders = activeIndices.map((index) => orders[index]);
@@ -377,13 +374,12 @@ export function ShippingView({
       }
 
       setScanError(null);
-      setScannerOpen(false);
       void packOneUnit(order, currentItem);
     },
     [canScan, currentOrderId, orders, packOneUnit, products],
   );
 
-  useHardwareScanner(validateScan, !manualMode && !scannerOpen && canScan);
+  useHardwareScanner(validateScan, !manualMode && canScan);
 
   const updateItemCount = useCallback(
     (itemId: string, delta: number) => {
@@ -753,17 +749,11 @@ export function ShippingView({
 
           {showActions && (
             <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 p-3 backdrop-blur-md safe-bottom sm:static sm:mt-4 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
             <button
               type="button"
               aria-pressed={manualMode}
-              onClick={() => {
-                setManualMode((v) => {
-                  const next = !v;
-                  if (next) setScannerOpen(false);
-                  return next;
-                });
-              }}
+              onClick={() => setManualMode((v) => !v)}
               className={`inline-flex h-14 w-full items-center justify-center gap-2 rounded-xl border text-sm font-medium transition-colors active:scale-[0.98] ${
                 manualMode
                   ? "border-gray-900 bg-gray-900 text-white"
@@ -774,27 +764,6 @@ export function ShippingView({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 100 3m0-3h.01M17 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 100 3m0-3h.01" />
               </svg>
               <span className="truncate">Ручной</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setScannerOpen(true)}
-              disabled={manualMode || packingOverlay}
-              className={`inline-flex h-14 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium transition-colors active:scale-[0.98] ${
-                manualMode || packingOverlay
-                  ? "cursor-not-allowed border border-transparent bg-gray-100 text-gray-300"
-                  : "bg-gray-900 text-white active:bg-gray-800"
-              }`}
-            >
-              <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span className="truncate">Сканер</span>
             </button>
 
             <button
@@ -821,10 +790,6 @@ export function ShippingView({
           )}
 
       </div>
-
-      {scannerOpen && (
-        <BarcodeScanner onScan={validateScan} onClose={() => setScannerOpen(false)} />
-      )}
 
       {scanError && <ScanErrorPopup message={scanError} onClose={() => setScanError(null)} />}
 

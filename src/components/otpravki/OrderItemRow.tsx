@@ -11,7 +11,7 @@ const STATUS_BADGE =
   "flex h-10 min-w-10 shrink-0 flex-col items-center justify-center rounded-xl px-2 tabular-nums";
 
 const BTN =
-  "flex h-11 min-h-[44px] items-center justify-center rounded-xl px-4 text-sm font-semibold uppercase tracking-wide transition-colors active:scale-[0.98]";
+  "flex h-11 min-h-[44px] items-center justify-center rounded-xl px-3.5 text-[13px] font-semibold uppercase tracking-normal transition-colors active:scale-[0.98]";
 
 interface OrderItemRowProps {
   item: ShippingOrderItem;
@@ -87,7 +87,7 @@ export function OrderItemRow({
           </div>
         </div>
 
-        <div className="flex w-36 shrink-0 flex-col gap-2">
+        <div className="flex w-44 shrink-0 flex-col gap-2">
           <QuantityProgress quantity={item.quantity} doneCount={item.scannedCount} />
 
           <div className="flex h-11 min-h-[44px] items-center gap-2">
@@ -116,7 +116,9 @@ export function OrderItemRow({
                       : "bg-gray-900 text-white active:bg-gray-800"
                   }`}
                 >
-                  {isComplete ? "Готово" : busy ? "…" : "Упаковано"}
+                  <span className="px-0.5">
+                    {isComplete ? "Готово" : busy ? "…" : "Упаковано"}
+                  </span>
                 </button>
               </>
             ) : (
