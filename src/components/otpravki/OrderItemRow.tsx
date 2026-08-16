@@ -75,7 +75,7 @@ export function OrderItemRow({
               <span className="min-w-0 truncate text-sm font-medium leading-snug text-gray-900">
                 {item.productName}
               </span>
-              {hasChestnyZnak ? (
+              {chestnyZnakActive ? (
                 <ChestnyZnakStatusIcon
                   status={czStock.status}
                   remaining={czStock.remaining}
