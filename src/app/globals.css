@@ -19,6 +19,40 @@ body {
   overflow-x: hidden;
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  -moz-user-select: none;
+}
+
+/* Без синей подсветки, если выделение всё же случилось */
+::selection {
+  background: transparent;
+  color: inherit;
+}
+
+::-moz-selection {
+  background: transparent;
+  color: inherit;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+  -moz-user-select: text;
+}
+
+input::selection,
+textarea::selection {
+  background: rgba(156, 163, 175, 0.35);
+  color: inherit;
+}
+
+input::-moz-selection,
+textarea::-moz-selection {
+  background: rgba(156, 163, 175, 0.35);
+  color: inherit;
 }
 
 html.otpravki-noswipe,
