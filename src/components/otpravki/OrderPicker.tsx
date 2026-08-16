@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { formatMoscowDate, formatOrderNumberShort } from "@/lib/format";
 import { type OrderDisplayStatus } from "@/lib/order-status";
 import { getSortedOrderIndices } from "@/lib/order-sort";
 import type { ShippingOrder } from "@/types/shipping";
-import { KeyboardField } from "./VirtualKeyboard";
 
 interface OrderPickerProps {
   orders: ShippingOrder[];
@@ -107,7 +106,6 @@ export function OrderPicker({
   locked,
   visibleIndices,
 }: OrderPickerProps) {
-  const [search, setSearch] = useState("");
   const stripRef = useRef<HTMLDivElement>(null);
   const poolIndices = visibleIndices ?? orders.map((_, index) => index);
 
@@ -146,24 +144,6 @@ export function OrderPicker({
     onSelect(sortedIndices[nextPos]);
   };
 
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    const query = value.trim().toLowerCase();
-    if (query.length < 2) return;
-
-    const matchedIndex = poolIndices.find((index) => {
-      const order = orders[index];
-      const short = formatOrderNumberShort(order.orderNumber).toLowerCase();
-      return (
-        short.includes(query) ||
-        order.orderNumber.toLowerCase().includes(query) ||
-        order.customerName.toLowerCase().includes(query)
-      );
-    });
-
-    if (matchedIndex !== undefined) onSelect(matchedIndex);
-  };
-
   if (poolIndices.length === 0) {
     return (
       <p className="px-1 py-2 text-center text-sm text-gray-400">Все заказы отправлены</p>
@@ -193,14 +173,6 @@ export function OrderPicker({
             <span className="ml-1.5 text-gray-400">· осталось {pendingCount}</span>
           )}
         </p>
-        <KeyboardField
-          value={search}
-          onChange={handleSearch}
-          placeholder="Поиск CSH…"
-          disabled={locked}
-          title="Поиск заказа"
-          className="h-11 w-40 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40 sm:w-48"
-        />
       </div>
 
       {showStrip && (
