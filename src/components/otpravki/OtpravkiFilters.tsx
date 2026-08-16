@@ -183,11 +183,11 @@ function ProductFilterModal({
       >
         <div className="relative border-b border-gray-100 px-4 py-3 pr-14">
           <p className="font-semibold text-gray-900">Фильтр по вещам</p>
-          <p className="mt-0.5 text-xs text-gray-500">
-            {draft.length === 0
-              ? "Показаны все заказы"
-              : `Выбрано: ${draft.length} · заказы с этими позициями`}
-          </p>
+          {draft.length > 0 ? (
+            <p className="mt-0.5 text-xs text-gray-500">
+              Выбрано: {draft.length} · заказы с этими позициями
+            </p>
+          ) : null}
           <button
             type="button"
             onClick={onClose}
