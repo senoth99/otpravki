@@ -26,14 +26,14 @@ body.otpravki-noswipe {
   overscroll-behavior: none;
   overscroll-behavior-x: none;
   overscroll-behavior-y: none;
-  touch-action: pan-y;
+  touch-action: none;
   overflow-x: hidden;
   position: relative;
 }
 
 .otpravki-shell {
   overscroll-behavior: none;
-  touch-action: pan-y;
+  touch-action: none;
   -webkit-user-select: none;
   user-select: none;
 }
@@ -42,9 +42,10 @@ body.otpravki-noswipe {
 .otpravki-shell textarea {
   -webkit-user-select: text;
   user-select: text;
+  touch-action: auto;
 }
 
-/* Горизонтальные ленты заказов/фильтров внутри pan-y шелла */
+/* Горизонтальная лента заказов — один палец только для ленты */
 .otpravki-shell .touch-pan-x {
   touch-action: pan-x;
 }

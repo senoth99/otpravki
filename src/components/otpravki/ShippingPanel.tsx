@@ -183,7 +183,7 @@ export function ShippingPanel({
   };
 
   return (
-    <div className="otpravki-shell flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-gray-50 touch-pan-y overscroll-none">
+    <div className="otpravki-shell flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-gray-50 overscroll-none">
       <OtpravkiPageHeader
         title="Отправки"
         subtitle={

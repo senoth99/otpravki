@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/AuthGate";
 import { useHardwareScanner } from "@/hooks/useHardwareScanner";
-import { useHorizontalSwipe } from "@/hooks/useHorizontalSwipe";
 import { buildAssemblyAllocation } from "@/lib/assembly-status";
 import { resolveScanFromBarcode } from "@/lib/barcode-product";
 import { formatMoscowDate } from "@/lib/format";
@@ -626,52 +625,6 @@ export function ShippingView({
   const hasShippableOrders = shippableIndices.length > 0;
   const hasShippedOrders = shippedOrders.length > 0 || isManualConfirm;
 
-  const sortedActiveIndices = useMemo(
-    () =>
-      getSortedOrderIndices(
-        activeIndices.map((index) => orders[index]),
-        activeIndices.map((index) => orderStatuses[index]),
-      ).map((sortedPos) => activeIndices[sortedPos]),
-    [activeIndices, orders, orderStatuses],
-  );
-
-  const swipeToNeighbor = useCallback(
-    (direction: -1 | 1) => {
-      if (autoMode || isManualConfirm || packingOverlay || printModalOpen || scannerOpen) {
-        return;
-      }
-      if (sortedActiveIndices.length < 2 || currentIndex < 0) return;
-      const pos = sortedActiveIndices.indexOf(currentIndex);
-      if (pos < 0) return;
-      const nextPos =
-        (pos + direction + sortedActiveIndices.length) % sortedActiveIndices.length;
-      setManualConfirmOrder(null);
-      setCurrentOrderId(orders[sortedActiveIndices[nextPos]].id);
-    },
-    [
-      autoMode,
-      currentIndex,
-      isManualConfirm,
-      orders,
-      packingOverlay,
-      printModalOpen,
-      scannerOpen,
-      sortedActiveIndices,
-    ],
-  );
-
-  const { handlers: orderSwipeHandlers } = useHorizontalSwipe({
-    enabled:
-      hasActiveOrders &&
-      !autoMode &&
-      !isManualConfirm &&
-      !packingOverlay &&
-      !printModalOpen &&
-      !scannerOpen,
-    onSwipeLeft: () => swipeToNeighbor(1),
-    onSwipeRight: () => swipeToNeighbor(-1),
-  });
-
   if (!hasActiveOrders && !hasShippedOrders) {
     return (
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
@@ -701,10 +654,9 @@ export function ShippingView({
 
   return (
     <div
-      className={`touch-pan-y overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm ${
+      className={`overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm ${
         showActions ? "pb-28 sm:pb-0" : ""
       }`}
-      {...orderSwipeHandlers}
     >
       <div className="border-b border-gray-100 px-1 py-1 sm:px-2">
         <AutoModeButton active={autoMode} onClick={handleAutoModeToggle} />
