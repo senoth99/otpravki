@@ -9,15 +9,33 @@ interface ProductImageProps {
   alt: string;
   className?: string;
   sizes: string;
+  /** Открывать крупный просмотр по нажатию (по умолчанию true) */
+  previewable?: boolean;
 }
 
-export function ProductImage({ src, alt, className, sizes }: ProductImageProps) {
+export function ProductImage({
+  src,
+  alt,
+  className,
+  sizes,
+  previewable = true,
+}: ProductImageProps) {
   const [failed, setFailed] = useState(false);
+  const [open, setOpen] = useState(false);
   const imageSrc = toLocalImageUrl(src);
 
   useEffect(() => {
     setFailed(false);
   }, [src]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   if (!imageSrc || failed) {
     return (
@@ -33,17 +51,67 @@ export function ProductImage({ src, alt, className, sizes }: ProductImageProps) 
     );
   }
 
+  const canPreview = previewable;
+
   return (
-    <Image
-      src={imageSrc}
-      alt={alt}
-      fill
-      unoptimized
-      draggable={false}
-      className={`select-none [-webkit-user-drag:none] ${className ?? ""}`}
-      sizes={sizes}
-      onError={() => setFailed(true)}
-      onDragStart={(event) => event.preventDefault()}
-    />
+    <>
+      <button
+        type="button"
+        disabled={!canPreview}
+        onClick={(event) => {
+          if (!canPreview) return;
+          event.preventDefault();
+          event.stopPropagation();
+          setOpen(true);
+        }}
+        aria-label={canPreview ? `Открыть фото: ${alt}` : undefined}
+        className={`absolute inset-0 block h-full w-full overflow-hidden p-0 ${
+          canPreview ? "cursor-zoom-in active:opacity-90" : "cursor-default"
+        } disabled:cursor-default`}
+      >
+        <Image
+          src={imageSrc}
+          alt={alt}
+          fill
+          unoptimized
+          draggable={false}
+          className={`select-none [-webkit-user-drag:none] ${className ?? ""}`}
+          sizes={sizes}
+          onError={() => setFailed(true)}
+          onDragStart={(event) => event.preventDefault()}
+        />
+      </button>
+
+      {open ? (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={alt}
+        >
+          <div
+            className="relative max-h-[90dvh] w-full max-w-lg overflow-hidden rounded-2xl bg-black shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label="Закрыть"
+              className="absolute right-2 top-2 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-3xl leading-none text-white active:bg-black/75"
+            >
+              ×
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imageSrc}
+              alt={alt}
+              className="max-h-[90dvh] w-full object-contain"
+              draggable={false}
+            />
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
