@@ -14,17 +14,10 @@ import { LogoutShiftSummary } from "@/components/auth/LogoutShiftSummary";
 import { RegisterScreen } from "@/components/auth/RegisterScreen";
 import { ShiftStartReminder } from "@/components/auth/ShiftStartReminder";
 
-/** Без логина: архив/отправки, сборка, инструкция. Остальное — после входа. */
+/** Без логина можно только инструкцию. Остальное — после входа. */
 function isGuestPublicPath(pathname: string | null): boolean {
   if (!pathname) return false;
-  return (
-    pathname === "/otpravki" ||
-    pathname.startsWith("/otpravki/") ||
-    pathname === "/sborka" ||
-    pathname.startsWith("/sborka/") ||
-    pathname === "/instrukciya" ||
-    pathname.startsWith("/instrukciya/")
-  );
+  return pathname === "/instrukciya" || pathname.startsWith("/instrukciya/");
 }
 
 function AuthLoginPanel({
@@ -51,7 +44,13 @@ function AuthLoginPanel({
   }, []);
 
   return (
-    <div className={embedded ? "flex min-h-0 flex-1 flex-col bg-gray-50" : "flex min-h-dvh flex-col bg-gray-50"}>
+    <div
+      className={
+        embedded
+          ? "flex min-h-0 flex-1 flex-col bg-gray-50"
+          : "flex min-h-dvh flex-col bg-gray-50"
+      }
+    >
       {lastShiftSummary !== null && (
         <LogoutShiftSummary shipments={lastShiftSummary} onClose={clearShiftSummary} />
       )}
@@ -62,15 +61,23 @@ function AuthLoginPanel({
             <h1 className="text-lg font-bold text-gray-900">Отправки · CASHER</h1>
             <p className="text-xs text-gray-500">Вход по смайлику и PIN</p>
           </div>
-          {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
+          <div className="flex shrink-0 items-center gap-2">
+            <a
+              href="/instrukciya"
               className="inline-flex min-h-11 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 active:bg-gray-50"
             >
-              К архиву
-            </button>
-          )}
+              Инструкция
+            </a>
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex min-h-11 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 active:bg-gray-50"
+              >
+                Назад
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
