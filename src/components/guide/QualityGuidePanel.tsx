@@ -46,7 +46,7 @@ export function QualityGuidePanel() {
                   Ваш браузер не поддерживает видео.
                 </video>
               </div>
-              <p className="shrink-0 text-center text-xs text-gray-500">Памятка · 9:16</p>
+              <p className="shrink-0 text-center text-xs text-gray-500">Как складывать товар</p>
             </div>
           </div>
         </aside>
