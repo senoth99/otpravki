@@ -167,45 +167,45 @@ export function ProductImage({
 
       {specsOpen && techImages && techImages.length > 0 ? (
         <div
-          className="fixed inset-0 z-[95] flex flex-col bg-black"
+          className="fixed inset-0 z-[95] bg-black"
           role="dialog"
           aria-modal="true"
           aria-label="Технические характеристики"
+          onClick={() => setSpecsOpen(false)}
         >
-          <div className="flex shrink-0 items-center justify-between gap-3 px-3 py-2 safe-top">
-            <p className="min-w-0 truncate text-sm font-medium text-white/90">{label}</p>
-            <button
-              type="button"
-              onClick={() => setSpecsOpen(false)}
-              aria-label="Закрыть"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/15 text-3xl leading-none text-white active:bg-white/25"
-            >
-              ×
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setSpecsOpen(false)}
+            aria-label="Закрыть"
+            className="absolute right-3 top-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-3xl leading-none text-white safe-top active:bg-black/70"
+          >
+            ×
+          </button>
 
-          <div className="relative min-h-0 flex-1">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={techImages[specIndex]}
-              alt={`Технические характеристики: ${label}`}
-              className="h-full w-full object-contain"
-              draggable={false}
-            />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={techImages[specIndex]}
+            alt="Технические характеристики"
+            className="h-full w-full object-contain"
+            draggable={false}
+            onClick={(event) => event.stopPropagation()}
+          />
 
           {techImages.length > 1 ? (
-            <div className="flex shrink-0 items-center justify-between gap-3 px-3 py-3 safe-bottom">
+            <div
+              className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-3 px-3 py-3 safe-bottom"
+              onClick={(event) => event.stopPropagation()}
+            >
               <button
                 type="button"
                 onClick={() =>
                   setSpecIndex((i) => (i <= 0 ? techImages.length - 1 : i - 1))
                 }
-                className="flex h-12 min-w-12 items-center justify-center rounded-xl bg-white/15 px-4 text-white active:bg-white/25"
+                className="flex h-12 min-w-12 items-center justify-center rounded-xl bg-black/50 px-4 text-white active:bg-black/70"
               >
                 ←
               </button>
-              <p className="text-sm tabular-nums text-white/80">
+              <p className="rounded-full bg-black/50 px-3 py-1 text-sm tabular-nums text-white/90">
                 {specIndex + 1} / {techImages.length}
               </p>
               <button
@@ -213,14 +213,12 @@ export function ProductImage({
                 onClick={() =>
                   setSpecIndex((i) => (i >= techImages.length - 1 ? 0 : i + 1))
                 }
-                className="flex h-12 min-w-12 items-center justify-center rounded-xl bg-white/15 px-4 text-white active:bg-white/25"
+                className="flex h-12 min-w-12 items-center justify-center rounded-xl bg-black/50 px-4 text-white active:bg-black/70"
               >
                 →
               </button>
             </div>
-          ) : (
-            <div className="h-3 safe-bottom" />
-          )}
+          ) : null}
         </div>
       ) : null}
 
