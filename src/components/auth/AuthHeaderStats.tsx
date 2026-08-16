@@ -5,10 +5,20 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { AllAccountsStats } from "@/components/auth/AllAccountsStats";
 
 export function AuthHeaderStats() {
-  const { user, stats, logout, refresh } = useAuth();
+  const { user, stats, logout, refresh, openLogin } = useAuth();
   const [statsOpen, setStatsOpen] = useState(false);
 
-  if (!user || !stats) return null;
+  if (!user || !stats) {
+    return (
+      <button
+        type="button"
+        onClick={openLogin}
+        className="inline-flex min-h-11 shrink-0 items-center rounded-2xl border border-gray-900 bg-gray-900 px-4 text-sm font-medium text-white active:bg-gray-800"
+      >
+        Войти
+      </button>
+    );
+  }
 
   return (
     <>

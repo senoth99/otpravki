@@ -39,14 +39,56 @@ async function migrateLegacyArchive(): Promise<ShippingOrder[]> {
 }
 
 export async function loadPersistedArchive(): Promise<ShippingOrder[]> {
+  let orders: ShippingOrder[] = [];
   try {
     const raw = await readFile(ARCHIVE_FILE, "utf-8");
     const parsed = JSON.parse(raw) as ArchiveFile;
-    if (!Array.isArray(parsed.orders)) return migrateLegacyArchive();
-    const orders = capShippedArchive(parsed.orders);
-    return orders.length > 0 ? orders : migrateLegacyArchive();
+    if (!Array.isArray(parsed.orders)) {
+      orders = await migrateLegacyArchive();
+    } else {
+      orders = capShippedArchive(parsed.orders);
+      if (orders.length === 0) orders = await migrateLegacyArchive();
+    }
   } catch {
-    return migrateLegacyArchive();
+    orders = await migrateLegacyArchive();
+  }
+  return enrichArchiveShippers(orders);
+}
+
+/** Подставляет emoji отправителя из журнала отправок, если на заказе ещё нет метки */
+export async function enrichArchiveShippers(
+  orders: ShippingOrder[],
+): Promise<ShippingOrder[]> {
+  if (orders.length === 0) return orders;
+  if (orders.every((order) => order.shippedByEmoji)) return orders;
+
+  try {
+    const { loadShipmentEvents } = await import("@/lib/server/shift-stats-store");
+    const { listAuthUsers } = await import("@/lib/server/auth-users-store");
+    const [events, users] = await Promise.all([loadShipmentEvents(), listAuthUsers()]);
+    if (events.length === 0) return orders;
+
+    const emojiByUserId = new Map(users.map((user) => [user.id, user.emoji]));
+    const latestByOrder = new Map<string, { userId: string; ts: number }>();
+    for (const event of events) {
+      const prev = latestByOrder.get(event.orderId);
+      if (!prev || event.ts >= prev.ts) {
+        latestByOrder.set(event.orderId, { userId: event.userId, ts: event.ts });
+      }
+    }
+
+    return orders.map((order) => {
+      if (order.shippedByEmoji && order.shippedByUserId) return order;
+      const hit = latestByOrder.get(order.id);
+      if (!hit) return order;
+      return {
+        ...order,
+        shippedByUserId: order.shippedByUserId ?? hit.userId,
+        shippedByEmoji: order.shippedByEmoji ?? emojiByUserId.get(hit.userId),
+      };
+    });
+  } catch {
+    return orders;
   }
 }
 

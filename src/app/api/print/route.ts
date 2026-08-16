@@ -102,11 +102,12 @@ export async function POST(request: Request) {
         barcodePrinted: true,
         barcodePrintedAt: fromSession.barcodePrintedAt ?? Date.now(),
       };
-      await persistAndReplaceArchive([archived]);
 
       try {
         const userCtx = await requireUserSession({ touch: true });
         if (userCtx) {
+          archived.shippedByUserId = userCtx.user.id;
+          archived.shippedByEmoji = userCtx.user.emoji;
           await recordShipmentEvent({
             ts: archived.barcodePrintedAt ?? Date.now(),
             userId: userCtx.user.id,
@@ -117,6 +118,8 @@ export async function POST(request: Request) {
       } catch {
         // статистика не должна ломать печать
       }
+
+      await persistAndReplaceArchive([archived]);
     }
 
     return NextResponse.json({

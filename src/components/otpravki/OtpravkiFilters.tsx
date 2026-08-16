@@ -92,6 +92,7 @@ export function applyOrderFilters(
         order.customerName,
         order.city,
         order.trackingNumber,
+        order.shippedByEmoji,
         ...(order.tags?.map((t) => t.label) ?? []),
         ...order.items.map((item) => item.productName),
       ]

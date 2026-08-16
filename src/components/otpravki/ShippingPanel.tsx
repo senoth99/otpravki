@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/components/auth/AuthGate";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { orderIsBlogger } from "@/lib/blogger-order";
@@ -41,7 +42,8 @@ export function ShippingPanel({
   shippedArchive: initialShippedArchive = [],
   initialRevision = 0,
 }: ShippingPanelProps) {
-  const [tab, setTab] = useState<ShippingTab>("shipping");
+  const { user, loading, openLogin } = useAuth();
+  const [tab, setTab] = useState<ShippingTab>("archive");
   const [selectedBrand, setSelectedBrand] = useState<string>(KNOWN_BRANDS[0]);
   const [filters, setFilters] = useState<OtpravkiFiltersState>(DEFAULT_FILTERS);
   const [reloading, setReloading] = useState(false);
@@ -65,6 +67,11 @@ export function ShippingPanel({
   });
 
   useOtpravkiNoSwipe();
+
+  useEffect(() => {
+    if (loading) return;
+    setTab(user ? "shipping" : "archive");
+  }, [loading, user]);
 
   useEffect(() => {
     void refreshFromApi(selectedBrand);
@@ -121,7 +128,22 @@ export function ShippingPanel({
   );
 
   const cities = useMemo(() => collectFilterCities(activeBrandOrders), [activeBrandOrders]);
-  const products = useMemo(() => collectFilterProducts(activeBrandOrders), [activeBrandOrders]);
+  const products = useMemo(() => {
+    const source = tab === "archive" ? filteredShippedArchive : activeBrandOrders;
+    return collectFilterProducts(source);
+  }, [tab, filteredShippedArchive, activeBrandOrders]);
+
+  useEffect(() => {
+    if (!user && tab === "shipping") setTab("archive");
+  }, [user, tab]);
+
+  const handleTabChange = (next: ShippingTab) => {
+    if (next === "shipping" && !user) {
+      openLogin();
+      return;
+    }
+    setTab(next);
+  };
 
   const counts = useMemo(() => {
     let critical = 0;
@@ -153,7 +175,7 @@ export function ShippingPanel({
         title="Отправки"
         subtitle={
           tab === "archive"
-            ? `${filteredShippedArchive.length} в архиве · ${selectedBrand}`
+            ? `${shippedArchive.filter((order) => getOrderStoreBrand(order) === selectedBrand).length} в архиве · ${selectedBrand}`
             : `${filteredOrders.length} из ${activeBrandOrders.length} · ${selectedBrand}`
         }
         brandOptions={brandOptions}
@@ -168,41 +190,71 @@ export function ShippingPanel({
         offlineMessage={!isInternetOnline ? "Нет интернета" : "Сервер недоступен"}
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <TabSwitcher active={tab} onChange={setTab} />
+          <TabSwitcher active={tab} onChange={handleTabChange} />
+          {!user && (
+            <p className="text-xs text-gray-500">
+              Архив без входа · для отправки нажми «Войти»
+            </p>
+          )}
         </div>
 
-        <OtpravkiMobileFilters
-          filters={filters}
-          onChange={setFilters}
-          cities={cities}
-          products={products}
-        />
+        {tab === "shipping" && (
+          <OtpravkiMobileFilters
+            filters={filters}
+            onChange={setFilters}
+            cities={cities}
+            products={products}
+          />
+        )}
       </OtpravkiPageHeader>
 
       <div className="flex min-h-0 flex-1 gap-3 overflow-hidden p-3 sm:p-4">
-        <OtpravkiFiltersPanel
-          filters={filters}
-          onChange={setFilters}
-          counts={counts}
-          products={products}
-        />
+        {tab === "shipping" && (
+          <OtpravkiFiltersPanel
+            filters={filters}
+            onChange={setFilters}
+            counts={counts}
+            products={products}
+          />
+        )}
 
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-5">
           {tab === "shipping" ? (
-            <ShippingView
-              orders={filteredOrders}
-              assemblyItems={filteredAssemblyItems}
-              selectedBrand={selectedBrand}
-              brandOptions={brandOptions}
-              onBrandChange={handleBrandChange}
-              onOrdersChange={handleFilteredOrdersChange}
-            />
+            user ? (
+              <ShippingView
+                orders={filteredOrders}
+                assemblyItems={filteredAssemblyItems}
+                selectedBrand={selectedBrand}
+                brandOptions={brandOptions}
+                onBrandChange={handleBrandChange}
+                onOrdersChange={handleFilteredOrdersChange}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+                <p className="text-base font-semibold text-gray-900">Нужен вход</p>
+                <p className="max-w-sm text-sm text-gray-500">
+                  Архив можно смотреть без логина. Для сборки и отправки заказов войди по смайлику.
+                </p>
+                <button
+                  type="button"
+                  onClick={openLogin}
+                  className="inline-flex min-h-12 items-center rounded-xl bg-gray-900 px-6 text-sm font-medium text-white active:bg-gray-800"
+                >
+                  Войти
+                </button>
+              </div>
+            )
           ) : (
             <ArchiveView
               orders={filteredOrders}
-              shippedArchive={filteredShippedArchive}
+              shippedArchive={
+                // В архиве свой поиск — не режем по фильтрам отправки повторно
+                shippedArchive.filter((order) => getOrderStoreBrand(order) === selectedBrand)
+              }
               apiOrderIds={apiOrderIds}
-              onUnship={unshipFromArchive}
+              onUnship={user ? unshipFromArchive : undefined}
+              readOnly={!user}
+              onRequestLogin={openLogin}
             />
           )}
         </main>

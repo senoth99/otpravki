@@ -34,6 +34,9 @@ interface AuthContextValue {
   user: AuthUserPublic | null;
   stats: AuthLiveStats | null;
   lastShiftSummary: number | null;
+  loginOpen: boolean;
+  openLogin: () => void;
+  closeLogin: () => void;
   refresh: () => Promise<boolean>;
   logout: () => Promise<void>;
   clearShiftSummary: () => void;
@@ -50,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUserPublic | null>(null);
   const [stats, setStats] = useState<AuthLiveStats | null>(null);
   const [lastShiftSummary, setLastShiftSummary] = useState<number | null>(null);
+  const [loginOpen, setLoginOpen] = useState(false);
   const lastActivityRef = useRef(Date.now());
 
   const applyMe = useCallback((data: AuthMeResponse) => {
@@ -100,12 +104,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearShiftSummary = useCallback(() => setLastShiftSummary(null), []);
+  const openLogin = useCallback(() => setLoginOpen(true), []);
+  const closeLogin = useCallback(() => setLoginOpen(false), []);
 
   const setSession = useCallback((nextUser: AuthUserPublic, nextStats: AuthLiveStats) => {
     setUser(nextUser);
     setStats(nextStats);
     lastActivityRef.current = Date.now();
     setLastShiftSummary(null);
+    setLoginOpen(false);
   }, []);
 
   useEffect(() => {
@@ -171,12 +178,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       stats,
       lastShiftSummary,
+      loginOpen,
+      openLogin,
+      closeLogin,
       refresh,
       logout,
       clearShiftSummary,
       setSession,
     }),
-    [loading, user, stats, lastShiftSummary, refresh, logout, clearShiftSummary, setSession],
+    [
+      loading,
+      user,
+      stats,
+      lastShiftSummary,
+      loginOpen,
+      openLogin,
+      closeLogin,
+      refresh,
+      logout,
+      clearShiftSummary,
+      setSession,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

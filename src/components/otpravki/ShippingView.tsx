@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "@/components/auth/AuthGate";
 import { useHardwareScanner } from "@/hooks/useHardwareScanner";
 import { useHorizontalSwipe } from "@/hooks/useHorizontalSwipe";
 import { buildAssemblyAllocation } from "@/lib/assembly-status";
@@ -109,6 +110,7 @@ export function ShippingView({
   onBrandChange,
   onOrdersChange,
 }: ShippingViewProps) {
+  const { user } = useAuth();
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(
     () => orders[0]?.id ?? null,
   );
@@ -442,12 +444,20 @@ export function ShippingView({
       ...currentOrder,
       barcodePrinted: true,
       barcodePrintedAt: shippedAt,
+      shippedByUserId: user?.id,
+      shippedByEmoji: user?.emoji,
     };
     const shippedId = currentOrder.id;
     onOrdersChange((prev) => {
       const updated = prev.map((order) =>
         order.id === shippedId
-          ? { ...order, barcodePrinted: true, barcodePrintedAt: shippedAt }
+          ? {
+              ...order,
+              barcodePrinted: true,
+              barcodePrintedAt: shippedAt,
+              shippedByUserId: user?.id,
+              shippedByEmoji: user?.emoji,
+            }
           : order,
       );
       goToNextOrder(updated, shippedId);
@@ -520,7 +530,13 @@ export function ShippingView({
       const shippedAt = Date.now();
       const updatedOrders = orders.map((order) =>
         order.id === shippedId
-          ? { ...order, barcodePrinted: true, barcodePrintedAt: shippedAt }
+          ? {
+              ...order,
+              barcodePrinted: true,
+              barcodePrintedAt: shippedAt,
+              shippedByUserId: user?.id,
+              shippedByEmoji: user?.emoji,
+            }
           : order,
       );
       const nextAllocation = buildAssemblyAllocation(updatedOrders, assemblyItems);
@@ -552,6 +568,7 @@ export function ShippingView({
     onOrdersChange,
     orders,
     selectedBrand,
+    user,
   ]);
 
   const retryAutoPrint = useCallback(() => {

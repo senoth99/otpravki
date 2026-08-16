@@ -22,6 +22,8 @@ function mergeOrderProgress(prev: ShippingOrder, fresh: ShippingOrder): Shipping
     ...fresh,
     barcodePrinted: prev.barcodePrinted,
     barcodePrintedAt: prev.barcodePrintedAt,
+    shippedByUserId: prev.shippedByUserId ?? fresh.shippedByUserId,
+    shippedByEmoji: prev.shippedByEmoji ?? fresh.shippedByEmoji,
     items: fresh.items.map((item) => {
       const old = prevItems.get(item.id);
       return old ? mergeOrderItemProgress(old, item) : item;

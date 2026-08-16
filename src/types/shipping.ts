@@ -80,6 +80,9 @@ export interface ShippingOrder {
   barcodeUrl?: string;
   barcodePrinted: boolean;
   barcodePrintedAt?: number;
+  /** Кто напечатал / отправил заказ */
+  shippedByUserId?: string;
+  shippedByEmoji?: string;
   allInStockAtWarehouse?: boolean;
   city?: string;
   trackingNumber?: string;

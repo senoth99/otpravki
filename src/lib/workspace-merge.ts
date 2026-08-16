@@ -69,6 +69,8 @@ export function mergeOrder(a: ShippingOrder, b: ShippingOrder): ShippingOrder {
     items: [...itemsById.values()],
     barcodePrinted,
     barcodePrintedAt: Math.max(a.barcodePrintedAt ?? 0, b.barcodePrintedAt ?? 0) || undefined,
+    shippedByUserId: a.shippedByUserId || b.shippedByUserId,
+    shippedByEmoji: a.shippedByEmoji || b.shippedByEmoji,
   };
 }
 

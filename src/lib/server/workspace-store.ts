@@ -171,6 +171,8 @@ async function replaceSessionArchiveInner(shippedArchive: ShippingOrder[]): Prom
       ...order,
       barcodePrinted: true,
       barcodePrintedAt: archived.barcodePrintedAt ?? order.barcodePrintedAt ?? Date.now(),
+      shippedByUserId: archived.shippedByUserId ?? order.shippedByUserId,
+      shippedByEmoji: archived.shippedByEmoji ?? order.shippedByEmoji,
     };
   });
 
