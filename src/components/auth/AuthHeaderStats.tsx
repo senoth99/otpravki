@@ -29,23 +29,17 @@ export function AuthHeaderStats() {
             void refresh();
             setStatsOpen(true);
           }}
-          className="inline-flex min-h-11 items-center gap-2.5 rounded-2xl border border-gray-200 bg-gray-50 py-1.5 pl-2 pr-3 text-left active:bg-gray-100"
+          className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 py-1 pl-1.5 pr-3 text-left active:bg-gray-100"
           title="Статистика отправок"
         >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-xl leading-none shadow-sm">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-lg leading-none shadow-sm">
             {user.emoji}
           </span>
-          <span className="grid grid-cols-[auto_auto] items-baseline gap-x-3 gap-y-0.5">
-            <span className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
-              Сегодня
-            </span>
-            <span className="text-right text-lg font-bold leading-none tabular-nums text-gray-900">
+          <span className="flex items-baseline gap-1.5">
+            <span className="text-lg font-bold leading-none tabular-nums text-gray-900">
               {stats.today}
             </span>
-            <span className="text-[11px] text-gray-400">Всего</span>
-            <span className="text-right text-xs font-medium leading-none tabular-nums text-gray-500">
-              {stats.total}
-            </span>
+            <span className="text-[11px] font-medium text-gray-400">сегодня</span>
           </span>
         </button>
         <button
@@ -74,6 +68,22 @@ export function AuthHeaderStats() {
                 Закрыть
               </button>
             </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                  Сегодня
+                </p>
+                <p className="mt-1 text-3xl font-bold tabular-nums text-gray-900">{stats.today}</p>
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                  Всего
+                </p>
+                <p className="mt-1 text-3xl font-bold tabular-nums text-gray-900">{stats.total}</p>
+              </div>
+            </div>
+
             <AllAccountsStats />
           </div>
         </div>
