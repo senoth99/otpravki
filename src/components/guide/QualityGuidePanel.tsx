@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@/components/auth/AuthProvider";
 import {
   QUALITY_GUIDE_EXAMPLES,
   QUALITY_GUIDE_SECTIONS,
@@ -8,26 +9,37 @@ import {
 } from "@/lib/quality-guide";
 
 export function QualityGuidePanel() {
+  const { user } = useAuth();
+
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col bg-gray-50">
-      <header className="safe-top sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur">
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-              Регламент · Wiki
-            </p>
-            <h1 className="truncate text-lg font-bold text-gray-900">Инструкция по качеству</h1>
+    <div className="flex min-h-dvh w-full flex-col bg-gray-50">
+      <header className="safe-top shrink-0 border-b border-gray-200 bg-white px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-lg font-bold text-gray-900">Инструкция по качеству</h1>
+            <p className="text-xs text-gray-500">Три рубежа · контроль на всём пути товара</p>
           </div>
-          <a
-            href="/otpravki"
-            className="inline-flex min-h-11 shrink-0 items-center rounded-2xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 active:bg-gray-50"
-          >
-            К отправкам
-          </a>
+          <div className="flex shrink-0 items-center gap-2">
+            {user ? (
+              <a
+                href="/otpravki"
+                className="inline-flex min-h-11 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 active:bg-gray-50"
+              >
+                К отправкам
+              </a>
+            ) : (
+              <a
+                href="/otpravki"
+                className="inline-flex min-h-11 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 active:bg-gray-50"
+              >
+                Ко входу
+              </a>
+            )}
+          </div>
         </div>
       </header>
 
-      <main className="flex-1 space-y-6 px-4 py-5 pb-10">
+      <main className="w-full flex-1 space-y-6 px-4 py-5 pb-10 sm:px-6">
         <section className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
           <div className="border-b border-gray-100 px-5 py-4">
             <h2 className="text-xl font-bold tracking-tight text-gray-900">
