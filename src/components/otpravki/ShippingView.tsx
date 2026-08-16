@@ -7,7 +7,7 @@ import { buildAssemblyAllocation } from "@/lib/assembly-status";
 import { resolveScanFromBarcode } from "@/lib/barcode-product";
 import { formatMoscowDate } from "@/lib/format";
 import { getOrderDisplayStatus } from "@/lib/order-status";
-import { findFirstAutoOrderIndex, getSortedOrderIndices } from "@/lib/order-sort";
+import { findFirstAutoOrderIndex } from "@/lib/order-sort";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import { printOrderBarcode } from "@/lib/print-barcode";
 import { resolveOrderUrgency, URGENCY_LABELS } from "@/lib/urgency";
