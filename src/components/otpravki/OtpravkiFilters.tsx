@@ -224,6 +224,7 @@ function ProductFilterModal({
                         alt={product.productName}
                         className="object-cover"
                         sizes="(max-width: 640px) 45vw, 180px"
+                        previewable={false}
                       />
                       {active && (
                         <span className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-bold text-gray-900 shadow">

@@ -55,19 +55,27 @@ export function ProductImage({
 
   return (
     <>
-      <button
-        type="button"
-        disabled={!canPreview}
+      <div
+        role={canPreview ? "button" : undefined}
+        tabIndex={canPreview ? 0 : undefined}
         onClick={(event) => {
           if (!canPreview) return;
           event.preventDefault();
           event.stopPropagation();
           setOpen(true);
         }}
+        onKeyDown={(event) => {
+          if (!canPreview) return;
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            event.stopPropagation();
+            setOpen(true);
+          }
+        }}
         aria-label={canPreview ? `Открыть фото: ${alt}` : undefined}
         className={`absolute inset-0 block h-full w-full overflow-hidden p-0 ${
-          canPreview ? "cursor-zoom-in active:opacity-90" : "cursor-default"
-        } disabled:cursor-default`}
+          canPreview ? "cursor-zoom-in active:opacity-90" : ""
+        }`}
       >
         <Image
           src={imageSrc}
@@ -80,7 +88,7 @@ export function ProductImage({
           onError={() => setFailed(true)}
           onDragStart={(event) => event.preventDefault()}
         />
-      </button>
+      </div>
 
       {open ? (
         <div
