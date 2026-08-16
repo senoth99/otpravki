@@ -69,9 +69,12 @@ export function formatSize(size: string): string {
 }
 
 export function formatOrderNumberShort(orderNumber: string): string {
-  const { prefix, last4 } = splitOrderNumberDisplay(orderNumber);
-  if (!last4) return orderNumber.trim();
-  return `${prefix}${last4}`;
+  const trimmed = orderNumber.trim();
+  const digits = trimmed.replace(/\D/g, "");
+  const last4 = (digits.slice(-4) || "0000").padStart(4, "0");
+  const prefixMatch = trimmed.match(/^([A-Za-zА-Яа-яЁё]+)/);
+  const prefix = prefixMatch?.[1] ?? "CSH";
+  return `${prefix}-${last4}`;
 }
 
 /** Префикс + последние 4 цифры из полного номера (для UI). */
