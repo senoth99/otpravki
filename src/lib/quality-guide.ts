@@ -89,12 +89,6 @@ export const QUALITY_GUIDE_EXAMPLES: {
   imageUrl: string;
 }[] = [
   {
-    id: "defect-01",
-    title: "Надпись слишком низко",
-    detail: "Брак термопресса",
-    imageUrl: "/defect-examples/defect-01.jpg",
-  },
-  {
     id: "defect-03",
     title: "Полосы",
     detail: "Брак печати",
