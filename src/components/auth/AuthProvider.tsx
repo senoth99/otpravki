@@ -96,7 +96,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { Accept: "application/json" },
         redirect: "manual",
       });
-      if (res.ok) {
+      // opaque redirect (0) / 3xx — не парсим как JSON
+      if (res.ok && res.status !== 0) {
         const data = (await res.json()) as { ok?: boolean; shiftShipments?: number };
         if (typeof data.shiftShipments === "number") {
           shiftShipments = data.shiftShipments;
@@ -106,23 +107,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // всё равно выходим
     }
 
+    // Сначала логин-оверлей, без перезагрузки страницы (избегаем Chrome «couldn't load»)
+    if (shiftShipments !== null) setLastShiftSummary(shiftShipments);
     setUser(null);
     setStats(null);
     setShiftReminderOpen(false);
     setLoginOpen(false);
-
-    try {
-      if (shiftShipments !== null) {
-        sessionStorage.setItem("otpravki:lastShiftShipments", String(shiftShipments));
-      } else {
-        sessionStorage.removeItem("otpravki:lastShiftShipments");
-      }
-    } catch {
-      // ignore
-    }
-
-    // Жёсткий переход на логин — без «пустой» SPA-размонтировки на /otpravki
-    window.location.assign("/otpravki");
   }, []);
 
   const clearShiftSummary = useCallback(() => setLastShiftSummary(null), []);
@@ -137,18 +127,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLastShiftSummary(null);
     setLoginOpen(false);
     setShiftReminderOpen(true);
-  }, []);
-
-  useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem("otpravki:lastShiftShipments");
-      if (raw == null) return;
-      sessionStorage.removeItem("otpravki:lastShiftShipments");
-      const value = Number(raw);
-      if (Number.isFinite(value)) setLastShiftSummary(value);
-    } catch {
-      // ignore
-    }
   }, []);
 
   useEffect(() => {

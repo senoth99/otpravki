@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import {
   AuthProvider,
@@ -116,12 +116,15 @@ function AuthShell({ children }: { children: ReactNode }) {
     dismissShiftReminder,
   } = useAuth();
   const guestPublic = isGuestPublicPath(pathname);
+  // Держим страницу смонтированной под оверлеем, чтобы Chrome не мигал «couldn't load»
+  const keepMounted = useRef(false);
+  if (user || guestPublic) keepMounted.current = true;
 
   const showApp = Boolean(user) || guestPublic;
   const showBlockingLogin = !user && !loading && !guestPublic;
   const showLoginOverlay = !user && !loading && guestPublic && loginOpen;
 
-  if (loading && !showApp && !showBlockingLogin) {
+  if (loading && !keepMounted.current && !showBlockingLogin) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-gray-50 text-sm text-gray-500">
         Загрузка…
@@ -131,7 +134,14 @@ function AuthShell({ children }: { children: ReactNode }) {
 
   return (
     <>
-      {showApp ? <div className="contents">{children}</div> : null}
+      {keepMounted.current ? (
+        <div
+          className={showApp ? "contents" : "pointer-events-none fixed inset-0 -z-10 opacity-0"}
+          aria-hidden={!showApp}
+        >
+          {children}
+        </div>
+      ) : null}
 
       {showBlockingLogin ? (
         <div className="fixed inset-0 z-[70] overflow-y-auto bg-gray-50">
