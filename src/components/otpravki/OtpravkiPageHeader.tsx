@@ -6,7 +6,6 @@ import { AuthHeaderStats } from "@/components/auth/AuthHeaderStats";
 
 const SECTIONS = [
   { href: "/otpravki", label: "Отправки" },
-  { href: "/sklad", label: "Склад" },
   { href: "/admin", label: "Админка" },
 ] as const;
 
