@@ -41,6 +41,7 @@ export function QualityGuidePanel() {
                   controls
                   playsInline
                   preload="metadata"
+                  controlsList="nodownload"
                 >
                   {QUALITY_GUIDE_VIDEO_SOURCES.map((source) => (
                     <source key={source.src} src={source.src} type={source.type} />

@@ -2,11 +2,17 @@ export const QUALITY_GUIDE_SOURCE =
   "https://clear-wren-bb1.notion.site/2f84a3bc339d808f9f35e67d77043a54";
 
 export const QUALITY_GUIDE_VIDEO_SOURCES = [
-  { src: "/guides/shift-quality.webm", type: "video/webm" },
-  { src: "/guides/shift-quality.mp4", type: "video/mp4" },
+  {
+    src: "/guides/shift-quality.mp4",
+    type: 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"',
+  },
+  {
+    src: "/guides/shift-quality.webm",
+    type: 'video/webm; codecs="vp8, opus"',
+  },
 ] as const;
 
-export const QUALITY_GUIDE_VIDEO_SRC = QUALITY_GUIDE_VIDEO_SOURCES[1].src;
+export const QUALITY_GUIDE_VIDEO_SRC = QUALITY_GUIDE_VIDEO_SOURCES[0].src;
 
 export interface QualityGuideSection {
   id: string;
