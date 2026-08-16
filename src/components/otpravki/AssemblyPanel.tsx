@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { AuthHeaderStats } from "@/components/auth/AuthHeaderStats";
 import { getAssemblyViewSections } from "@/lib/assembly-demand";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import { resolveOrderUrgency } from "@/lib/urgency";
@@ -19,6 +18,7 @@ import {
   OtpravkiMobileFilters,
   type OtpravkiFiltersState,
 } from "./OtpravkiFilters";
+import { OtpravkiPageHeader } from "./OtpravkiPageHeader";
 
 interface AssemblyPanelProps {
   assemblyItems: AssemblyItem[];
@@ -157,93 +157,27 @@ export function AssemblyPanel({
 
   return (
     <div className="otpravki-shell flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-gray-50 touch-pan-y overscroll-none">
-      <header className="safe-top shrink-0 border-b border-gray-200 bg-white px-3 py-3 sm:px-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-bold text-gray-900 sm:text-xl">Сборка</h1>
-            <p className="text-xs text-gray-500">Позиции на сборку со склада</p>
-          </div>
-
-          <AuthHeaderStats />
-
-          <a
-            href="/otpravki"
-            className="inline-flex min-h-11 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 active:bg-gray-50"
-          >
-            Отправки
-          </a>
-
-          <a
-            href="/admin"
-            className="inline-flex min-h-11 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 active:bg-gray-50"
-          >
-            Админка
-          </a>
-
-          {brandOptions.length > 1 && (
-            <div className="flex flex-wrap items-center gap-2">
-              {brandOptions.map((brand) => {
-                const active = brand === selectedBrand;
-                return (
-                  <button
-                    key={brand}
-                    type="button"
-                    onClick={() => handleBrandChange(brand)}
-                    disabled={isSyncing || reloading}
-                    className={`inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-medium transition-colors active:scale-[0.98] disabled:opacity-60 ${
-                      active
-                        ? "border-gray-900 bg-gray-900 text-white"
-                        : "border-gray-200 bg-white text-gray-800 active:bg-gray-50"
-                    }`}
-                  >
-                    {brand}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={() => {
-              setReloading(true);
-              window.location.reload();
-            }}
-            disabled={reloading}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 active:bg-gray-50 disabled:opacity-60"
-          >
-            <svg
-              className={`h-4 w-4 ${reloading || isSyncing ? "animate-spin" : ""}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-            {reloading ? "Обновление…" : "Обновить"}
-          </button>
-        </div>
-
-        {offline && (
-          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            {!isInternetOnline ? "Нет интернета" : "Сервер недоступен"}
-          </div>
-        )}
-
-        <div className="mt-3">
-          <OtpravkiMobileFilters
-            filters={filters}
-            onChange={setFilters}
-            cities={cities}
-            products={products}
-          />
-        </div>
-      </header>
+      <OtpravkiPageHeader
+        title="Сборка"
+        subtitle={`${filteredAssemblyItems.length} поз. · ${filteredOrders.length} зак. · ${selectedBrand}`}
+        brandOptions={brandOptions}
+        selectedBrand={selectedBrand}
+        onBrandChange={handleBrandChange}
+        onRefresh={() => {
+          setReloading(true);
+          window.location.reload();
+        }}
+        refreshing={reloading || isSyncing}
+        offline={offline}
+        offlineMessage={!isInternetOnline ? "Нет интернета" : "Сервер недоступен"}
+      >
+        <OtpravkiMobileFilters
+          filters={filters}
+          onChange={setFilters}
+          cities={cities}
+          products={products}
+        />
+      </OtpravkiPageHeader>
 
       <div className="flex min-h-0 flex-1 gap-3 overflow-hidden p-3 sm:p-4">
         <OtpravkiFiltersPanel

@@ -12,19 +12,26 @@ export function AuthHeaderStats() {
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"
           onClick={() => {
             void refresh();
             setStatsOpen(true);
           }}
-          className="inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-900 active:bg-gray-50"
-          title="Статистика"
+          className="inline-flex min-h-11 max-w-[14rem] items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 pl-2.5 pr-3 text-left active:bg-gray-100 sm:max-w-none"
+          title="Статистика смены"
         >
-          <span className="text-base leading-none">{user.emoji}</span>
-          <span className="truncate text-xs text-gray-500">
-            сегодня {stats.today} · смена {stats.shift}
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-lg leading-none shadow-sm">
+            {user.emoji}
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-semibold leading-tight text-gray-900">
+              сегодня {stats.today}
+            </span>
+            <span className="block truncate text-[11px] leading-tight text-gray-500">
+              смена {stats.shift}
+            </span>
           </span>
         </button>
         <button
@@ -34,7 +41,7 @@ export function AuthHeaderStats() {
             event.stopPropagation();
             void logout();
           }}
-          className="inline-flex min-h-11 items-center rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-medium text-red-700 active:bg-red-100"
+          className="inline-flex min-h-11 items-center rounded-2xl border border-red-200 bg-white px-3.5 text-sm font-medium text-red-700 active:bg-red-50"
         >
           Выйти
         </button>
