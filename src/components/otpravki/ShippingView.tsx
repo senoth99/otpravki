@@ -8,7 +8,7 @@ import { resolveScanFromBarcode } from "@/lib/barcode-product";
 import { formatMoscowDate } from "@/lib/format";
 import { getOrderDisplayStatus } from "@/lib/order-status";
 import { findFirstAutoOrderIndex } from "@/lib/order-sort";
-import { orderIsBlogger } from "@/lib/blogger-order";
+import { isBloggerOrder, orderIsBlogger } from "@/lib/blogger-order";
 import { printOrderBarcode } from "@/lib/print-barcode";
 import { resolveOrderUrgency, URGENCY_LABELS } from "@/lib/urgency";
 import { BloggerBadge } from "./BloggerBadge";
@@ -27,6 +27,11 @@ import { ScanErrorPopup } from "./ScanErrorPopup";
 import { ShippedOrderCard } from "./ShippedOrderCard";
 
 const PACK_UNIT_WAIT_MS = 2000;
+
+/** ЧЗ только для обычных заказов; блогерские (номер на «б») — без ЧЗ. */
+function orderUsesChestnyZnak(order: { orderNumber: string }): boolean {
+  return !isBloggerOrder(order.orderNumber);
+}
 
 async function waitMs(ms: number) {
   await new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -309,7 +314,7 @@ export function ShippingView({
       if (item.scannedCount >= item.quantity) return;
 
       const gtin =
-        czEnabled && !orderIsBlogger(order) ? item.chestnyZnak?.trim() : "";
+        czEnabled && orderUsesChestnyZnak(order) ? item.chestnyZnak?.trim() : "";
       packingRef.current = true;
       if (gtin) setPackingOverlay(true);
       setPackError(null);
@@ -390,7 +395,7 @@ export function ShippingView({
       if (!order || !item) return;
 
       if (delta < 0) {
-        if (czEnabled && !orderIsBlogger(order) && item.chestnyZnak?.trim()) return;
+        if (czEnabled && orderUsesChestnyZnak(order) && item.chestnyZnak?.trim()) return;
         onOrdersChange((prev) =>
           prev.map((entry) =>
             entry.id === currentOrderId
@@ -736,10 +741,8 @@ export function ShippingView({
                       item={item}
                       manual={manualMode && !autoMode}
                       busy={packingOverlay}
-                      chestnyZnakActive={czEnabled && !orderIsBlogger(displayOrder)}
-                      remainingByGtin={
-                        czEnabled && !orderIsBlogger(displayOrder) ? remainingByGtin : null
-                      }
+                      chestnyZnakActive={czEnabled && orderUsesChestnyZnak(displayOrder)}
+                      remainingByGtin={remainingByGtin}
                       onIncrement={() => updateItemCount(item.id, 1)}
                       onDecrement={() => updateItemCount(item.id, -1)}
                     />

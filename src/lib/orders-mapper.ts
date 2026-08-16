@@ -146,7 +146,7 @@ export function mapUnshippedOrdersToWorkspace(
         barcodeId: String(sizeId),
         quantity: line.quantity,
         scannedCount: 0,
-        chestnyZnak: isBlogger ? undefined : normalizeChestnyZnak(line.chestnyZnak),
+        chestnyZnak: normalizeChestnyZnak(line.chestnyZnak),
       });
     }
 
