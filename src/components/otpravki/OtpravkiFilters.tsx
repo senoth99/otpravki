@@ -407,7 +407,7 @@ export function OtpravkiFiltersPanel({
 
   return (
     <>
-      <aside className="hidden h-full w-60 shrink-0 flex-col gap-5 touch-scroll-y overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-4 shadow-sm lg:flex">
+      <aside className="hidden h-full w-72 shrink-0 flex-col gap-5 touch-scroll-y overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-4 shadow-sm lg:flex">
         <div>
           <p className="text-sm font-semibold text-gray-900">
             {brandOnly ? "Архив" : "Фильтры"}
