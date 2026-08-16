@@ -17,7 +17,10 @@ interface OrderItemRowProps {
   item: ShippingOrderItem;
   manual?: boolean;
   busy?: boolean;
+  /** ЧЗ включён для упаковки (списание / блок −1) */
   chestnyZnakActive?: boolean;
+  /** Скрыть иконку ЧЗ (блогерские заказы) */
+  hideChestnyZnak?: boolean;
   remainingByGtin?: Record<string, number> | null;
   onIncrement?: () => void;
   onDecrement?: () => void;
@@ -28,6 +31,7 @@ export function OrderItemRow({
   manual,
   busy,
   chestnyZnakActive = true,
+  hideChestnyZnak = false,
   remainingByGtin = null,
   onIncrement,
   onDecrement,
@@ -71,11 +75,11 @@ export function OrderItemRow({
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-1.5">
-              <span className="min-w-0 truncate text-sm font-medium leading-snug text-gray-900">
+            <p className="flex min-w-0 items-center gap-1.5">
+              <span className="min-w-0 flex-1 truncate text-sm font-medium leading-snug text-gray-900">
                 {item.productName}
               </span>
-              {chestnyZnakActive ? (
+              {!hideChestnyZnak ? (
                 <ChestnyZnakStatusIcon
                   status={czStock.status}
                   remaining={czStock.remaining}

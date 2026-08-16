@@ -742,6 +742,7 @@ export function ShippingView({
                       manual={manualMode && !autoMode}
                       busy={packingOverlay}
                       chestnyZnakActive={czEnabled && orderUsesChestnyZnak(displayOrder)}
+                      hideChestnyZnak={!orderUsesChestnyZnak(displayOrder)}
                       remainingByGtin={remainingByGtin}
                       onIncrement={() => updateItemCount(item.id, 1)}
                       onDecrement={() => updateItemCount(item.id, -1)}
