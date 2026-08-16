@@ -470,16 +470,19 @@ export function OtpravkiFiltersPanel({
                 >
                   Обычные
                 </Chip>
-                {products.length > 0 && (
-                  <Chip
-                    active={selectedCount > 0}
-                    onClick={() => setProductsOpen(true)}
-                  >
-                    {selectedCount > 0 ? `Вещи · ${selectedCount}` : "Вещи"}
-                  </Chip>
-                )}
               </div>
             </FilterSection>
+
+            {products.length > 0 && (
+              <FilterSection title="Вещи">
+                <Chip
+                  active={selectedCount > 0}
+                  onClick={() => setProductsOpen(true)}
+                >
+                  {selectedCount > 0 ? `Выбрано · ${selectedCount}` : "Выбрать вещи"}
+                </Chip>
+              </FilterSection>
+            )}
 
             <button
               type="button"
@@ -576,11 +579,8 @@ export function OtpravkiMobileFilters({
             </div>
           </FilterSection>
 
-          <FilterSection
-            title="Тип"
-            hint={selectedCount > 0 ? `${selectedCount} вещей` : undefined}
-          >
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <FilterSection title="Тип">
+            <div className="grid grid-cols-3 gap-2">
               <Chip active={filters.kind === "all"} onClick={() => set("kind", "all")}>
                 Все
               </Chip>
@@ -596,16 +596,22 @@ export function OtpravkiMobileFilters({
               >
                 Обычные
               </Chip>
-              {products.length > 0 && (
-                <Chip
-                  active={selectedCount > 0}
-                  onClick={() => setProductsOpen(true)}
-                >
-                  {selectedCount > 0 ? `Вещи · ${selectedCount}` : "Вещи"}
-                </Chip>
-              )}
             </div>
           </FilterSection>
+
+          {products.length > 0 && (
+            <FilterSection
+              title="Вещи"
+              hint={selectedCount > 0 ? `${selectedCount} выбрано` : undefined}
+            >
+              <Chip
+                active={selectedCount > 0}
+                onClick={() => setProductsOpen(true)}
+              >
+                {selectedCount > 0 ? `Выбрано · ${selectedCount}` : "Выбрать вещи"}
+              </Chip>
+            </FilterSection>
+          )}
 
           <ProductFilterModal
             open={productsOpen}
