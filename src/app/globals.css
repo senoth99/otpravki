@@ -75,33 +75,14 @@ body.otpravki-noswipe {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
 
-/* Широкие вертикальные скроллбары под тач-монитор (~×2 от обычных) */
+/* Скроллбары скрыты — листаем свайпом; скролл работает */
 * {
-  scrollbar-width: auto;
-  scrollbar-color: #9ca3af #e5e7eb;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 *::-webkit-scrollbar {
-  width: 22px;
-  height: 10px;
-}
-
-*::-webkit-scrollbar-track {
-  background: #e5e7eb;
-  border-radius: 999px;
-}
-
-*::-webkit-scrollbar-thumb {
-  background: #9ca3af;
-  border-radius: 999px;
-  border: 4px solid #e5e7eb;
-  background-clip: padding-box;
-  min-height: 48px;
-}
-
-*::-webkit-scrollbar-thumb:hover,
-*::-webkit-scrollbar-thumb:active {
-  background: #6b7280;
-  border: 4px solid #e5e7eb;
-  background-clip: padding-box;
+  width: 0;
+  height: 0;
+  display: none;
 }
