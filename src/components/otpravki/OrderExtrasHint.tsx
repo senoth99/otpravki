@@ -18,7 +18,7 @@ function ExtraInfoButton({
       onClick={() => onOpen(extra)}
       aria-label={`Мокап: ${extra.name}`}
       title="Мокап"
-      className="inline-flex h-[1.1em] w-[1.1em] shrink-0 items-center justify-center rounded-full border border-amber-300 bg-white text-[0.7em] font-bold leading-none text-amber-800 active:bg-amber-100"
+      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-amber-300 bg-white text-sm font-bold leading-none text-amber-800 active:bg-amber-100"
     >
       i
     </button>
@@ -49,7 +49,7 @@ export function OrderExtrasHint({
         </p>
         <ul className="mt-2 space-y-2">
           {brandWide.map((extra) => (
-            <li key={extra.id} className="flex items-center gap-1 text-sm font-medium leading-snug text-gray-900">
+            <li key={extra.id} className="flex items-center gap-1.5 text-sm font-medium leading-snug text-gray-900">
               <span className="min-w-0">{extra.name}</span>
               <ExtraInfoButton extra={extra} onOpen={setPreview} />
             </li>
@@ -60,7 +60,7 @@ export function OrderExtrasHint({
               .map((id) => nameById.get(id) ?? id);
             return (
               <li key={extra.id} className="text-sm leading-snug text-gray-900">
-                <div className="flex items-center gap-1 font-medium">
+                <div className="flex items-center gap-1.5 font-medium">
                   <span className="min-w-0">{extra.name}</span>
                   <ExtraInfoButton extra={extra} onOpen={setPreview} />
                 </div>
@@ -75,37 +75,35 @@ export function OrderExtrasHint({
 
       {preview?.imageUrl ? (
         <div
-          className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-3"
           onClick={() => setPreview(null)}
         >
           <div
-            className="flex w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white sm:rounded-2xl"
+            className="relative flex w-[min(100%,calc(85dvh*9/16))] max-w-md flex-col overflow-hidden rounded-2xl bg-black shadow-2xl"
+            style={{ aspectRatio: "9 / 16" }}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="relative border-b border-gray-100 px-4 py-3 pr-14">
-              <p className="font-semibold text-gray-900">{preview.name}</p>
-              <p className="mt-0.5 text-xs text-gray-500">Мокап вкладыша</p>
+            <div className="absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 bg-gradient-to-b from-black/70 to-transparent px-3 pb-8 pt-3">
+              <p className="min-w-0 pt-1 text-sm font-semibold leading-snug text-white drop-shadow">
+                {preview.name}
+              </p>
               <button
                 type="button"
                 onClick={() => setPreview(null)}
                 aria-label="Закрыть"
-                className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-xl text-2xl leading-none text-gray-500 active:bg-gray-100"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 text-2xl leading-none text-white active:bg-white/25"
               >
                 ×
               </button>
             </div>
 
-            <div className="p-3 sm:p-4">
-              <figure className="aspect-video overflow-hidden rounded-2xl border border-gray-200 bg-gray-100">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={preview.imageUrl}
-                  alt={preview.name}
-                  className="h-full w-full object-contain"
-                  draggable={false}
-                />
-              </figure>
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={preview.imageUrl}
+              alt={preview.name}
+              className="h-full w-full object-cover"
+              draggable={false}
+            />
           </div>
         </div>
       ) : null}
