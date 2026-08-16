@@ -42,11 +42,11 @@ export function DefectExamplesPopup({
                 draggable={false}
               />
             </div>
-            <div className="shrink-0 px-2 py-1.5 sm:px-2.5 sm:py-2">
+            <div className="flex h-12 shrink-0 flex-col justify-center px-2 py-1.5 sm:h-14 sm:px-2.5 sm:py-2">
               <h3 className="truncate text-[11px] font-semibold leading-tight text-white sm:text-sm">
                 {example.title}
               </h3>
-              <p className="mt-0.5 line-clamp-2 text-[10px] leading-tight text-white/55 sm:text-xs">
+              <p className="mt-0.5 truncate text-[10px] leading-tight text-white/55 sm:text-xs">
                 {example.detail}
               </p>
             </div>

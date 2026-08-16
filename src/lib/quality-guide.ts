@@ -103,7 +103,7 @@ export const QUALITY_GUIDE_EXAMPLES: {
   {
     id: "defect-05",
     title: "Отклеенная плёнка",
-    detail: "Брак термопресса. При плохом нанесении очень быстро изнашивается",
+    detail: "Брак термопресса — быстро изнашивается",
     imageUrl: "/defect-examples/defect-05.jpg",
   },
   {
