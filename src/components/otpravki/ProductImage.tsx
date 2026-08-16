@@ -177,7 +177,7 @@ export function ProductImage({
             type="button"
             onClick={() => setSpecsOpen(false)}
             aria-label="Закрыть"
-            className="absolute right-3 top-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-3xl leading-none text-white safe-top active:bg-black/70"
+            className="absolute right-3 top-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-3xl leading-none text-white safe-top active:bg-white/20"
           >
             ×
           </button>
