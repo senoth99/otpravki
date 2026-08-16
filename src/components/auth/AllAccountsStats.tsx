@@ -56,19 +56,23 @@ export function AllAccountsStats({ compact = false }: { compact?: boolean }) {
         <table className="w-full text-left text-sm">
           <thead className="sticky top-0 bg-gray-50 text-[11px] uppercase tracking-wide text-gray-400">
             <tr>
-              <th className="px-3 py-2 font-medium">Акк</th>
-              <th className="px-2 py-2 font-medium">Сегодня</th>
-              <th className="px-3 py-2 font-medium">Всего</th>
+              <th className="px-3 py-2 text-left font-medium">Акк</th>
+              <th className="px-3 py-2 text-right font-medium">Сегодня</th>
+              <th className="px-3 py-2 text-right font-medium">Всего</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {rows.map((row) => (
               <tr key={row.id}>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2.5">
                   <span className="text-xl leading-none">{row.emoji}</span>
                 </td>
-                <td className="px-2 py-2 tabular-nums text-gray-700">{row.today}</td>
-                <td className="px-3 py-2 tabular-nums font-medium text-gray-900">{row.total}</td>
+                <td className="px-3 py-2.5 text-right text-base font-semibold tabular-nums text-gray-900">
+                  {row.today}
+                </td>
+                <td className="px-3 py-2.5 text-right text-sm tabular-nums text-gray-500">
+                  {row.total}
+                </td>
               </tr>
             ))}
           </tbody>
