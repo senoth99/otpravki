@@ -60,7 +60,7 @@ export function ShiftStartReminder({ emoji, onContinue }: ShiftStartReminderProp
 
         <div className="min-h-0 flex-1 touch-scroll-y space-y-4 overflow-y-auto overscroll-contain px-5 py-4">
           <p className="rounded-2xl border border-sky-200 bg-sky-50 px-3.5 py-3 text-sm leading-snug text-sky-950">
-            Показаны только заказы, которые возможно отправить, опираясь на наличие на складе.
+            В списке только те заказы, которые можно отправить по текущему наличию на складе.
           </p>
 
           <div>
