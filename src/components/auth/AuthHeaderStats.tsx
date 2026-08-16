@@ -29,18 +29,22 @@ export function AuthHeaderStats() {
             void refresh();
             setStatsOpen(true);
           }}
-          className="inline-flex min-h-11 max-w-[14rem] items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 pl-2.5 pr-3 text-left active:bg-gray-100 sm:max-w-none"
-          title="Статистика"
+          className="inline-flex min-h-11 items-center gap-2.5 rounded-2xl border border-gray-200 bg-gray-50 py-1.5 pl-2 pr-3 text-left active:bg-gray-100"
+          title="Статистика отправок"
         >
-          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-lg leading-none shadow-sm">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-xl leading-none shadow-sm">
             {user.emoji}
           </span>
-          <span className="min-w-0">
-            <span className="block truncate text-sm font-semibold leading-tight text-gray-900">
-              сегодня {stats.today}
+          <span className="grid grid-cols-[auto_auto] items-baseline gap-x-3 gap-y-0.5">
+            <span className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
+              Сегодня
             </span>
-            <span className="block truncate text-[11px] leading-tight text-gray-500">
-              всего {stats.total}
+            <span className="text-right text-lg font-bold leading-none tabular-nums text-gray-900">
+              {stats.today}
+            </span>
+            <span className="text-[11px] text-gray-400">Всего</span>
+            <span className="text-right text-xs font-medium leading-none tabular-nums text-gray-500">
+              {stats.total}
             </span>
           </span>
         </button>
