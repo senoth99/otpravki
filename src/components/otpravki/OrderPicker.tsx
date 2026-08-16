@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { formatMoscowDate, formatOrderNumberShort } from "@/lib/format";
 import { type OrderDisplayStatus } from "@/lib/order-status";
 import { getSortedOrderIndices } from "@/lib/order-sort";
@@ -99,13 +99,6 @@ export function OrderPicker({
   const positionInSorted = sortedIndices.indexOf(currentIndex);
   const currentOrder = orders[currentIndex];
   const pendingCount = orders.filter((o) => !o.barcodePrinted).length;
-  const showStrip = poolIndices.length > 0 && poolIndices.length <= 16;
-
-  useEffect(() => {
-    if (!showStrip || !stripRef.current) return;
-    const active = stripRef.current.querySelector<HTMLElement>("[data-active-order='true']");
-    active?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-  }, [currentIndex, showStrip, sortedIndices]);
 
   const goPrev = () => {
     if (locked || sortedIndices.length === 0) return;
@@ -151,30 +144,6 @@ export function OrderPicker({
           )}
         </p>
       </div>
-
-      {showStrip && (
-        <div
-          ref={stripRef}
-          data-no-drag-scroll
-          className="touch-pan-x flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {sortedIndices.map((index) => {
-            const active = index === currentIndex;
-            return (
-              <button
-                key={orders[index].id}
-                type="button"
-                data-active-order={active ? "true" : undefined}
-                onClick={() => onSelect(index)}
-                disabled={locked && !active}
-                className={`relative flex h-14 w-[6.25rem] shrink-0 snap-start flex-col items-center justify-center rounded-xl border px-2 py-1.5 text-center transition-all active:scale-[0.98] disabled:cursor-default ${tabClass(active)}`}
-              >
-                <OrderTabContent order={orders[index]} active={active} />
-              </button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
