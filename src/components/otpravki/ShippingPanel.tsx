@@ -165,7 +165,9 @@ export function ShippingPanel({
   const offline = !isInternetOnline || !isServerReachable;
 
   const handleBrandChange = (brand: string) => {
-    setSelectedBrand(brand);
+    const next = brand.trim();
+    if (!next || next === selectedBrand) return;
+    setSelectedBrand(next);
     setFilters(DEFAULT_FILTERS);
   };
 
@@ -178,9 +180,6 @@ export function ShippingPanel({
             ? `${shippedArchive.filter((order) => getOrderStoreBrand(order) === selectedBrand).length} в архиве · ${selectedBrand}`
             : `${filteredOrders.length} из ${activeBrandOrders.length} · ${selectedBrand}`
         }
-        brandOptions={brandOptions}
-        selectedBrand={selectedBrand}
-        onBrandChange={handleBrandChange}
         onRefresh={() => {
           setReloading(true);
           void refreshFromApi(selectedBrand).finally(() => setReloading(false));
@@ -198,25 +197,31 @@ export function ShippingPanel({
           )}
         </div>
 
-        {tab === "shipping" && (
-          <OtpravkiMobileFilters
-            filters={filters}
-            onChange={setFilters}
-            cities={cities}
-            products={products}
-          />
-        )}
+        <OtpravkiMobileFilters
+          filters={filters}
+          onChange={setFilters}
+          cities={cities}
+          products={products}
+          brandOptions={brandOptions}
+          selectedBrand={selectedBrand}
+          onBrandChange={handleBrandChange}
+          brandDisabled={reloading || isSyncing}
+          brandOnly={tab === "archive"}
+        />
       </OtpravkiPageHeader>
 
       <div className="flex min-h-0 flex-1 gap-3 overflow-hidden p-3 sm:p-4">
-        {tab === "shipping" && (
-          <OtpravkiFiltersPanel
-            filters={filters}
-            onChange={setFilters}
-            counts={counts}
-            products={products}
-          />
-        )}
+        <OtpravkiFiltersPanel
+          filters={filters}
+          onChange={setFilters}
+          counts={counts}
+          products={tab === "archive" ? [] : products}
+          brandOptions={brandOptions}
+          selectedBrand={selectedBrand}
+          onBrandChange={handleBrandChange}
+          brandDisabled={reloading || isSyncing}
+          brandOnly={tab === "archive"}
+        />
 
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-5">
           {tab === "shipping" ? (
@@ -247,10 +252,9 @@ export function ShippingPanel({
           ) : (
             <ArchiveView
               orders={filteredOrders}
-              shippedArchive={
-                // В архиве свой поиск — не режем по фильтрам отправки повторно
-                shippedArchive.filter((order) => getOrderStoreBrand(order) === selectedBrand)
-              }
+              shippedArchive={shippedArchive.filter(
+                (order) => getOrderStoreBrand(order) === selectedBrand,
+              )}
               apiOrderIds={apiOrderIds}
               onUnship={user ? unshipFromArchive : undefined}
               readOnly={!user}

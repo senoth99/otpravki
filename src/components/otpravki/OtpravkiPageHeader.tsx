@@ -39,53 +39,6 @@ function SectionNav() {
   );
 }
 
-function BrandSwitcher({
-  brands,
-  selected,
-  onChange,
-  disabled,
-}: {
-  brands: readonly string[];
-  selected: string;
-  onChange: (brand: string) => void;
-  disabled?: boolean;
-}) {
-  if (brands.length <= 1) {
-    return (
-      <div className="inline-flex min-h-11 items-center rounded-2xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-900">
-        {selected}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      role="group"
-      aria-label="Бренд"
-      className="flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-gray-200 bg-gray-50 p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-    >
-      {brands.map((brand) => {
-        const active = brand === selected;
-        return (
-          <button
-            key={brand}
-            type="button"
-            onClick={() => onChange(brand)}
-            disabled={disabled}
-            className={`inline-flex min-h-11 shrink-0 items-center rounded-xl px-3.5 text-sm font-medium transition-colors active:scale-[0.98] disabled:opacity-60 ${
-              active
-                ? "bg-gray-900 text-white shadow-sm"
-                : "text-gray-600 active:bg-white"
-            }`}
-          >
-            {brand}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 function RefreshButton({
   busy,
   onClick,
@@ -123,9 +76,6 @@ function RefreshButton({
 export interface OtpravkiPageHeaderProps {
   title: string;
   subtitle?: string;
-  brandOptions: readonly string[];
-  selectedBrand: string;
-  onBrandChange: (brand: string) => void;
   onRefresh: () => void;
   refreshing?: boolean;
   offline?: boolean;
@@ -136,9 +86,6 @@ export interface OtpravkiPageHeaderProps {
 export function OtpravkiPageHeader({
   title,
   subtitle,
-  brandOptions,
-  selectedBrand,
-  onBrandChange,
   onRefresh,
   refreshing = false,
   offline = false,
@@ -160,17 +107,9 @@ export function OtpravkiPageHeader({
           <AuthHeaderStats />
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-2">
           <SectionNav />
-          <div className="flex items-center gap-2 sm:ml-auto">
-            <BrandSwitcher
-              brands={brandOptions}
-              selected={selectedBrand}
-              onChange={onBrandChange}
-              disabled={refreshing}
-            />
-            <RefreshButton busy={refreshing} onClick={onRefresh} />
-          </div>
+          <RefreshButton busy={refreshing} onClick={onRefresh} />
         </div>
 
         {offline && (

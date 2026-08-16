@@ -150,9 +150,11 @@ export function AssemblyPanel({
   const offline = !isInternetOnline || !isServerReachable;
 
   const handleBrandChange = (brand: string) => {
-    setSelectedBrand(brand);
+    const next = brand.trim();
+    if (!next || next === selectedBrand) return;
+    setSelectedBrand(next);
     setFilters(DEFAULT_FILTERS);
-    void refreshFromApi(brand);
+    void refreshFromApi(next);
   };
 
   return (
@@ -160,9 +162,6 @@ export function AssemblyPanel({
       <OtpravkiPageHeader
         title="Сборка"
         subtitle={`${filteredAssemblyItems.length} поз. · ${filteredOrders.length} зак. · ${selectedBrand}`}
-        brandOptions={brandOptions}
-        selectedBrand={selectedBrand}
-        onBrandChange={handleBrandChange}
         onRefresh={() => {
           setReloading(true);
           window.location.reload();
@@ -176,6 +175,10 @@ export function AssemblyPanel({
           onChange={setFilters}
           cities={cities}
           products={products}
+          brandOptions={brandOptions}
+          selectedBrand={selectedBrand}
+          onBrandChange={handleBrandChange}
+          brandDisabled={reloading || isSyncing}
         />
       </OtpravkiPageHeader>
 
@@ -185,6 +188,10 @@ export function AssemblyPanel({
           onChange={setFilters}
           counts={counts}
           products={products}
+          brandOptions={brandOptions}
+          selectedBrand={selectedBrand}
+          onBrandChange={handleBrandChange}
+          brandDisabled={reloading || isSyncing}
         />
 
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-5">

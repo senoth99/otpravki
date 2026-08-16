@@ -315,6 +315,54 @@ function Chip({
   );
 }
 
+function BrandFilter({
+  brands,
+  selected,
+  onChange,
+  disabled,
+}: {
+  brands: readonly string[];
+  selected: string;
+  onChange: (brand: string) => void;
+  disabled?: boolean;
+}) {
+  if (brands.length === 0) return null;
+
+  const selectBrand = (brand: string) => {
+    // Ровно один бренд: клик по уже выбранному ничего не сбрасывает
+    if (brand === selected) return;
+    onChange(brand);
+  };
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Бренд</p>
+      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Бренд">
+        {brands.map((brand) => {
+          const active = brand === selected;
+          return (
+            <button
+              key={brand}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => selectBrand(brand)}
+              disabled={disabled}
+              className={`min-h-11 rounded-xl px-3.5 py-2.5 text-left text-sm font-medium transition-colors active:scale-[0.98] disabled:opacity-60 ${
+                active
+                  ? "cursor-default bg-gray-900 text-white"
+                  : "bg-gray-100 text-gray-700 active:bg-gray-200"
+              }`}
+            >
+              {brand}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function FilterBlock({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="space-y-2">
@@ -335,6 +383,11 @@ interface OtpravkiFiltersPanelProps {
     ready: number;
   };
   products?: FilterProductOption[];
+  brandOptions?: readonly string[];
+  selectedBrand?: string;
+  onBrandChange?: (brand: string) => void;
+  brandDisabled?: boolean;
+  brandOnly?: boolean;
 }
 
 export function OtpravkiFiltersPanel({
@@ -342,6 +395,11 @@ export function OtpravkiFiltersPanel({
   onChange,
   counts,
   products = [],
+  brandOptions = [],
+  selectedBrand,
+  onBrandChange,
+  brandDisabled,
+  brandOnly = false,
 }: OtpravkiFiltersPanelProps) {
   const [productsOpen, setProductsOpen] = useState(false);
   const set = <K extends keyof OtpravkiFiltersState>(key: K, value: OtpravkiFiltersState[K]) => {
@@ -349,76 +407,95 @@ export function OtpravkiFiltersPanel({
   };
 
   const selectedCount = filters.productIds.length;
+  const brand =
+    selectedBrand && brandOptions.includes(selectedBrand)
+      ? selectedBrand
+      : brandOptions[0] ?? "";
 
   return (
     <>
       <aside className="hidden h-full w-56 shrink-0 flex-col gap-4 overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-4 shadow-sm lg:flex">
       <div>
-        <p className="text-sm font-semibold text-gray-900">Фильтры</p>
-        <p className="mt-0.5 text-[11px] text-gray-500">
-          {counts.total} заказов · {counts.ready} готовы
-        </p>
+        <p className="text-sm font-semibold text-gray-900">{brandOnly ? "Архив" : "Фильтры"}</p>
+        {!brandOnly && (
+          <p className="mt-0.5 text-[11px] text-gray-500">
+            {counts.total} заказов · {counts.ready} готовы
+          </p>
+        )}
       </div>
 
-      <label className="block">
-        <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-          Поиск
-        </span>
-        <KeyboardField
-          value={filters.query}
-          onChange={(next) => set("query", next)}
-          placeholder="Номер, ФИО, город…"
-          title="Поиск заказа"
-          className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+      {brandOptions.length > 0 && onBrandChange && brand && (
+        <BrandFilter
+          brands={brandOptions}
+          selected={brand}
+          onChange={onBrandChange}
+          disabled={brandDisabled}
         />
-      </label>
-
-      <FilterBlock title="Срочность">
-        <Chip active={filters.urgency === "all"} onClick={() => set("urgency", "all")}>
-          Все
-        </Chip>
-        {(["critical", "rush", "urgent", "high", "normal"] as const).map((key) => (
-          <Chip key={key} active={filters.urgency === key} onClick={() => set("urgency", key)}>
-            {URGENCY_LABELS[key].label}
-            {key === "critical" ? ` (${counts.critical})` : ""}
-            {key === "rush" ? ` (${counts.rush})` : ""}
-          </Chip>
-        ))}
-      </FilterBlock>
-
-      <FilterBlock title="Тип заказа">
-        <Chip active={filters.kind === "all"} onClick={() => set("kind", "all")}>
-          Все
-        </Chip>
-        <Chip active={filters.kind === "blogger"} onClick={() => set("kind", "blogger")}>
-          Блогеры ({counts.blogger})
-        </Chip>
-        <Chip active={filters.kind === "regular"} onClick={() => set("kind", "regular")}>
-          Обычные
-        </Chip>
-      </FilterBlock>
-
-      {products.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Вещи</p>
-          <ProductFilterButton
-            selectedCount={selectedCount}
-            onClick={() => setProductsOpen(true)}
-            className="w-full py-3"
-          />
-          <p className="text-[10px] text-gray-400">
-            {selectedCount === 0 ? "Все товары" : `Фильтр: ${selectedCount} поз.`}
-          </p>
-        </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => onChange({ ...DEFAULT_FILTERS })}
-        className="mt-auto min-h-11 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-700 active:bg-gray-50"
-      >
-        Сбросить фильтры
-      </button>
+      {!brandOnly && (
+        <>
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+              Поиск
+            </span>
+            <KeyboardField
+              value={filters.query}
+              onChange={(next) => set("query", next)}
+              placeholder="Номер, ФИО, город…"
+              title="Поиск заказа"
+              className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+            />
+          </label>
+
+          <FilterBlock title="Срочность">
+            <Chip active={filters.urgency === "all"} onClick={() => set("urgency", "all")}>
+              Все
+            </Chip>
+            {(["critical", "rush", "urgent", "high", "normal"] as const).map((key) => (
+              <Chip key={key} active={filters.urgency === key} onClick={() => set("urgency", key)}>
+                {URGENCY_LABELS[key].label}
+                {key === "critical" ? ` (${counts.critical})` : ""}
+                {key === "rush" ? ` (${counts.rush})` : ""}
+              </Chip>
+            ))}
+          </FilterBlock>
+
+          <FilterBlock title="Тип заказа">
+            <Chip active={filters.kind === "all"} onClick={() => set("kind", "all")}>
+              Все
+            </Chip>
+            <Chip active={filters.kind === "blogger"} onClick={() => set("kind", "blogger")}>
+              Блогеры ({counts.blogger})
+            </Chip>
+            <Chip active={filters.kind === "regular"} onClick={() => set("kind", "regular")}>
+              Обычные
+            </Chip>
+          </FilterBlock>
+
+          {products.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Вещи</p>
+              <ProductFilterButton
+                selectedCount={selectedCount}
+                onClick={() => setProductsOpen(true)}
+                className="w-full py-3"
+              />
+              <p className="text-[10px] text-gray-400">
+                {selectedCount === 0 ? "Все товары" : `Фильтр: ${selectedCount} поз.`}
+              </p>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => onChange({ ...DEFAULT_FILTERS })}
+            className="mt-auto min-h-11 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-700 active:bg-gray-50"
+          >
+            Сбросить фильтры
+          </button>
+        </>
+      )}
     </aside>
 
       <ProductFilterModal
@@ -437,11 +514,22 @@ export function OtpravkiMobileFilters({
   filters,
   onChange,
   products = [],
+  brandOptions = [],
+  selectedBrand,
+  onBrandChange,
+  brandDisabled,
+  brandOnly = false,
 }: {
   filters: OtpravkiFiltersState;
   onChange: (next: OtpravkiFiltersState) => void;
   cities?: string[];
   products?: FilterProductOption[];
+  brandOptions?: readonly string[];
+  selectedBrand?: string;
+  onBrandChange?: (brand: string) => void;
+  brandDisabled?: boolean;
+  /** Только выбор бренда (архив) */
+  brandOnly?: boolean;
 }) {
   const [productsOpen, setProductsOpen] = useState(false);
   const set = <K extends keyof OtpravkiFiltersState>(key: K, value: OtpravkiFiltersState[K]) => {
@@ -449,59 +537,82 @@ export function OtpravkiMobileFilters({
   };
 
   const selectedCount = filters.productIds.length;
+  const brand =
+    selectedBrand && brandOptions.includes(selectedBrand)
+      ? selectedBrand
+      : brandOptions[0] ?? "";
 
   return (
     <div className="space-y-3 lg:hidden">
-      <KeyboardField
-        value={filters.query}
-        onChange={(next) => set("query", next)}
-        placeholder="Поиск заказа…"
-        title="Поиск заказа"
-        className="h-12 w-full rounded-xl border border-gray-200 bg-white px-3 text-base text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
-      />
+      {brandOptions.length > 0 && onBrandChange && brand && (
+        <BrandFilter
+          brands={brandOptions}
+          selected={brand}
+          onChange={onBrandChange}
+          disabled={brandDisabled}
+        />
+      )}
 
-      <div className="space-y-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Срочность</p>
-        <div className="flex flex-wrap gap-2">
-          <Chip active={filters.urgency === "all"} onClick={() => set("urgency", "all")}>
-            Все
-          </Chip>
-          {(["critical", "rush", "urgent", "high", "normal"] as const).map((key) => (
-            <Chip key={key} active={filters.urgency === key} onClick={() => set("urgency", key)}>
-              {URGENCY_LABELS[key].label}
-            </Chip>
-          ))}
-        </div>
-      </div>
+      {!brandOnly && (
+        <>
+          <KeyboardField
+            value={filters.query}
+            onChange={(next) => set("query", next)}
+            placeholder="Поиск заказа…"
+            title="Поиск заказа"
+            className="h-12 w-full rounded-xl border border-gray-200 bg-white px-3 text-base text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+          />
 
-      <div className="space-y-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Тип</p>
-        <div className="flex flex-wrap gap-2">
-          <Chip active={filters.kind === "all"} onClick={() => set("kind", "all")}>
-            Все
-          </Chip>
-          <Chip active={filters.kind === "blogger"} onClick={() => set("kind", "blogger")}>
-            Блогеры
-          </Chip>
-          <Chip active={filters.kind === "regular"} onClick={() => set("kind", "regular")}>
-            Обычные
-          </Chip>
-          {products.length > 0 && (
-            <ProductFilterButton
-              selectedCount={selectedCount}
-              onClick={() => setProductsOpen(true)}
-            />
-          )}
-        </div>
-      </div>
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+              Срочность
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Chip active={filters.urgency === "all"} onClick={() => set("urgency", "all")}>
+                Все
+              </Chip>
+              {(["critical", "rush", "urgent", "high", "normal"] as const).map((key) => (
+                <Chip
+                  key={key}
+                  active={filters.urgency === key}
+                  onClick={() => set("urgency", key)}
+                >
+                  {URGENCY_LABELS[key].label}
+                </Chip>
+              ))}
+            </div>
+          </div>
 
-      <ProductFilterModal
-        open={productsOpen}
-        onClose={() => setProductsOpen(false)}
-        products={products}
-        selectedIds={filters.productIds}
-        onConfirm={(productIds) => onChange({ ...filters, productIds })}
-      />
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Тип</p>
+            <div className="flex flex-wrap gap-2">
+              <Chip active={filters.kind === "all"} onClick={() => set("kind", "all")}>
+                Все
+              </Chip>
+              <Chip active={filters.kind === "blogger"} onClick={() => set("kind", "blogger")}>
+                Блогеры
+              </Chip>
+              <Chip active={filters.kind === "regular"} onClick={() => set("kind", "regular")}>
+                Обычные
+              </Chip>
+              {products.length > 0 && (
+                <ProductFilterButton
+                  selectedCount={selectedCount}
+                  onClick={() => setProductsOpen(true)}
+                />
+              )}
+            </div>
+          </div>
+
+          <ProductFilterModal
+            open={productsOpen}
+            onClose={() => setProductsOpen(false)}
+            products={products}
+            selectedIds={filters.productIds}
+            onConfirm={(productIds) => onChange({ ...filters, productIds })}
+          />
+        </>
+      )}
     </div>
   );
 }
