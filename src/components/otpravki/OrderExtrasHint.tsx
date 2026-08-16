@@ -18,7 +18,7 @@ function ExtraInfoButton({
       onClick={() => onOpen(extra)}
       aria-label={`Мокап: ${extra.name}`}
       title="Мокап"
-      className="ml-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-300 bg-white text-[10px] font-bold leading-none text-amber-800 align-middle active:bg-amber-100"
+      className="inline-flex h-[1.1em] w-[1.1em] shrink-0 items-center justify-center rounded-full border border-amber-300 bg-white text-[0.7em] font-bold leading-none text-amber-800 active:bg-amber-100"
     >
       i
     </button>
@@ -49,11 +49,9 @@ export function OrderExtrasHint({
         </p>
         <ul className="mt-2 space-y-2">
           {brandWide.map((extra) => (
-            <li key={extra.id} className="text-sm font-medium leading-snug text-gray-900">
-              <span className="inline">
-                {extra.name}
-                <ExtraInfoButton extra={extra} onOpen={setPreview} />
-              </span>
+            <li key={extra.id} className="flex items-center gap-1 text-sm font-medium leading-snug text-gray-900">
+              <span className="min-w-0">{extra.name}</span>
+              <ExtraInfoButton extra={extra} onOpen={setPreview} />
             </li>
           ))}
           {forProducts.map((extra) => {
@@ -62,10 +60,10 @@ export function OrderExtrasHint({
               .map((id) => nameById.get(id) ?? id);
             return (
               <li key={extra.id} className="text-sm leading-snug text-gray-900">
-                <span className="inline font-medium">
-                  {extra.name}
+                <div className="flex items-center gap-1 font-medium">
+                  <span className="min-w-0">{extra.name}</span>
                   <ExtraInfoButton extra={extra} onOpen={setPreview} />
-                </span>
+                </div>
                 {names.length > 0 && (
                   <span className="mt-0.5 block text-xs text-gray-500">{names.join(", ")}</span>
                 )}
