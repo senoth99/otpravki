@@ -1,6 +1,3 @@
-export const QUALITY_GUIDE_SOURCE =
-  "https://clear-wren-bb1.notion.site/2f84a3bc339d808f9f35e67d77043a54";
-
 export const QUALITY_GUIDE_VIDEO_SOURCES = [
   {
     src: "/guides/shift-quality.mp4",

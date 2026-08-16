@@ -4,7 +4,6 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import {
   QUALITY_GUIDE_EXAMPLES,
   QUALITY_GUIDE_SECTIONS,
-  QUALITY_GUIDE_SOURCE,
   QUALITY_GUIDE_VIDEO_SOURCES,
 } from "@/lib/quality-guide";
 
@@ -131,18 +130,6 @@ export function QualityGuidePanel() {
               ))}
             </div>
           </section>
-
-          <p className="text-center text-xs text-gray-400">
-            Источник:{" "}
-            <a
-              href={QUALITY_GUIDE_SOURCE}
-              target="_blank"
-              rel="noreferrer"
-              className="underline underline-offset-2"
-            >
-              регламент в Notion
-            </a>
-          </p>
         </main>
       </div>
     </div>
