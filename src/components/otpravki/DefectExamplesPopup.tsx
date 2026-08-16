@@ -18,27 +18,21 @@ export function DefectExamplesPopup({
       aria-modal="true"
       aria-label="Виды брака"
     >
-      <div className="safe-top flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-        <div className="min-w-0">
-          <p className="text-base font-semibold text-white">Виды брака</p>
-          <p className="text-xs text-white/50">Примеры из регламента качества</p>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Закрыть"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-3xl leading-none text-white active:bg-white/20"
-        >
-          ×
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Закрыть"
+        className="absolute right-3 top-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-3xl leading-none text-white safe-top active:bg-white/20"
+      >
+        ×
+      </button>
 
-      <div className="min-h-0 flex-1 touch-scroll-y overflow-y-auto overscroll-contain px-3 py-4 sm:px-5">
-        <div className="mx-auto grid max-w-3xl gap-4 sm:grid-cols-2">
+      <div className="min-h-0 flex-1 touch-scroll-y overflow-y-auto overscroll-contain px-3 py-4 pt-14 sm:px-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
           {QUALITY_GUIDE_EXAMPLES.map((example) => (
             <article
               key={example.id}
-              className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] shadow-[0_20px_50px_rgba(0,0,0,0.35)]"
+              className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]"
             >
               <div className="relative aspect-[3/4] bg-black/40">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -49,11 +43,11 @@ export function DefectExamplesPopup({
                   draggable={false}
                 />
               </div>
-              <div className="space-y-1 px-4 py-3.5">
-                <h3 className="text-base font-semibold leading-snug text-white">
+              <div className="space-y-0.5 px-2.5 py-2.5 sm:px-3 sm:py-3">
+                <h3 className="text-sm font-semibold leading-snug text-white sm:text-base">
                   {example.title}
                 </h3>
-                <p className="text-sm leading-snug text-white/55">{example.detail}</p>
+                <p className="text-xs leading-snug text-white/55 sm:text-sm">{example.detail}</p>
               </div>
             </article>
           ))}
