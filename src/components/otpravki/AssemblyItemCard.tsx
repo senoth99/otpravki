@@ -81,6 +81,7 @@ export function AssemblyItemCard({
           <ProductImage
             src={item.imageUrl}
             alt={item.productName}
+            productName={item.productName}
             className={`object-cover transition-opacity ${isComplete ? "opacity-60" : ""}`}
             sizes="(max-width: 640px) 64px, 80px"
           />

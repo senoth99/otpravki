@@ -238,6 +238,7 @@ export function ArchiveView({
                         <ProductImage
                           src={item.imageUrl}
                           alt={item.productName}
+                          productName={item.productName}
                           className="object-cover"
                           sizes="40px"
                         />
