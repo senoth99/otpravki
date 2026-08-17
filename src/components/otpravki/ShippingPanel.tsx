@@ -56,6 +56,7 @@ export function ShippingPanel({
     isInternetOnline,
     isServerReachable,
     refreshFromApi,
+    scheduleRefreshAfterShip,
     isSyncing,
   } = useWorkspace({
     initialAssembly,
@@ -63,6 +64,7 @@ export function ShippingPanel({
     initialApiOrderIds,
     initialShippedArchive,
     initialRevision,
+    pollBrand: selectedBrand,
   });
 
   useOtpravkiNoSwipe();
@@ -228,6 +230,7 @@ export function ShippingPanel({
               brandOptions={brandOptions}
               onBrandChange={handleBrandChange}
               onOrdersChange={handleFilteredOrdersChange}
+              onOrderShipped={() => scheduleRefreshAfterShip(selectedBrand)}
             />
           ) : (
             <ArchiveView

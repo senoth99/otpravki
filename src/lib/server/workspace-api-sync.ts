@@ -5,7 +5,6 @@ import { externalFetch } from "@/lib/server/external-fetch";
 import { logSync } from "@/lib/server/sync-log";
 import { ingestGtinCatalogFromOrders } from "@/lib/server/chestny-znak-gtin-catalog";
 import {
-  getSharedWorkspace,
   replaceWorkspaceFromApi,
   replaceWorkspaceFromApiForBrand,
 } from "@/lib/server/workspace-store";
@@ -40,19 +39,6 @@ async function fetchProductsLive(): Promise<ApiProduct[]> {
 
 export async function fetchAndSyncWorkspaceFromApi(): Promise<WorkspaceApiSyncResult> {
   const [products, apiOrders] = await Promise.all([fetchProductsLive(), fetchUnshippedOrders()]);
-
-  if (apiOrders.length === 0) {
-    const workspace = await getSharedWorkspace();
-    if (workspace) {
-      void logSync("api.sync.empty", { keptOrders: workspace.orders.length });
-      return {
-        workspace,
-        ordersCount: workspace.orders.length,
-        assemblyCount: workspace.assemblyItems.length,
-        apiOrdersCount: 0,
-      };
-    }
-  }
 
   const fresh = {
     ...mapUnshippedOrdersToWorkspace(apiOrders, products),

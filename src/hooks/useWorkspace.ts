@@ -6,6 +6,10 @@ import type { SharedWorkspaceState } from "@/types/workspace";
 import { canUnshipFromArchive } from "@/lib/archive-status";
 import { reconcileAssemblyChanges } from "@/lib/assembly-demand";
 import { collectShippedArchive, normalizeWorkspaceState } from "@/lib/shipped-archive";
+import {
+  ORDERS_API_POLL_MS,
+  ORDERS_API_REFRESH_AFTER_SHIP_MS,
+} from "@/lib/orders-sync";
 import { checkServerReachable, subscribeServerReachability } from "@/lib/server-reachability";
 import { persistSessionProgress, persistShippedOrders } from "@/lib/archive-api";
 import {
@@ -29,6 +33,8 @@ interface UseWorkspaceOptions {
   initialApiOrderIds?: string[];
   initialShippedArchive?: ShippingOrder[];
   initialRevision?: number;
+  /** Фоновый poll unshipped API для выбранного бренда */
+  pollBrand?: string;
 }
 
 export function useWorkspace({
@@ -37,6 +43,7 @@ export function useWorkspace({
   initialApiOrderIds = [],
   initialShippedArchive = [],
   initialRevision = 0,
+  pollBrand,
 }: UseWorkspaceOptions) {
   const revisionRef = useRef(initialRevision);
   const assemblyRef = useRef(initialAssembly);
@@ -112,9 +119,9 @@ export function useWorkspace({
   );
 
   const refreshFromApi = useCallback(
-    async (brand?: string) => {
+    async (brand?: string, options?: { silent?: boolean }) => {
       const requestId = ++refreshRequestIdRef.current;
-      setIsSyncing(true);
+      if (!options?.silent) setIsSyncing(true);
       try {
         const result = await refreshWorkspaceFromApi(brand);
         if (requestId !== refreshRequestIdRef.current) {
@@ -128,12 +135,21 @@ export function useWorkspace({
         setIsServerReachable(false);
         return { ok: false as const, error: result.error };
       } finally {
-        if (requestId === refreshRequestIdRef.current) {
+        if (requestId === refreshRequestIdRef.current && !options?.silent) {
           setIsSyncing(false);
         }
       }
     },
     [applyWorkspaceState],
+  );
+
+  const scheduleRefreshAfterShip = useCallback(
+    (brand?: string) => {
+      window.setTimeout(() => {
+        void refreshFromApi(brand, { silent: true });
+      }, ORDERS_API_REFRESH_AFTER_SHIP_MS);
+    },
+    [refreshFromApi],
   );
 
   const persist = useCallback(
@@ -193,6 +209,29 @@ export function useWorkspace({
       window.removeEventListener("offline", onOffline);
     };
   }, []);
+
+  useEffect(() => {
+    if (!pollBrand) return;
+
+    let cancelled = false;
+
+    const runSilentRefresh = () => {
+      if (cancelled || document.visibilityState !== "visible" || !navigator.onLine) return;
+      void refreshFromApi(pollBrand, { silent: true });
+    };
+
+    const timer = window.setInterval(runSilentRefresh, ORDERS_API_POLL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") runSilentRefresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [pollBrand, refreshFromApi]);
 
   const updateAssembly = useCallback((items: AssemblyItem[]) => {
     const changed = items.find((item) => {
@@ -287,5 +326,6 @@ export function useWorkspace({
     isStreamConnected,
     isSyncing,
     refreshFromApi,
+    scheduleRefreshAfterShip,
   };
 }

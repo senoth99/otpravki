@@ -50,29 +50,18 @@ export function mergeFreshOrdersData(
   const existingOrders = new Map(existing.orders.map((order) => [order.id, order]));
   const existingAssembly = new Map(existing.assemblyItems.map((item) => [item.id, item]));
   const activeOrders: ShippingOrder[] = [];
-  const freshIds = new Set(fresh.orders.map((order) => order.id));
 
   for (const order of fresh.orders) {
     const prev = existingOrders.get(order.id);
-    if (prev && !prev.barcodePrinted) {
-      archiveById.delete(order.id);
-      activeOrders.push(mergeOrderProgress(prev, order));
-      continue;
-    }
-
     const archived = archiveById.get(order.id);
-    if (!archived) {
-      activeOrders.push(prev ? mergeOrderProgress(prev, order) : order);
+
+    // Отправленные не воскрешаем — API может ещё отдавать заказ с лагом.
+    if (archived?.barcodePrinted || prev?.barcodePrinted) {
       continue;
     }
 
     archiveById.delete(order.id);
     activeOrders.push(prev ? mergeOrderProgress(prev, order) : order);
-  }
-
-  for (const [id, prev] of existingOrders) {
-    if (prev.barcodePrinted || freshIds.has(id)) continue;
-    activeOrders.push(prev);
   }
 
   const shippedArchive = unionPermanentArchive(

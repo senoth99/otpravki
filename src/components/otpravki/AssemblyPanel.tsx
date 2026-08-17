@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { getAssemblyViewSections } from "@/lib/assembly-demand";
@@ -60,9 +60,14 @@ export function AssemblyPanel({
     initialApiOrderIds,
     initialShippedArchive,
     initialRevision,
+    pollBrand: selectedBrand,
   });
 
   useOtpravkiNoSwipe();
+
+  useEffect(() => {
+    void refreshFromApi(selectedBrand);
+  }, [refreshFromApi, selectedBrand]);
 
   const brandOrders = useMemo(
     () => orders.filter((order) => getOrderStoreBrand(order) === selectedBrand && !order.barcodePrinted),
@@ -164,7 +169,7 @@ export function AssemblyPanel({
         subtitle={`${filteredAssemblyItems.length} поз. · ${filteredOrders.length} зак. · ${selectedBrand}`}
         onRefresh={() => {
           setReloading(true);
-          window.location.reload();
+          void refreshFromApi(selectedBrand).finally(() => setReloading(false));
         }}
         refreshing={reloading || isSyncing}
         offline={offline}

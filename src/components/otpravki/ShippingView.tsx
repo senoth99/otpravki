@@ -74,6 +74,7 @@ interface ShippingViewProps {
   brandOptions: readonly string[];
   onBrandChange: (brand: string) => void;
   onOrdersChange: (next: ShippingOrder[] | ((prev: ShippingOrder[]) => ShippingOrder[])) => void;
+  onOrderShipped?: () => void;
 }
 
 function getOrderStoreBrand(order: ShippingOrder): string {
@@ -112,6 +113,7 @@ export function ShippingView({
   brandOptions,
   onBrandChange,
   onOrdersChange,
+  onOrderShipped,
 }: ShippingViewProps) {
   const { user } = useAuth();
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(
@@ -464,6 +466,7 @@ export function ShippingView({
       goToNextOrder(updated, shippedId);
       return updated;
     });
+    onOrderShipped?.();
     // Ручной режим: оставляем экран «трек напечатан» с перепечаткой
     setManualConfirmOrder(snapshot);
   };
@@ -554,6 +557,7 @@ export function ShippingView({
       const hasNext = findFirstAutoOrderIndex(nextVisibleOrders, nextVisibleStatuses) !== null;
 
       onOrdersChange(updatedOrders);
+      onOrderShipped?.();
       setManualConfirmOrder(null);
       setCountdown({ orderNumber: shippedNumber, secondsLeft: 5, hasNext });
     })();
@@ -570,6 +574,7 @@ export function ShippingView({
     orders,
     selectedBrand,
     user,
+    onOrderShipped,
   ]);
 
   const retryAutoPrint = useCallback(() => {
