@@ -5,7 +5,7 @@ import {
 } from "@/lib/server/barcode-printer";
 import { requireMutatingAuth } from "@/lib/server/api-auth";
 import { requireUserSession } from "@/lib/server/auth-session";
-import { markOrderShipped } from "@/lib/server/orders-api";
+import { markOrderShipped, resolveRemoteOrderIdForStatusApi } from "@/lib/server/orders-api";
 import { recordShipmentEvent } from "@/lib/server/shift-stats-store";
 import { getSharedWorkspace, persistAndReplaceArchive } from "@/lib/server/workspace-store";
 import type { ShippingOrder } from "@/types/shipping";
@@ -71,7 +71,10 @@ export async function POST(request: Request) {
 
     try {
       await markOrderShipped(
-        body.order?.remoteOrderId?.trim() || body.orderId.trim(),
+        resolveRemoteOrderIdForStatusApi(
+          body.orderId.trim(),
+          body.order?.remoteOrderId,
+        ),
         body.order?.storeBrand,
       );
     } catch (error) {

@@ -5,7 +5,7 @@ import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
 import { canUnshipFromArchive } from "@/lib/archive-status";
 import { reconcileAssemblyChanges } from "@/lib/assembly-demand";
-import { collectShippedArchive, normalizeWorkspaceState } from "@/lib/shipped-archive";
+import { collectShippedArchive, normalizeWorkspaceState, preserveLocalShippedState } from "@/lib/shipped-archive";
 import {
   ORDERS_API_POLL_MS,
   ORDERS_API_REFRESH_AFTER_SHIP_MS,
@@ -65,7 +65,9 @@ export function useWorkspace({
   ordersRef.current = orders;
 
   const applyWorkspaceState = useCallback((workspace: SharedWorkspaceState) => {
-    const next = normalizeWorkspaceState(workspace);
+    const next = normalizeWorkspaceState(
+      preserveLocalShippedState(workspace, ordersRef.current, shippedArchiveRef.current),
+    );
     // Сборка локальная и не синкается — сохраняем collected при апдейтах с сервера.
     const localById = new Map(assemblyRef.current.map((item) => [item.id, item]));
     const assemblyItems = next.assemblyItems.map((item) => {

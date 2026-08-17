@@ -254,6 +254,17 @@ export async function fetchUnshippedOrders(): Promise<ApiUnshippedOrderWithBrand
 }
 
 /** PUT /orders/{id}/status — перед печатью этикетки */
+export function resolveRemoteOrderIdForStatusApi(
+  orderId: string,
+  remoteOrderId?: string | null,
+): string {
+  const remote = remoteOrderId?.trim();
+  if (remote) return remote;
+  const composite = orderId.trim().match(/^[a-z0-9]+:(.+)$/i);
+  if (composite?.[1]) return composite[1];
+  return orderId.trim();
+}
+
 export async function markOrderShipped(orderId: string, brand?: string): Promise<void> {
   const config = getBrandApiConfig(brand);
   const key = config?.token ?? getCasherApiKey();

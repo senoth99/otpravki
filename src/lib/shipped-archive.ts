@@ -43,3 +43,23 @@ export function normalizeWorkspaceState<T extends WorkspaceState>(state: T): T {
     shippedArchive,
   };
 }
+
+/** Не даём фоновому sync затереть только что отправленный локально заказ */
+export function preserveLocalShippedState<T extends WorkspaceState>(
+  incoming: T,
+  localOrders: ShippingOrder[],
+  localArchive: ShippingOrder[],
+): T {
+  const localShipped = mergeShippedArchives(
+    localArchive,
+    localOrders.filter((order) => order.barcodePrinted),
+  );
+  if (localShipped.length === 0) return incoming;
+
+  const shippedIds = new Set(localShipped.map((order) => order.id));
+  return normalizeWorkspaceState({
+    ...incoming,
+    orders: incoming.orders.filter((order) => !shippedIds.has(order.id)),
+    shippedArchive: mergeShippedArchives(incoming.shippedArchive ?? [], localShipped),
+  });
+}

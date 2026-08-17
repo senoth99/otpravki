@@ -85,6 +85,11 @@ function resolveLineSizeId(product: ApiProduct | undefined, line: ApiOrderLineIt
   return resolveSizeId(product, line.size) ?? line.sizeId ?? null;
 }
 
+function isShippedApiStatus(status: string | undefined | null): boolean {
+  const value = status?.trim().toLowerCase();
+  return value === "shipped" || value === "delivered" || value === "completed";
+}
+
 export function mapUnshippedOrdersToWorkspace(
   apiOrders: ApiUnshippedOrderWithBrand[],
   products: ApiProduct[],
@@ -95,6 +100,7 @@ export function mapUnshippedOrdersToWorkspace(
   const orders: ShippingOrder[] = [];
 
   for (const order of apiOrders) {
+    if (isShippedApiStatus(order.status)) continue;
     if (!isFullyStockedOrder(order)) continue;
 
     const shippingItems: ShippingOrderItem[] = [];
