@@ -21,6 +21,8 @@ export interface OtpravkiFiltersState {
   query: string;
   /** Пустой = все товары; иначе заказ должен содержать хотя бы один выбранный */
   productIds: string[];
+  /** true (по умолчанию) — только заказы готовые к отправке (всё в наличии) */
+  inStock: boolean;
 }
 
 export interface FilterProductOption {
@@ -39,6 +41,7 @@ export const DEFAULT_FILTERS: OtpravkiFiltersState = {
   city: "all",
   query: "",
   productIds: [],
+  inStock: true,
 };
 
 const URGENCY_KEYS = ["critical", "rush", "urgent", "high", "normal"] as const;
@@ -78,6 +81,8 @@ export function applyOrderFilters(
       const city = order.city?.trim() || "";
       if (city !== filters.city) return false;
     }
+
+    if (filters.inStock && order.ready === false) return false;
 
     if (filters.productIds.length > 0) {
       const wanted = new Set(filters.productIds);
@@ -324,6 +329,37 @@ function FilterSection({
   );
 }
 
+function InStockToggle({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={value}
+      onClick={() => onChange(!value)}
+      className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-900 active:bg-gray-50"
+    >
+      <span>В наличии</span>
+      <span
+        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+          value ? "bg-gray-900" : "bg-gray-300"
+        }`}
+      >
+        <span
+          className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+            value ? "translate-x-6" : "translate-x-1"
+          }`}
+        />
+      </span>
+    </button>
+  );
+}
+
 function BrandFilter({
   brands,
   selected,
@@ -441,6 +477,10 @@ export function OtpravkiFiltersPanel({
           </FilterSection>
         ) : (
           <>
+            <FilterSection title="Наличие">
+              <InStockToggle value={filters.inStock} onChange={(next) => set("inStock", next)} />
+            </FilterSection>
+
             <FilterSection title="Поиск">
               <KeyboardField
                 value={filters.query}
@@ -581,6 +621,10 @@ export function OtpravkiMobileFilters({
         </FilterSection>
       ) : (
         <>
+          <FilterSection title="Наличие">
+            <InStockToggle value={filters.inStock} onChange={(next) => set("inStock", next)} />
+          </FilterSection>
+
           <FilterSection title="Поиск">
             <KeyboardField
               value={filters.query}

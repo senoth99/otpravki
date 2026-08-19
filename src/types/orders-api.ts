@@ -35,6 +35,14 @@ export function isStockGatedLine(
   return true;
 }
 
+export interface ApiMissingLine {
+  id: number;
+  productName: string;
+  size: string;
+  quantity: number;
+  availableForThisOrder: number;
+}
+
 export interface ApiUnshippedOrder {
   id: number;
   orderNumber: string;
@@ -53,6 +61,10 @@ export interface ApiUnshippedOrder {
   hasAnyInStock: boolean;
   allInStockAtWarehouse: boolean;
   barcodeUrl: string;
+  /** Новый флаг 19.08.2026: true — заказ можно отправлять (всё в наличии) */
+  ready?: boolean;
+  /** Чего не хватает; пусто если ready=true */
+  missingLines?: ApiMissingLine[];
 }
 
 export interface ApiQueueDelay {
@@ -63,6 +75,10 @@ export interface ApiQueueDelay {
 /** Ответ GET /orders/admin/unshipped-with-stock */
 export interface ApiUnshippedOrdersResponse {
   queueDelay?: ApiQueueDelay;
+  total?: number;
+  readyCount?: number;
+  notReadyCount?: number;
+  includesNotReady?: boolean;
   orders: ApiUnshippedOrder[];
 }
 

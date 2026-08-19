@@ -73,14 +73,6 @@ function normalizeChestnyZnak(raw: string | null | undefined): string | undefine
   return trimmed || undefined;
 }
 
-/** Заказ можно отправить разом — складские позиции в наличии; гифты не блокируют */
-function isFullyStockedOrder(order: ApiUnshippedOrderWithBrand): boolean {
-  if (order.items.length === 0) return false;
-  const gated = order.items.filter(isStockGatedLine);
-  if (gated.length === 0) return true;
-  return gated.every((line) => line.inStockAtWarehouse);
-}
-
 function resolveLineSizeId(product: ApiProduct | undefined, line: ApiOrderLineItem): number | null {
   return resolveSizeId(product, line.size) ?? line.sizeId ?? null;
 }
@@ -88,6 +80,17 @@ function resolveLineSizeId(product: ApiProduct | undefined, line: ApiOrderLineIt
 function isShippedApiStatus(status: string | undefined | null): boolean {
   const value = status?.trim().toLowerCase();
   return value === "shipped" || value === "delivered" || value === "completed";
+}
+
+/** Есть ли хоть один товар в наличии (не блокируем отображение, но помечаем) */
+function isOrderReady(order: ApiUnshippedOrderWithBrand): boolean {
+  // Новый флаг с 19.08.2026 — используем его если есть
+  if (typeof order.ready === "boolean") return order.ready;
+  // Фолбэк: старая логика
+  if (order.items.length === 0) return false;
+  const gated = order.items.filter(isStockGatedLine);
+  if (gated.length === 0) return true;
+  return gated.every((line) => line.inStockAtWarehouse);
 }
 
 export function mapUnshippedOrdersToWorkspace(
@@ -101,13 +104,14 @@ export function mapUnshippedOrdersToWorkspace(
 
   for (const order of apiOrders) {
     if (isShippedApiStatus(order.status)) continue;
-    if (!isFullyStockedOrder(order)) continue;
 
+    const ready = isOrderReady(order);
     const shippingItems: ShippingOrderItem[] = [];
     const isBlogger = isBloggerOrder(order.orderNumber);
 
+    // Для !ready всё равно строим список позиций которые есть, чтобы видеть заказ
     for (const line of order.items) {
-      if (isStockGatedLine(line) && !line.inStockAtWarehouse) continue;
+      if (isStockGatedLine(line) && !line.inStockAtWarehouse && ready) continue;
 
       const product = findProduct(productIndex, line.productSlug);
       const productId = line.productSlug;
@@ -156,12 +160,26 @@ export function mapUnshippedOrdersToWorkspace(
       });
     }
 
-    if (shippingItems.length === 0) continue;
+    if (shippingItems.length === 0 && !ready) {
+      // Заказ без ничего в наличии — всё равно добавляем с пустым списком позиций
+      // чтобы он был виден при фильтре «все»; позиции пустые — скан невозможен
+    } else if (shippingItems.length === 0) {
+      continue;
+    }
 
     const staffComments = Array.isArray(order.staffComments)
       ? order.staffComments.filter((comment) => comment.body.trim())
       : undefined;
     const tags = mapOrderTags(order.tags);
+
+    const missingItems = (!ready && Array.isArray(order.missingLines) && order.missingLines.length > 0)
+      ? order.missingLines.map((ml) => ({
+          productName: ml.productName,
+          size: ml.size,
+          quantity: ml.quantity,
+          availableForThisOrder: ml.availableForThisOrder,
+        }))
+      : undefined;
 
     orders.push({
       id: `${(order.storeBrand ?? "CASHER").toLowerCase()}:${order.remoteOrderId}`,
@@ -176,7 +194,9 @@ export function mapUnshippedOrdersToWorkspace(
       items: shippingItems,
       barcodeUrl: order.barcodeUrl,
       barcodePrinted: false,
-      allInStockAtWarehouse: true,
+      allInStockAtWarehouse: ready,
+      ready,
+      missingItems,
       city: normalizeCity(order.city),
       trackingNumber: order.trackingNumber ?? undefined,
       customerComment: normalizeComment(order.customerComment),

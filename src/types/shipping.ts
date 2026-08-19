@@ -64,6 +64,13 @@ export interface ShippingOrderItem {
   chestnyZnak?: string | null;
 }
 
+export interface MissingOrderItem {
+  productName: string;
+  size: string;
+  quantity: number;
+  availableForThisOrder: number;
+}
+
 export interface ShippingOrder {
   id: string;
   remoteOrderId?: string;
@@ -84,6 +91,10 @@ export interface ShippingOrder {
   shippedByUserId?: string;
   shippedByEmoji?: string;
   allInStockAtWarehouse?: boolean;
+  /** false — заказ не готов к отправке, не хватает товара */
+  ready?: boolean;
+  /** Чего не хватает; заполняется только если ready=false */
+  missingItems?: MissingOrderItem[];
   city?: string;
   trackingNumber?: string;
   customerComment?: string;

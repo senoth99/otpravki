@@ -173,7 +173,7 @@ async function hydrateMissingOrderItems(
 }
 
 async function fetchBrandUnshippedOrders(brand: BrandApiConfig): Promise<ApiUnshippedOrderWithBrand[]> {
-  const ordersUrl = `${ORDERS_API_BASE}${UNSHIPPED_PATH}`;
+  const ordersUrl = `${ORDERS_API_BASE}${UNSHIPPED_PATH}?all=1`;
   let res: Response;
   try {
     res = await externalFetch(ordersUrl, {
