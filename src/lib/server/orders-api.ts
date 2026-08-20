@@ -132,6 +132,80 @@ async function mapLimit<T, R>(
   return results;
 }
 
+async function fetchProcessingAdminOrders(brand: BrandApiConfig): Promise<unknown[]> {
+  const pageSize = 200;
+  const all: unknown[] = [];
+  for (let offset = 0; offset < 2_000; offset += pageSize) {
+    const url = `${ORDERS_API_BASE}/orders/admin/all?status=processing&limit=${pageSize}&offset=${offset}`;
+    const res = await externalFetch(url, {
+      headers: {
+        ...casherAuthHeaders(brand.token),
+        Accept: "application/json",
+      },
+      timeoutMs: 25_000,
+    });
+    if (!res.ok) break;
+    const data: unknown = await res.json();
+    if (!Array.isArray(data) || data.length === 0) break;
+    all.push(...data);
+    if (data.length < pageSize) break;
+  }
+  return all;
+}
+
+function mapOrderTagsRaw(raw: unknown): Array<{ label: string; color?: string }> | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const tags: Array<{ label: string; color?: string }> = [];
+  for (const row of raw) {
+    const rec = asRecord(row);
+    const label = asText(rec?.label ?? rec?.name).trim();
+    if (!label) continue;
+    const color = asText(rec?.color).trim();
+    tags.push(color ? { label, color } : { label });
+  }
+  return tags.length ? tags : undefined;
+}
+
+function mapAdminListOrder(
+  raw: unknown,
+  brand: BrandApiConfig,
+): ApiUnshippedOrderWithBrand | null {
+  const rec = asRecord(raw);
+  if (!rec) return null;
+  const id = asFiniteNumber(rec.id);
+  if (id == null) return null;
+
+  const items = Array.isArray(rec.items)
+    ? rec.items
+        .map(mapFullOrderLine)
+        .filter((line): line is ApiOrderLineItem => line !== null)
+    : [];
+  const gated = items.filter(isStockGatedLine);
+  const ready = gated.length === 0 ? true : gated.every((line) => line.inStockAtWarehouse);
+
+  return {
+    id,
+    remoteOrderId: String(id),
+    storeBrand: brand.label,
+    orderNumber: asText(rec.orderNumber),
+    createdAt: asText(rec.createdAt),
+    status: asText(rec.status) || "processing",
+    paymentStatus: asText(rec.paymentStatus),
+    total: asFiniteNumber(rec.total) ?? 0,
+    fullName: asText(rec.fullName),
+    city: asText(rec.city),
+    deliveryMethod: asText(rec.deliveryMethod),
+    trackingNumber: rec.trackingNumber == null || rec.trackingNumber === "" ? null : asText(rec.trackingNumber),
+    customerComment: asText(rec.comment) || undefined,
+    tags: mapOrderTagsRaw(rec.orderTags),
+    items,
+    hasAnyInStock: items.some((line) => line.inStockAtWarehouse),
+    allInStockAtWarehouse: ready,
+    barcodeUrl: buildBarcodePdfUrl(id, brand.label),
+    ready,
+  };
+}
+
 /**
  * unshipped-with-stock не отдаёт позиции без складского учёта (гифты).
  * Добираем их из GET /orders/admin/order/:id.
@@ -157,16 +231,32 @@ async function hydrateMissingOrderItems(
     const rec = asRecord(payload);
     if (!Array.isArray(rec?.items)) return order;
 
-    const have = new Set(order.items.map((item) => item.id));
-    const extra: ApiOrderLineItem[] = [];
+    const fullLines: ApiOrderLineItem[] = [];
     for (const row of rec.items) {
       const mapped = mapFullOrderLine(row);
-      if (!mapped || have.has(mapped.id)) continue;
-      if (isStockGatedLine(mapped) && !mapped.inStockAtWarehouse) continue;
-      extra.push(mapped);
+      if (mapped) fullLines.push(mapped);
     }
-    if (extra.length === 0) return order;
-    return { ...order, items: [...order.items, ...extra] };
+    const byFullId = new Map(fullLines.map((line) => [line.id, line]));
+    const merged: ApiOrderLineItem[] = order.items.map((item) => {
+      const full = byFullId.get(item.id);
+      if (!full) return item;
+      return {
+        ...item,
+        productName: item.productName || full.productName,
+        productSlug: item.productSlug || full.productSlug,
+        size: item.size && item.size !== "—" ? item.size : full.size,
+        sizeId: item.sizeId ?? full.sizeId,
+        imagePath: item.imagePath ?? full.imagePath,
+        chestnyZnak: item.chestnyZnak ?? full.chestnyZnak,
+      };
+    });
+    const have = new Set(merged.map((item) => item.id));
+    for (const mapped of fullLines) {
+      if (have.has(mapped.id)) continue;
+      if (isStockGatedLine(mapped) && !mapped.inStockAtWarehouse) continue;
+      merged.push(mapped);
+    }
+    return { ...order, items: merged };
   } catch {
     return order;
   }
@@ -200,13 +290,28 @@ async function fetchBrandUnshippedOrders(brand: BrandApiConfig): Promise<ApiUnsh
   }
 
   const data: unknown = await res.json();
-  const orders = parseUnshippedOrdersPayload(data).map((order) => ({
+  const stockOrders = parseUnshippedOrdersPayload(data).map((order) => ({
     ...order,
     id: Number.parseInt(`${order.id}`, 10),
     remoteOrderId: String(order.id),
     storeBrand: brand.label,
   }));
-  return mapLimit(orders, 8, (order) => hydrateMissingOrderItems(order, brand));
+
+  const have = new Set(stockOrders.map((order) => order.remoteOrderId));
+  let extras: ApiUnshippedOrderWithBrand[] = [];
+  try {
+    const processing = await fetchProcessingAdminOrders(brand);
+    extras = processing
+      .map((row) => mapAdminListOrder(row, brand))
+      .filter((order): order is ApiUnshippedOrderWithBrand => {
+        if (!order) return false;
+        return !have.has(order.remoteOrderId);
+      });
+  } catch {
+    extras = [];
+  }
+
+  return mapLimit([...stockOrders, ...extras], 8, (order) => hydrateMissingOrderItems(order, brand));
 }
 
 export async function fetchUnshippedOrdersForBrand(

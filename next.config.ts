@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
   async headers() {
     return [
       {
@@ -22,6 +23,21 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "api.stage.cashercollection.com",
         pathname: "/uploads/**",
+      },
+      {
+        protocol: "https",
+        hostname: "api.amarix.ru",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "amarix-media.storage.yandexcloud.net",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "cashercollection.com",
+        pathname: "/_next/image",
       },
     ],
   },

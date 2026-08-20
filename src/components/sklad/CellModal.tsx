@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ApiStockItem, WarehouseCell } from "@/types/stock";
-import { toLocalImageUrl } from "@/lib/image-url";
+import { PRODUCT_PLACEHOLDER_SRC, toLocalImageUrl } from "@/lib/image-url";
 
 interface CellModalProps {
   furnitureId: string;
@@ -25,12 +25,13 @@ function ProductThumb({ item, size = 36 }: { item?: ApiStockItem; size?: number 
 
   if (!src || failed) {
     return (
-      <div
-        className="flex shrink-0 items-center justify-center rounded-lg bg-gray-200"
-        style={{ width: size, height: size }}
-      >
-        <span className="text-[10px] text-gray-400">?</span>
-      </div>
+      <img
+        src={PRODUCT_PLACEHOLDER_SRC}
+        alt=""
+        width={size}
+        height={size}
+        className="shrink-0 rounded-lg object-cover"
+      />
     );
   }
 

@@ -73,6 +73,15 @@ function normalizeChestnyZnak(raw: string | null | undefined): string | undefine
   return trimmed || undefined;
 }
 
+function fallbackSizeId(productId: string, size: string): number {
+  const text = `${productId}:${size.toLowerCase()}`;
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = (hash * 31 + text.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) || 1;
+}
+
 function resolveLineSizeId(product: ApiProduct | undefined, line: ApiOrderLineItem): number | null {
   return resolveSizeId(product, line.size) ?? line.sizeId ?? null;
 }
@@ -115,8 +124,7 @@ export function mapUnshippedOrdersToWorkspace(
 
       const product = findProduct(productIndex, line.productSlug);
       const productId = line.productSlug;
-      const sizeId = resolveLineSizeId(product, line);
-      if (sizeId === null) continue;
+      const sizeId = resolveLineSizeId(product, line) ?? fallbackSizeId(productId, line.size);
 
       const key = assemblyKey(productId, line.size, isBlogger, order.storeBrand);
       const imagePath = product?.images[0] ?? line.imagePath ?? "";

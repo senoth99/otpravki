@@ -1,6 +1,7 @@
 "use client";
 
 import type { ApiStockItem } from "@/types/stock";
+import { PRODUCT_PLACEHOLDER_SRC } from "@/lib/image-url";
 
 interface StockItemCardProps {
   item: ApiStockItem;
@@ -16,15 +17,14 @@ export function StockItemCard({ item }: StockItemCardProps) {
       }`}
     >
       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-gray-100 sm:h-20 sm:w-20">
-        {item.imageUrl ? (
-          <img
-            src={item.imageUrl}
-            alt={item.productName}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="h-full w-full bg-gray-200" />
-        )}
+        <img
+          src={item.imageUrl || PRODUCT_PLACEHOLDER_SRC}
+          alt={item.productName}
+          className="h-full w-full object-cover"
+          onError={(event) => {
+            event.currentTarget.src = PRODUCT_PLACEHOLDER_SRC;
+          }}
+        />
       </div>
 
       <div className="min-w-0 flex-1">

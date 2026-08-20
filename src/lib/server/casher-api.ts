@@ -60,3 +60,10 @@ export function casherAuthHeaders(key?: string): HeadersInit {
   if (!token) return {};
   return { Authorization: `Bearer ${token}` };
 }
+
+/** /products без токена отдаёт пустой список — тогда в заказах остаются только гифты с sizeId. */
+export function productsAuthHeaders(): HeadersInit {
+  const brands = getBrandApiConfigs();
+  const casher = brands.find((brand) => brand.key === "CASHER");
+  return casherAuthHeaders(casher?.token ?? brands[0]?.token ?? getCasherApiKey());
+}

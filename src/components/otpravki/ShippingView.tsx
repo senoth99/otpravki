@@ -7,7 +7,7 @@ import { buildAssemblyAllocation } from "@/lib/assembly-status";
 import { resolveScanFromBarcode } from "@/lib/barcode-product";
 import { formatMoscowDate } from "@/lib/format";
 import { getOrderDisplayStatus } from "@/lib/order-status";
-import { findFirstAutoOrderIndex } from "@/lib/order-sort";
+import { findFirstAutoOrderIndex, getSortedOrderIndices } from "@/lib/order-sort";
 import { isBloggerOrder, orderIsBlogger } from "@/lib/blogger-order";
 import { printOrderBarcode } from "@/lib/print-barcode";
 import { resolveOrderUrgency, URGENCY_LABELS } from "@/lib/urgency";
@@ -75,6 +75,8 @@ interface ShippingViewProps {
   onBrandChange: (brand: string) => void;
   onOrdersChange: (next: ShippingOrder[] | ((prev: ShippingOrder[]) => ShippingOrder[])) => void;
   onOrderShipped?: () => void;
+  /** Смена фильтров/бренда — открыть первый заказ нового списка */
+  selectionResetKey?: string;
 }
 
 function getOrderStoreBrand(order: ShippingOrder): string {
@@ -114,6 +116,7 @@ export function ShippingView({
   onBrandChange,
   onOrdersChange,
   onOrderShipped,
+  selectionResetKey = "",
 }: ShippingViewProps) {
   const { user } = useAuth();
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(
@@ -137,6 +140,7 @@ export function ShippingView({
   const [remainingByGtin, setRemainingByGtin] = useState<Record<string, number> | null>(null);
   const autoHandledRef = useRef<string | null>(null);
   const packingRef = useRef(false);
+  const lastSelectionResetKeyRef = useRef(selectionResetKey);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -627,6 +631,20 @@ export function ShippingView({
     if (activeIndices.includes(currentIndex)) return;
     setCurrentOrderId(orders[activeIndices[0]].id);
   }, [currentIndex, orders, activeIndices, manualConfirmOrder]);
+
+  useEffect(() => {
+    if (selectionResetKey === lastSelectionResetKeyRef.current) return;
+    lastSelectionResetKeyRef.current = selectionResetKey;
+    if (manualConfirmOrder) return;
+    if (activeIndices.length === 0) return;
+    const sortedLocal = getSortedOrderIndices(
+      activeIndices.map((index) => orders[index]),
+      activeIndices.map((index) => orderStatuses[index]),
+    );
+    const firstIndex = activeIndices[sortedLocal[0] ?? 0];
+    const firstId = orders[firstIndex]?.id;
+    if (firstId) setCurrentOrderId(firstId);
+  }, [selectionResetKey, activeIndices, orders, orderStatuses, manualConfirmOrder]);
 
   const hasActiveOrders = activeIndices.length > 0;
   const hasShippableOrders = shippableIndices.length > 0;

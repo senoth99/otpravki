@@ -2,8 +2,9 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { orderIsBlogger } from "@/lib/blogger-order";
-import { resolveOrderUrgency, URGENCY_LABELS } from "@/lib/urgency";
+import { isRushUrgency, resolveOrderUrgency, URGENCY_LABELS } from "@/lib/urgency";
 import type { OrderUrgency, ShippingOrder } from "@/types/shipping";
+import { AdminPinPopup } from "@/components/admin/AdminPinPopup";
 import { ProductImage } from "./ProductImage";
 import { KeyboardField } from "./VirtualKeyboard";
 
@@ -44,7 +45,7 @@ export const DEFAULT_FILTERS: OtpravkiFiltersState = {
   inStock: true,
 };
 
-const URGENCY_KEYS = ["critical", "rush", "urgent", "high", "normal"] as const;
+const URGENCY_KEYS = ["critical", "rush", "high", "normal"] as const;
 
 function orderScanState(order: ShippingOrder): Exclude<ScanFilter, "all"> {
   const total = order.items.reduce((sum, item) => sum + item.quantity, 0);
@@ -67,7 +68,13 @@ export function applyOrderFilters(
 
   return orders.filter((order) => {
     const urgency = resolveOrderUrgency(order);
-    if (filters.urgency !== "all" && urgency !== filters.urgency) return false;
+    if (filters.urgency !== "all") {
+      if (filters.urgency === "rush" || filters.urgency === "urgent") {
+        if (!isRushUrgency(urgency)) return false;
+      } else if (urgency !== filters.urgency) {
+        return false;
+      }
+    }
 
     if (filters.kind === "blogger" && !orderIsBlogger(order)) return false;
     if (filters.kind === "regular" && orderIsBlogger(order)) return false;
@@ -336,27 +343,44 @@ function InStockToggle({
   value: boolean;
   onChange: (next: boolean) => void;
 }) {
+  const [pinOpen, setPinOpen] = useState(false);
+  const nextValue = !value;
+
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={value}
-      onClick={() => onChange(!value)}
-      className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-900 active:bg-gray-50"
-    >
-      <span>В наличии</span>
-      <span
-        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-          value ? "bg-gray-900" : "bg-gray-300"
-        }`}
+    <>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={value}
+        onClick={() => setPinOpen(true)}
+        className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-900 active:bg-gray-50"
       >
+        <span>В наличии</span>
         <span
-          className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
-            value ? "translate-x-6" : "translate-x-1"
+          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+            value ? "bg-gray-900" : "bg-gray-300"
           }`}
-        />
-      </span>
-    </button>
+        >
+          <span
+            className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+              value ? "translate-x-6" : "translate-x-1"
+            }`}
+          />
+        </span>
+      </button>
+      <AdminPinPopup
+        open={pinOpen}
+        title="Код доступа"
+        description={
+          nextValue
+            ? "Чтобы снова показывать только заказы в наличии"
+            : "Чтобы показать заказы без наличия на складе"
+        }
+        verifyUrl="/api/guides/unlock"
+        onClose={() => setPinOpen(false)}
+        onSuccess={() => onChange(nextValue)}
+      />
+    </>
   );
 }
 

@@ -1,9 +1,28 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AuthHeaderStats } from "@/components/auth/AuthHeaderStats";
 import type { ShippingTab } from "@/types/shipping";
+
+function useIsEmbedded(): boolean {
+  const [embedded, setEmbedded] = useState(false);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const explicit = params.get("embedded");
+    if (explicit === "1" || explicit === "true") {
+      setEmbedded(true);
+      return;
+    }
+
+    try {
+      setEmbedded(window.self !== window.top);
+    } catch {
+      setEmbedded(true);
+    }
+  }, []);
+  return embedded;
+}
 
 function HeaderButton({
   active,
@@ -95,6 +114,7 @@ export function OtpravkiPageHeader({
   onShippingTabChange,
 }: OtpravkiPageHeaderProps) {
   const pathname = usePathname();
+  const isEmbedded = useIsEmbedded();
   const onOtpravki = pathname === "/otpravki" || pathname.startsWith("/otpravki/");
   const adminActive = pathname === "/admin" || pathname.startsWith("/admin/");
   const guideActive =
@@ -102,6 +122,8 @@ export function OtpravkiPageHeader({
 
   const shippingActive = onOtpravki && shippingTab === "shipping";
   const archiveActive = onOtpravki && shippingTab === "archive";
+
+  if (isEmbedded) return null;
 
   return (
     <header className="safe-top shrink-0 border-b border-gray-200 bg-white">

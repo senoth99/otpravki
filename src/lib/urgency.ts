@@ -67,6 +67,10 @@ export function mapOrderTags(
   return mapped.length ? mapped : undefined;
 }
 
+export function isRushUrgency(urgency: OrderUrgency): boolean {
+  return urgency === "rush" || urgency === "urgent";
+}
+
 /** Итоговая срочность: тег «СРОЧНО» → rush, иначе по возрасту / сохранённому urgency. */
 export function resolveOrderUrgency(
   order: Pick<ShippingOrder, "urgency" | "createdAt" | "tags">,

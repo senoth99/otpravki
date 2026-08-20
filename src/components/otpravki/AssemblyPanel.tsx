@@ -5,7 +5,7 @@ import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { getAssemblyViewSections } from "@/lib/assembly-demand";
 import { orderIsBlogger } from "@/lib/blogger-order";
-import { resolveOrderUrgency } from "@/lib/urgency";
+import { isRushUrgency, resolveOrderUrgency } from "@/lib/urgency";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { WarehouseMapConfig } from "@/types/stock";
 import { AssemblyView } from "./AssemblyView";
@@ -143,7 +143,7 @@ export function AssemblyPanel({
     for (const order of brandOrders) {
       const urgency = resolveOrderUrgency(order);
       if (urgency === "critical") critical += 1;
-      if (urgency === "rush") rush += 1;
+      if (isRushUrgency(urgency)) rush += 1;
       if (orderIsBlogger(order)) blogger += 1;
       const total = order.items.reduce((sum, item) => sum + item.quantity, 0);
       const scanned = order.items.reduce((sum, item) => sum + item.scannedCount, 0);

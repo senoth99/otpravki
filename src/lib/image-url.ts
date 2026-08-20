@@ -1,3 +1,6 @@
+/** Заглушка, если нет мокапа: чёрный вопросик на белом */
+export const PRODUCT_PLACEHOLDER_SRC = "/no-mockup.svg";
+
 /** Путь картинки с API → локальный URL на сервере otpravki */
 export function toLocalImageUrl(path: string): string {
   if (!path) return "";
@@ -6,7 +9,10 @@ export function toLocalImageUrl(path: string): string {
 
   if (path.startsWith("http://") || path.startsWith("https://")) {
     try {
-      const { pathname } = new URL(path);
+      const { hostname, pathname } = new URL(path);
+      if (hostname === "amarix-media.storage.yandexcloud.net" && pathname.startsWith("/")) {
+        return `/api/images/yc${pathname}`;
+      }
       if (pathname.startsWith("/uploads/")) {
         return `/api/images${pathname}`;
       }

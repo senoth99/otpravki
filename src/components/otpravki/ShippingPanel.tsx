@@ -5,7 +5,7 @@ import { useAuth } from "@/components/auth/AuthGate";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { orderIsBlogger } from "@/lib/blogger-order";
-import { resolveOrderUrgency } from "@/lib/urgency";
+import { isRushUrgency, resolveOrderUrgency } from "@/lib/urgency";
 import type { AssemblyItem, ShippingOrder, ShippingTab } from "@/types/shipping";
 import { ArchiveView } from "./ArchiveView";
 import {
@@ -158,7 +158,7 @@ export function ShippingPanel({
     for (const order of activeBrandOrders) {
       const urgency = resolveOrderUrgency(order);
       if (urgency === "critical") critical += 1;
-      if (urgency === "rush") rush += 1;
+      if (isRushUrgency(urgency)) rush += 1;
       if (orderIsBlogger(order)) blogger += 1;
       const total = order.items.reduce((sum, item) => sum + item.quantity, 0);
       const scanned = order.items.reduce((sum, item) => sum + item.scannedCount, 0);
@@ -231,6 +231,7 @@ export function ShippingPanel({
               onBrandChange={handleBrandChange}
               onOrdersChange={handleFilteredOrdersChange}
               onOrderShipped={() => scheduleRefreshAfterShip(selectedBrand)}
+              selectionResetKey={`${selectedBrand}:${JSON.stringify(filters)}`}
             />
           ) : (
             <ArchiveView

@@ -1,6 +1,7 @@
 import { mapUnshippedOrdersToWorkspace } from "@/lib/orders-mapper";
 import { formatApiFetchError } from "@/lib/server/api-fetch-error";
 import { fetchUnshippedOrders, fetchUnshippedOrdersForBrand } from "@/lib/server/orders-api";
+import { productsAuthHeaders } from "@/lib/server/casher-api";
 import { externalFetch } from "@/lib/server/external-fetch";
 import { logSync } from "@/lib/server/sync-log";
 import { ingestGtinCatalogFromOrders } from "@/lib/server/chestny-znak-gtin-catalog";
@@ -24,7 +25,10 @@ export interface WorkspaceApiSyncResult {
 async function fetchProductsLive(): Promise<ApiProduct[]> {
   let res: Response;
   try {
-    res = await externalFetch(PRODUCTS_URL, { timeoutMs: 20_000 });
+    res = await externalFetch(PRODUCTS_URL, {
+      headers: { ...productsAuthHeaders(), Accept: "application/json" },
+      timeoutMs: 20_000,
+    });
   } catch (error) {
     throw new Error(formatApiFetchError(error, PRODUCTS_URL));
   }
@@ -34,7 +38,9 @@ async function fetchProductsLive(): Promise<ApiProduct[]> {
   }
 
   const data: ApiProduct[] = await res.json();
-  return data.filter((product) => product.images.length > 0);
+  // Не отбрасываем продукты без картинок: для UI важнее наличие размерностей/ID,
+  // а `ProductImage` умеет рисовать заглушку при пустом src.
+  return data;
 }
 
 export async function fetchAndSyncWorkspaceFromApi(): Promise<WorkspaceApiSyncResult> {

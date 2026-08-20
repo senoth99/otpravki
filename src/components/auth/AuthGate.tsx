@@ -15,10 +15,17 @@ import { RegisterScreen } from "@/components/auth/RegisterScreen";
 import { ShiftStartReminder } from "@/components/auth/ShiftStartReminder";
 import { usePointerDragScroll } from "@/hooks/usePointerDragScroll";
 
-/** Без логина можно только инструкцию. Остальное — после входа. */
+/** Без логина: инструкция и скрытые гайды (только по ссылке). Остальное — после входа. */
 function isGuestPublicPath(pathname: string | null): boolean {
   if (!pathname) return false;
-  return pathname === "/instrukciya" || pathname.startsWith("/instrukciya/");
+  return (
+    pathname === "/instrukciya" ||
+    pathname.startsWith("/instrukciya/") ||
+    pathname === "/gaidy" ||
+    pathname.startsWith("/gaidy/") ||
+    pathname === "/obzor" ||
+    pathname.startsWith("/obzor/")
+  );
 }
 
 function AuthLoginPanel({
@@ -106,9 +113,30 @@ function AuthLoginPanel({
   );
 }
 
+/** Определяем открытие в iframe — в этом случае auth-gate пропускаем */
+function useIsEmbedded(): boolean {
+  const [embedded, setEmbedded] = useState(false);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const explicit = params.get("embedded");
+    if (explicit === "1" || explicit === "true") {
+      setEmbedded(true);
+      return;
+    }
+
+    try {
+      setEmbedded(window.self !== window.top);
+    } catch {
+      setEmbedded(true);
+    }
+  }, []);
+  return embedded;
+}
+
 function AuthShell({ children }: { children: ReactNode }) {
   usePointerDragScroll();
   const pathname = usePathname();
+  const isEmbedded = useIsEmbedded();
   const {
     loading,
     user,
@@ -120,11 +148,12 @@ function AuthShell({ children }: { children: ReactNode }) {
   const guestPublic = isGuestPublicPath(pathname);
   // Держим страницу смонтированной под оверлеем, чтобы Chrome не мигал «couldn't load»
   const keepMounted = useRef(false);
-  if (user || guestPublic) keepMounted.current = true;
+  if (user || guestPublic || isEmbedded) keepMounted.current = true;
 
-  const showApp = Boolean(user) || guestPublic;
-  const showBlockingLogin = !user && !loading && !guestPublic;
-  const showLoginOverlay = !user && !loading && guestPublic && loginOpen;
+  // В iframe — показываем приложение сразу без auth
+  const showApp = Boolean(user) || guestPublic || isEmbedded;
+  const showBlockingLogin = !user && !loading && !guestPublic && !isEmbedded;
+  const showLoginOverlay = !user && !loading && guestPublic && loginOpen && !isEmbedded;
 
   if (loading && !keepMounted.current && !showBlockingLogin) {
     return (
@@ -157,7 +186,7 @@ function AuthShell({ children }: { children: ReactNode }) {
         </div>
       ) : null}
 
-      {user && shiftReminderOpen ? (
+      {user && shiftReminderOpen && !isEmbedded ? (
         <ShiftStartReminder emoji={user.emoji} onContinue={dismissShiftReminder} />
       ) : null}
     </>

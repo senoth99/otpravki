@@ -8,7 +8,7 @@ import type {
   WarehouseCell,
   WarehouseMapConfig,
 } from "@/types/stock";
-import { toLocalImageUrl } from "@/lib/image-url";
+import { PRODUCT_PLACEHOLDER_SRC, toLocalImageUrl } from "@/lib/image-url";
 import { CellModal } from "./CellModal";
 
 interface WarehouseMapProps {
@@ -196,13 +196,15 @@ function ProductIcon({ imageUrl, alt, size }: { imageUrl: string; alt: string; s
 
   if (!src || failed) {
     return (
-      <div
-        className="flex shrink-0 items-center justify-center rounded bg-gray-200"
-        style={{ width: size, height: size }}
+      <img
+        src={PRODUCT_PLACEHOLDER_SRC}
+        alt={alt}
+        width={size}
+        height={size}
+        draggable={false}
         title={alt}
-      >
-        <span className="text-[7px] text-gray-400">?</span>
-      </div>
+        className="shrink-0 rounded object-cover ring-1 ring-white/80"
+      />
     );
   }
 

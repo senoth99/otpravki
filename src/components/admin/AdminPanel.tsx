@@ -152,6 +152,26 @@ export function AdminPanel() {
               </span>
               <span className="text-gray-400">→</span>
             </button>
+            <a
+              href="/gaidy"
+              className="flex min-h-20 items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 text-left shadow-sm active:scale-[0.99]"
+            >
+              <span>
+                <span className="block text-base font-semibold text-gray-900">Гайды</span>
+                <span className="mt-0.5 block text-sm text-gray-500">Инструкции и QR на страницы</span>
+              </span>
+              <span className="text-gray-400">→</span>
+            </a>
+            <a
+              href="/obzor"
+              className="flex min-h-20 items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 text-left shadow-sm active:scale-[0.99]"
+            >
+              <span>
+                <span className="block text-base font-semibold text-gray-900">Обзор</span>
+                <span className="mt-0.5 block text-sm text-gray-500">Цифры и вещи к отправке</span>
+              </span>
+              <span className="text-gray-400">→</span>
+            </a>
           </div>
         )}
 

@@ -1,8 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
-import { toLocalImageUrl } from "@/lib/image-url";
+import { PRODUCT_PLACEHOLDER_SRC, toLocalImageUrl } from "@/lib/image-url";
 import { findTechSpecImages } from "@/lib/tech-specs";
 import { DefectExamplesPopup } from "./DefectExamplesPopup";
 
@@ -21,7 +20,7 @@ export function ProductImage({
   src,
   alt,
   className,
-  sizes,
+  sizes: _sizes,
   productName,
   previewable = true,
 }: ProductImageProps) {
@@ -56,14 +55,14 @@ export function ProductImage({
 
   if (!imageSrc || failed) {
     return (
-      <div className={`flex items-center justify-center bg-gray-200 text-gray-400 ${className ?? ""}`}>
-        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-          />
-        </svg>
+      <div className="absolute inset-0 h-full w-full overflow-hidden">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={PRODUCT_PLACEHOLDER_SRC}
+          alt=""
+          draggable={false}
+          className={`h-full w-full object-cover ${className ?? ""}`}
+        />
       </div>
     );
   }
@@ -95,14 +94,12 @@ export function ProductImage({
           canPreview ? "cursor-zoom-in active:opacity-90" : ""
         }`}
       >
-        <Image
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={imageSrc}
           alt={alt}
-          fill
-          unoptimized
           draggable={false}
-          className={`select-none [-webkit-user-drag:none] ${className ?? ""}`}
-          sizes={sizes}
+          className={`absolute inset-0 h-full w-full select-none [-webkit-user-drag:none] ${className ?? ""}`}
           onError={() => setFailed(true)}
           onDragStart={(event) => event.preventDefault()}
         />
@@ -110,29 +107,29 @@ export function ProductImage({
 
       {open ? (
         <div
-          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black p-4"
           onClick={() => setOpen(false)}
           role="dialog"
           aria-modal="true"
           aria-label={label}
         >
           <div
-            className="mx-auto flex w-fit max-w-full flex-col"
+            className="mx-auto flex w-full max-w-sm flex-col"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="relative overflow-hidden rounded-2xl">
+            <div className="relative overflow-hidden rounded-2xl bg-white">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={imageSrc}
                 alt={alt}
-                className="block h-auto max-h-[min(62dvh,26rem)] max-w-full bg-transparent object-contain"
+                className="block h-auto max-h-[min(62dvh,26rem)] w-full bg-white object-contain"
                 draggable={false}
               />
               <button
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Закрыть"
-                className="absolute right-2 top-2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-2xl leading-none text-white active:bg-black/60"
+                className="absolute right-2 top-2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-2xl leading-none text-white active:bg-gray-800"
               >
                 ×
               </button>
@@ -145,10 +142,10 @@ export function ProductImage({
                   if (!hasSpecs) return;
                   setSpecsOpen(true);
                 }}
-                className={`flex h-12 w-full items-center justify-center rounded-xl text-sm font-semibold transition-colors ${
+                className={`flex h-12 w-full items-center justify-center rounded-xl text-sm font-semibold ${
                   hasSpecs
                     ? "bg-white text-gray-900 active:bg-gray-100"
-                    : "cursor-not-allowed bg-white/25 text-white/50"
+                    : "cursor-not-allowed bg-white text-gray-400"
                 }`}
               >
                 Технические характеристики
@@ -156,7 +153,7 @@ export function ProductImage({
               <button
                 type="button"
                 onClick={() => setDefectsOpen(true)}
-                className="flex h-12 w-full items-center justify-center rounded-xl bg-white/90 text-sm font-semibold text-gray-900 active:bg-white"
+                className="flex h-12 w-full items-center justify-center rounded-xl bg-white text-sm font-semibold text-gray-900 active:bg-gray-100"
               >
                 Виды брака
               </button>
