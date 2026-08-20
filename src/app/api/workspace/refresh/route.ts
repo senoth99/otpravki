@@ -25,7 +25,10 @@ export async function POST(request: Request) {
     const result = brand
       ? await fetchAndSyncWorkspaceFromApiForBrand(brand)
       : await fetchAndSyncWorkspaceFromApi();
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json(
+      { ok: true, ...result },
+      { headers: { "Cache-Control": "no-store, must-revalidate" } },
+    );
   } catch (error) {
     const message = formatApiFetchError(error);
     void logSync("api.refresh.fail", { message });

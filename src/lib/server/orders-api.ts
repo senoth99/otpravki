@@ -142,6 +142,7 @@ async function fetchProcessingAdminOrders(brand: BrandApiConfig): Promise<unknow
         ...casherAuthHeaders(brand.token),
         Accept: "application/json",
       },
+      cache: "no-store",
       timeoutMs: 25_000,
     });
     if (!res.ok) break;
@@ -222,6 +223,7 @@ async function hydrateMissingOrderItems(
           ...casherAuthHeaders(brand.token),
           Accept: "application/json",
         },
+        cache: "no-store",
         timeoutMs: 8_000,
       },
     );
@@ -271,6 +273,7 @@ async function fetchBrandUnshippedOrders(brand: BrandApiConfig): Promise<ApiUnsh
         ...casherAuthHeaders(brand.token),
         Accept: "application/json",
       },
+      cache: "no-store",
       timeoutMs: 25_000,
     });
   } catch (error) {

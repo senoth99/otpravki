@@ -145,14 +145,24 @@ export function useWorkspace({
     [applyWorkspaceState],
   );
 
+  const afterShipTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
   const scheduleRefreshAfterShip = useCallback(
     (brand?: string) => {
-      window.setTimeout(() => {
+      void refreshFromApi(brand, { silent: true });
+      window.clearTimeout(afterShipTimerRef.current);
+      afterShipTimerRef.current = window.setTimeout(() => {
         void refreshFromApi(brand, { silent: true });
       }, ORDERS_API_REFRESH_AFTER_SHIP_MS);
     },
     [refreshFromApi],
   );
+
+  useEffect(() => {
+    return () => {
+      window.clearTimeout(afterShipTimerRef.current);
+    };
+  }, []);
 
   const persist = useCallback(
     (assembly: AssemblyItem[], ords: ShippingOrder[]) => {

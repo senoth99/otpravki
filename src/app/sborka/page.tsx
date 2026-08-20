@@ -3,13 +3,14 @@ import { USE_MOCK_ORDERS } from "@/lib/app-config";
 import { describeCasherLoadError } from "@/lib/casher-error";
 import { buildInitialWorkspace } from "@/lib/build-workspace";
 import { getMockResetToken } from "@/lib/server/mock-reset";
-import { fetchAndSyncWorkspaceFromApi } from "@/lib/server/workspace-api-sync";
+import { loadWorkspaceFromLiveApi } from "@/lib/server/workspace-api-sync";
 import { getWarehouseMap } from "@/lib/server/warehouse-map-store";
 import { getSharedWorkspace, initSharedWorkspace } from "@/lib/server/workspace-store";
 import type { WarehouseMapConfig } from "@/types/stock";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export const metadata = {
   title: "Сборка | CASHER Admin",
@@ -61,8 +62,7 @@ export default async function SborkaPage() {
 
   if (!USE_MOCK_ORDERS) {
     try {
-      const existing = await getSharedWorkspace();
-      const workspace = existing ?? (await fetchAndSyncWorkspaceFromApi()).workspace;
+      const workspace = await loadWorkspaceFromLiveApi();
       return (
         <SborkaShell
           assemblyItems={workspace.assemblyItems}

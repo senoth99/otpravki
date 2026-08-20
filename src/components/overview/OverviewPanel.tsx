@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
+import { useLiveWorkspaceRefresh } from "@/hooks/useLiveWorkspaceRefresh";
+import { USE_MOCK_ORDERS } from "@/lib/app-config";
 import { BloggerBadge } from "@/components/otpravki/BloggerBadge";
 import { OrderComments } from "@/components/otpravki/OrderComments";
 import { OrderNumberDisplay } from "@/components/otpravki/OrderNumberDisplay";
@@ -19,6 +21,7 @@ import {
 } from "@/lib/overview-data";
 import { resolveOrderUrgency, URGENCY_LABELS } from "@/lib/urgency";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
+import type { SharedWorkspaceState } from "@/types/workspace";
 
 function SizeChips({ sizes, compact }: { sizes: OverviewSize[]; compact?: boolean }) {
   return (
@@ -436,20 +439,34 @@ function statsList(stats: OverviewStats) {
 }
 
 export function OverviewPanel({
-  assemblyItems,
-  orders,
-  shippedArchive = [],
+  assemblyItems: initialAssembly,
+  orders: initialOrders,
+  shippedArchive: initialArchive = [],
 }: {
   assemblyItems: AssemblyItem[];
   orders: ShippingOrder[];
   shippedArchive?: ShippingOrder[];
 }) {
   useOtpravkiNoSwipe();
+  const [assemblyItems, setAssemblyItems] = useState(initialAssembly);
+  const [orders, setOrders] = useState(initialOrders);
+  const [shippedArchive, setShippedArchive] = useState(initialArchive);
   const [view, setView] = useState<"tiles" | "list">("tiles");
   const [query, setQuery] = useState("");
   const [openProductId, setOpenProductId] = useState<string | null>(null);
   const [tileProduct, setTileProduct] = useState<OverviewProduct | null>(null);
   const [openOrder, setOpenOrder] = useState<ShippingOrder | null>(null);
+
+  const applyWorkspace = useCallback((workspace: SharedWorkspaceState) => {
+    setAssemblyItems(workspace.assemblyItems);
+    setOrders(workspace.orders);
+    setShippedArchive(workspace.shippedArchive ?? []);
+  }, []);
+
+  const { onUserAction } = useLiveWorkspaceRefresh(applyWorkspace, {
+    enabled: !USE_MOCK_ORDERS,
+  });
+
   const products = useMemo(() => groupProductsToShip(assemblyItems), [assemblyItems]);
   const visibleProducts = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -500,6 +517,7 @@ export function OverviewPanel({
                 onClick={() => {
                   setView("tiles");
                   setOpenProductId(null);
+                  onUserAction();
                 }}
                 className={`inline-flex h-9 cursor-pointer items-center rounded-xl px-3 text-sm font-medium ${
                   view === "tiles" ? "bg-gray-900 text-white" : "text-gray-700"
@@ -513,6 +531,7 @@ export function OverviewPanel({
                   setView("list");
                   setTileProduct(null);
                   setOpenOrder(null);
+                  onUserAction();
                 }}
                 className={`inline-flex h-9 cursor-pointer items-center rounded-xl px-3 text-sm font-medium ${
                   view === "list" ? "bg-gray-900 text-white" : "text-gray-700"
@@ -534,7 +553,10 @@ export function OverviewPanel({
                   key={product.productId}
                   product={product}
                   orders={ordersByProduct.get(product.productId) ?? []}
-                  onOpen={() => setTileProduct(product)}
+                  onOpen={() => {
+                    setTileProduct(product);
+                    onUserAction();
+                  }}
                 />
               ))}
             </div>
@@ -542,7 +564,10 @@ export function OverviewPanel({
             <div className="space-y-2">
               <KeyboardField
                 value={query}
-                onChange={setQuery}
+                onChange={(value) => {
+                  setQuery(value);
+                  onUserAction();
+                }}
                 placeholder="Поиск модели…"
                 title="Поиск модели"
                 className="h-12 w-full rounded-2xl border border-gray-200 bg-white px-3 text-base text-gray-900 placeholder:text-gray-400 shadow-sm"
@@ -558,8 +583,14 @@ export function OverviewPanel({
                     product={product}
                     orders={ordersByProduct.get(product.productId) ?? []}
                     expanded={openProductId === product.productId}
-                    onToggle={() => toggleProduct(product.productId)}
-                    onOrderClick={setOpenOrder}
+                    onToggle={() => {
+                      toggleProduct(product.productId);
+                      onUserAction();
+                    }}
+                    onOrderClick={(order) => {
+                      setOpenOrder(order);
+                      onUserAction();
+                    }}
                   />
                 ))
               )}
@@ -575,7 +606,10 @@ export function OverviewPanel({
             setOpenOrder(null);
             setTileProduct(null);
           }}
-          onOrderClick={setOpenOrder}
+          onOrderClick={(order) => {
+            setOpenOrder(order);
+            onUserAction();
+          }}
           closeOnEscape={!openOrder}
         />
       ) : null}

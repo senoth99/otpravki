@@ -1,10 +1,10 @@
 import { OverviewPanel } from "@/components/overview/OverviewPanel";
 import { USE_MOCK_ORDERS } from "@/lib/app-config";
 import { buildInitialWorkspace } from "@/lib/build-workspace";
-import { fetchAndSyncWorkspaceFromApi } from "@/lib/server/workspace-api-sync";
-import { getSharedWorkspace } from "@/lib/server/workspace-store";
+import { loadWorkspaceFromLiveApi } from "@/lib/server/workspace-api-sync";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export const metadata = {
   title: "Обзор | CASHER",
@@ -19,20 +19,9 @@ function EmptyState() {
 }
 
 export default async function ObzorPage() {
-  const existing = await getSharedWorkspace();
-  if (existing) {
-    return (
-      <OverviewPanel
-        assemblyItems={existing.assemblyItems}
-        orders={existing.orders}
-        shippedArchive={existing.shippedArchive}
-      />
-    );
-  }
-
   if (!USE_MOCK_ORDERS) {
     try {
-      const { workspace } = await fetchAndSyncWorkspaceFromApi();
+      const workspace = await loadWorkspaceFromLiveApi();
       return (
         <OverviewPanel
           assemblyItems={workspace.assemblyItems}

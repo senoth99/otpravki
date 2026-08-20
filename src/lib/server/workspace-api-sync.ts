@@ -6,6 +6,7 @@ import { externalFetch } from "@/lib/server/external-fetch";
 import { logSync } from "@/lib/server/sync-log";
 import { ingestGtinCatalogFromOrders } from "@/lib/server/chestny-znak-gtin-catalog";
 import {
+  getSharedWorkspace,
   replaceWorkspaceFromApi,
   replaceWorkspaceFromApiForBrand,
 } from "@/lib/server/workspace-store";
@@ -27,6 +28,7 @@ async function fetchProductsLive(): Promise<ApiProduct[]> {
   try {
     res = await externalFetch(PRODUCTS_URL, {
       headers: { ...productsAuthHeaders(), Accept: "application/json" },
+      cache: "no-store",
       timeoutMs: 20_000,
     });
   } catch (error) {
@@ -105,4 +107,15 @@ export async function fetchAndSyncWorkspaceFromApiForBrand(
     assemblyCount: workspace.assemblyItems.length,
     apiOrdersCount: apiOrders.length,
   };
+}
+
+/** Всегда тянем Casher; память — только если API упал. */
+export async function loadWorkspaceFromLiveApi(): Promise<SharedWorkspaceState> {
+  try {
+    return (await fetchAndSyncWorkspaceFromApi()).workspace;
+  } catch (error) {
+    const existing = await getSharedWorkspace();
+    if (existing) return existing;
+    throw error;
+  }
 }
