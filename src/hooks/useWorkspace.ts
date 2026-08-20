@@ -145,7 +145,7 @@ export function useWorkspace({
     [applyWorkspaceState],
   );
 
-  const afterShipTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const afterShipTimerRef = useRef<number | undefined>(undefined);
 
   const scheduleRefreshAfterShip = useCallback(
     (brand?: string) => {
