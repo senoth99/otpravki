@@ -29,7 +29,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const accept = request.headers.get("accept") ?? "";
   const wantsJson = accept.includes("application/json");
-  let shiftShipments = 0;
+  let shiftShipments: number | null = null;
 
   try {
     const token = await readSessionTokenFromCookies();

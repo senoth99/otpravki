@@ -71,18 +71,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch("/api/auth/me", { cache: "no-store" });
-      const data = (await res.json()) as AuthMeResponse;
-      if (!res.ok) {
+      const res = await fetch("/api/auth/me", {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      // Только явный 401 — сессии нет. Сеть/5xx/abort при смене вкладки не разлогинивают.
+      if (res.status === 401) {
         setUser(null);
         setStats(null);
         return false;
       }
+      if (!res.ok) return true;
+      const data = (await res.json()) as AuthMeResponse;
       return applyMe(data);
     } catch {
-      setUser(null);
-      setStats(null);
-      return false;
+      return true;
     }
   }, [applyMe]);
 
@@ -164,17 +167,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, 30_000);
 
     const heartbeat = window.setInterval(() => {
-      void refresh().then((ok) => {
-        if (!ok) void logout();
-      });
+      if (document.visibilityState !== "visible") return;
+      void refresh();
     }, HEARTBEAT_MS);
 
-    const onFocus = () => {
-      void refresh().then((ok) => {
-        if (!ok) void logout();
-      });
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
     };
-    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       for (const event of events) {
@@ -182,7 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       window.clearInterval(idleTimer);
       window.clearInterval(heartbeat);
-      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [user, logout, refresh]);
 
