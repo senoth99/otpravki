@@ -6,10 +6,10 @@ import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { getBoxLabelBrand, type BoxLabelBrandId } from "@/lib/box-label-brands";
 import { getBrandSiteLogo } from "@/lib/server/brand-site-logo";
 
-/** Портрет 100×150 мм (4×6″) — стопка текста как на коробке. */
-const PAGE_W = 4 * 72;
-const PAGE_H = 6 * 72;
-const MARGIN_X = 18;
+/** Альбом 150×100 мм (6×4″) — как остальные этикетки на TSC. */
+const PAGE_W = 6 * 72;
+const PAGE_H = 4 * 72;
+const MARGIN_X = 24;
 const BLACK = rgb(0, 0, 0);
 const WHITE = rgb(1, 1, 1);
 
@@ -121,15 +121,14 @@ export async function buildBoxLabelPdf(input: BoxLabelInput): Promise<Buffer> {
   const logoImage = await pdf.embedPng(logo.png);
 
   const contentW = PAGE_W - MARGIN_X * 2;
-  // Широкие вордмарки (SHECASH) — по ширине; квадратные эмблемы — по высоте.
-  const logoMaxW = contentW * 0.72;
-  const logoMaxH = 44;
+  const logoMaxW = contentW * 0.45;
+  const logoMaxH = 48;
   const logoScale = Math.min(logoMaxW / logoImage.width, logoMaxH / logoImage.height, 1);
   const logoW = logoImage.width * logoScale;
   const logoH = logoImage.height * logoScale;
 
-  // Вертикальный ритм: лого → категория → имя → цвет → размер → бренд внизу
-  let y = PAGE_H - 36 - logoH;
+  // Горизонтальная этикетка, стопка по центру сверху вниз
+  let y = PAGE_H - 18 - logoH;
   page.drawImage(logoImage, {
     x: (PAGE_W - logoW) / 2,
     y,
@@ -137,34 +136,33 @@ export async function buildBoxLabelPdf(input: BoxLabelInput): Promise<Buffer> {
     height: logoH,
   });
 
-  y -= 28;
+  y -= 16;
   if (category) {
-    const sz = fitFontSize(font, category, contentW, 22, 12);
+    const sz = fitFontSize(font, category, contentW, 18, 11);
     drawCentered(page, font, category, sz, y, contentW);
-    y -= sz + 14;
+    y -= sz + 8;
   }
 
   if (name) {
-    const sz = fitFontSize(bold, name, contentW, 20, 12);
+    const sz = fitFontSize(bold, name, contentW, 17, 11);
     drawCentered(page, bold, name, sz, y, contentW);
-    y -= sz + 16;
+    y -= sz + 8;
   }
 
   if (color) {
-    const sz = fitFontSize(bold, color, contentW, 14, 10);
+    const sz = fitFontSize(bold, color, contentW, 12, 9);
     drawCentered(page, bold, color, sz, y, contentW);
-    y -= sz + 18;
+    y -= sz + 10;
   }
 
   if (size) {
-    const sz = fitFontSize(bold, size, contentW, 36, 16);
+    const sz = fitFontSize(bold, size, contentW, 28, 14);
     drawCentered(page, bold, size, sz, y, contentW);
   }
 
-  // Низ: название бренда как на образце
   const brandLabel = brand.label.toUpperCase();
-  const brandSize = fitFontSize(bold, brandLabel, contentW, 18, 11);
-  drawCentered(page, bold, brandLabel, brandSize, 28, contentW);
+  const brandSize = fitFontSize(bold, brandLabel, contentW, 14, 10);
+  drawCentered(page, bold, brandLabel, brandSize, 14, contentW);
 
   return Buffer.from(await pdf.save());
 }

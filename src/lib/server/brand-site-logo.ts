@@ -99,7 +99,12 @@ async function fetchBytes(url: string): Promise<Buffer | null> {
   }
 }
 
-/** Белый/светлый логотип на прозрачном → чёрный на белом (иначе на этикетке не видно). */
+/** Готовим логотип к печати на белой этикетке:
+ *  - белый на прозрачном (SHECASH) → чёрный по альфе
+ *  - уже читаемый на белом (AMMO после flatten) → как есть
+ *  - совсем тёмный кадр → инверсия
+ *  - бледный серый (Кураж) → порог
+ */
 async function forceDarkOnWhite(buf: Buffer): Promise<Buffer> {
   const { data, info } = await sharp(buf)
     .ensureAlpha()
@@ -108,60 +113,93 @@ async function forceDarkOnWhite(buf: Buffer): Promise<Buffer> {
 
   let opaque = 0;
   let light = 0;
+  let graySum = 0;
   for (let i = 0; i < data.length; i += 4) {
     if (data[i + 3]! < 30) continue;
     opaque += 1;
     const gray = (data[i]! + data[i + 1]! + data[i + 2]!) / 3;
+    graySum += gray;
     if (gray > 160) light += 1;
   }
 
-  // SHECASH и похожие: белый знак по альфе → чёрный на белом.
-  const invertLight = opaque > 0 && light / opaque >= 0.45;
+  const lightRatio = opaque > 0 ? light / opaque : 0;
+  const meanOpaque = opaque > 0 ? graySum / opaque : 255;
+  const whiteOnClear = opaque > 0 && lightRatio >= 0.55 && meanOpaque > 200;
 
-  for (let i = 0; i < data.length; i += 4) {
-    const a = data[i + 3]!;
-    const gray = (data[i]! + data[i + 1]! + data[i + 2]!) / 3;
-
-    if (invertLight) {
-      if (a < 30) {
-        data[i] = 255;
-        data[i + 1] = 255;
-        data[i + 2] = 255;
-      } else {
-        data[i] = 0;
-        data[i + 1] = 0;
-        data[i + 2] = 0;
-      }
-      data[i + 3] = 255;
-      continue;
-    }
-
-    // Тёмный логотип / светло-серый на белом (Кураж): всё «не фон» → чёрный.
-    const isBg = a < 30 || gray > 245;
-    if (isBg) {
-      data[i] = 255;
-      data[i + 1] = 255;
-      data[i + 2] = 255;
-      data[i + 3] = 255;
-    } else {
-      data[i] = 0;
-      data[i + 1] = 0;
-      data[i + 2] = 0;
+  if (whiteOnClear) {
+    for (let i = 0; i < data.length; i += 4) {
+      const on = data[i + 3]! >= 30;
+      data[i] = on ? 0 : 255;
+      data[i + 1] = on ? 0 : 255;
+      data[i + 2] = on ? 0 : 255;
       data[i + 3] = 255;
     }
+    return sharp(data, {
+      raw: { width: info.width, height: info.height, channels: 4 },
+    })
+      .grayscale()
+      .png({ compressionLevel: 8 })
+      .toBuffer();
   }
 
-  return sharp(data, {
+  for (let i = 0; i < data.length; i += 4) {
+    const a = data[i + 3]! / 255;
+    data[i] = Math.round(data[i]! * a + 255 * (1 - a));
+    data[i + 1] = Math.round(data[i + 1]! * a + 255 * (1 - a));
+    data[i + 2] = Math.round(data[i + 2]! * a + 255 * (1 - a));
+    data[i + 3] = 255;
+  }
+
+  let flat = await sharp(data, {
     raw: { width: info.width, height: info.height, channels: 4 },
   })
     .grayscale()
-    .png({ compressionLevel: 8 })
+    .png()
     .toBuffer();
+
+  const stats = await sharp(flat).stats();
+  const mean = stats.channels[0]?.mean ?? 255;
+
+  // Весь кадр тёмный (не удалось «подложить» белый) — инверсия
+  if (mean < 80) {
+    flat = await sharp(flat).negate({ alpha: false }).png().toBuffer();
+  }
+
+  const after = await sharp(flat).stats();
+  const afterMean = after.channels[0]?.mean ?? 255;
+  const afterMin = after.channels[0]?.min ?? 0;
+  // Бледный знак: самый тёмный пиксель всё ещё серый
+  if (afterMean > 190 && afterMin > 120) {
+    const raw = await sharp(flat).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    for (let i = 0; i < raw.data.length; i += raw.info.channels) {
+      const g = raw.data[i]!;
+      const v = g < 230 ? 0 : 255;
+      raw.data[i] = v;
+      if (raw.info.channels >= 3) {
+        raw.data[i + 1] = v;
+        raw.data[i + 2] = v;
+      }
+      if (raw.info.channels >= 4) raw.data[i + 3] = 255;
+    }
+    flat = await sharp(raw.data, {
+      raw: {
+        width: raw.info.width,
+        height: raw.info.height,
+        channels: raw.info.channels,
+      },
+    })
+      .grayscale()
+      .png({ compressionLevel: 8 })
+      .toBuffer();
+  }
+
+  return flat;
 }
 
 async function toPrintablePng(buf: Buffer): Promise<Buffer | null> {
   try {
-    const frame = await sharp(buf, { animated: true, pages: 1 })
+    // Только первый кадр GIF/APNG — иначе sharp склеивает все кадры в длинную полосу
+    const frame = await sharp(buf, { page: 0 })
       .rotate()
       .resize({ width: 900, height: 900, fit: "inside", withoutEnlargement: false })
       .png()

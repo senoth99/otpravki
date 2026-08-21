@@ -138,7 +138,7 @@ export function BoxLabelEditor() {
         <p className="border-b border-gray-100 px-4 py-2 text-xs font-medium uppercase tracking-wide text-gray-400">
           Превью
         </p>
-        <div className="flex min-h-[420px] flex-col items-center justify-between bg-white px-6 py-8 text-center">
+        <div className="flex aspect-[3/2] min-h-0 flex-col items-center justify-between bg-white px-6 py-5 text-center">
           <div className="flex w-full flex-col items-center gap-5">
             <img
               key={logoKey}
@@ -176,7 +176,7 @@ export function BoxLabelEditor() {
         onClick={() => void printLabel()}
         className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-gray-900 px-5 text-base font-semibold text-white shadow-sm active:scale-[0.99] disabled:opacity-50"
       >
-        {busy ? "Печать…" : "Печать надписи 100×150"}
+        {busy ? "Печать…" : "Печать надписи 150×100"}
       </button>
 
       {message && (
