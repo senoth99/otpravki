@@ -1,7 +1,7 @@
 import { existsSync } from "fs";
 import { mkdir, readFile } from "fs/promises";
 import path from "path";
-import { printPdfLabel4x6, printPdfLabelPortrait4x6 } from "@/lib/server/pdf-label-printer";
+import { printPdfLabel4x6 } from "@/lib/server/pdf-label-printer";
 import { buildTrackLabelPdf, sampleTrackLabelInput } from "@/lib/server/track-label-pdf";
 import {
   brandBarcodeKindFromStore,
@@ -45,7 +45,7 @@ export async function printLabelTemplate(printer: string, kind: TestLabelKind): 
 
   if (kind === "track") {
     const pdf = await buildTrackLabelPdf(sampleTrackLabelInput());
-    return printPdfLabelPortrait4x6(printer, pdf, PRINT_DIR, `track-${Date.now()}`);
+    return printPdfLabel4x6(printer, pdf, PRINT_DIR, `track-${Date.now()}`);
   }
 
   const templatePath = resolveLabelTemplate(kind);

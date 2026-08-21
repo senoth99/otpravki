@@ -9,7 +9,7 @@ import {
   printBrandBarcodeLabel,
 } from "@/lib/server/brand-barcode-label";
 import { downloadBarcodePdf, resolveBarcodeUrl } from "@/lib/server/orders-api";
-import { printPdfLabel, printPdfLabelPortrait4x6 } from "@/lib/server/pdf-label-printer";
+import { printPdfLabel, printPdfLabel4x6 } from "@/lib/server/pdf-label-printer";
 import {
   buildTrackLabelPdf,
   trackLabelFromOrder,
@@ -250,7 +250,7 @@ export async function printToBarcodePrinter(
         };
     const pdf = await buildTrackLabelPdf(labelInput);
     const stamp = `track-${Date.now()}`;
-    const format = await printPdfLabelPortrait4x6(printer, pdf, PRINT_DIR, stamp);
+    const format = await printPdfLabel4x6(printer, pdf, PRINT_DIR, stamp);
     await logPrint(
       `OK track-label ${format} printer=${printer} order=${orderNumber} track=${tracking} brand=${options.brand ?? options.order?.storeBrand ?? "?"}`,
     );
