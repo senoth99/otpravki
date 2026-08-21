@@ -35,6 +35,8 @@ export async function POST(request: Request) {
       barcodeData?: string;
       barcodeUrl?: string;
       order?: ShippingOrder;
+      stage?: "brand" | "track" | "both";
+      skipShip?: boolean;
     };
 
     if (!body.orderNumber) {
@@ -51,6 +53,7 @@ export async function POST(request: Request) {
       );
     }
 
+    const stage = body.stage ?? "both";
     const result = await printToBarcodePrinter(body.orderNumber, {
       orderId: body.orderId,
       barcodeUrl: body.barcodeUrl,
@@ -58,6 +61,7 @@ export async function POST(request: Request) {
       brand: body.order?.storeBrand,
       order: body.order,
       trackingNumber: body.order?.trackingNumber,
+      stage,
     });
     if (!result.ok) {
       return NextResponse.json(
@@ -71,60 +75,63 @@ export async function POST(request: Request) {
       );
     }
 
-    try {
-      await markOrderShipped(
-        resolveRemoteOrderIdForStatusApi(
-          body.orderId.trim(),
-          body.order?.remoteOrderId,
-        ),
-        body.order?.storeBrand,
-      );
-    } catch (error) {
-      return NextResponse.json(
-        {
-          ok: false,
-          reason: "status_update_failed",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Баркод напечатан, но не удалось отметить заказ отправленным в Casher",
-          printed: true,
-        },
-        { status: 502 },
-      );
-    }
-
-    const workspace = await getSharedWorkspace();
-    const orderId = body.orderId.trim();
-    const fromSession =
-      body.order ??
-      workspace?.orders.find((order) => order.id === orderId) ??
-      workspace?.shippedArchive?.find((order) => order.id === orderId);
-
-    if (fromSession) {
-      const archived: ShippingOrder = {
-        ...fromSession,
-        barcodePrinted: true,
-        barcodePrintedAt: fromSession.barcodePrintedAt ?? Date.now(),
-      };
-
+    const shouldShip = !body.skipShip && stage !== "brand";
+    if (shouldShip) {
       try {
-        const userCtx = await requireUserSession({ touch: true });
-        if (userCtx) {
-          archived.shippedByUserId = userCtx.user.id;
-          archived.shippedByEmoji = userCtx.user.emoji;
-          await recordShipmentEvent({
-            ts: archived.barcodePrintedAt ?? Date.now(),
-            userId: userCtx.user.id,
-            orderId: archived.id,
-            orderNumber: archived.orderNumber,
-          });
-        }
-      } catch {
-        // статистика не должна ломать печать
+        await markOrderShipped(
+          resolveRemoteOrderIdForStatusApi(
+            body.orderId.trim(),
+            body.order?.remoteOrderId,
+          ),
+          body.order?.storeBrand,
+        );
+      } catch (error) {
+        return NextResponse.json(
+          {
+            ok: false,
+            reason: "status_update_failed",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Баркод напечатан, но не удалось отметить заказ отправленным в Casher",
+            printed: true,
+          },
+          { status: 502 },
+        );
       }
 
-      await persistAndReplaceArchive([archived]);
+      const workspace = await getSharedWorkspace();
+      const orderId = body.orderId.trim();
+      const fromSession =
+        body.order ??
+        workspace?.orders.find((order) => order.id === orderId) ??
+        workspace?.shippedArchive?.find((order) => order.id === orderId);
+
+      if (fromSession) {
+        const archived: ShippingOrder = {
+          ...fromSession,
+          barcodePrinted: true,
+          barcodePrintedAt: fromSession.barcodePrintedAt ?? Date.now(),
+        };
+
+        try {
+          const userCtx = await requireUserSession({ touch: true });
+          if (userCtx) {
+            archived.shippedByUserId = userCtx.user.id;
+            archived.shippedByEmoji = userCtx.user.emoji;
+            await recordShipmentEvent({
+              ts: archived.barcodePrintedAt ?? Date.now(),
+              userId: userCtx.user.id,
+              orderId: archived.id,
+              orderNumber: archived.orderNumber,
+            });
+          }
+        } catch {
+          // статистика не должна ломать печать
+        }
+
+        await persistAndReplaceArchive([archived]);
+      }
     }
 
     return NextResponse.json({
@@ -132,6 +139,7 @@ export async function POST(request: Request) {
       method: "server",
       printer: result.printer,
       format: result.format,
+      stage,
     });
   } catch (error) {
     return NextResponse.json(

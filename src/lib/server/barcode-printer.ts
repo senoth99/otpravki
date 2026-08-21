@@ -192,9 +192,11 @@ export interface PrintLabelOptions {
   brand?: string;
   order?: ShippingOrder;
   trackingNumber?: string;
+  /** brand — только макет бренда; track — только трек; both — всё сразу (перепечатка) */
+  stage?: "brand" | "track" | "both";
 }
 
-/** Бренд-макет (AMMO/Кураж) + красивая этикетка трека с составом заказа */
+/** Бренд-макет (AMMO/Кураж) и/или этикетка трека */
 export async function printToBarcodePrinter(
   orderNumber: string,
   options: PrintLabelOptions = {},
@@ -207,18 +209,28 @@ export async function printToBarcodePrinter(
     return { ok: false, printer: null, error: NO_PRINTER_MESSAGE };
   }
 
+  const stage = options.stage ?? "both";
   const brandKind = brandBarcodeKindFromStore(options.brand ?? options.order?.storeBrand);
-  if (brandKind) {
-    try {
-      await printBrandBarcodeLabel(printer, brandKind, orderNumber);
-      await sleep(400);
-      await logPrint(`OK brand-label=${brandKind} printer=${printer} order=${orderNumber}`);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Не удалось напечатать баркод бренда";
-      await logPrint(`FAIL brand-label=${brandKind} printer=${printer} ${message}`);
-      return { ok: false, printer, error: message };
+
+  if (stage === "brand" || stage === "both") {
+    if (brandKind) {
+      try {
+        await printBrandBarcodeLabel(printer, brandKind, orderNumber);
+        await sleep(400);
+        await logPrint(`OK brand-label=${brandKind} printer=${printer} order=${orderNumber}`);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Не удалось напечатать баркод бренда";
+        await logPrint(`FAIL brand-label=${brandKind} printer=${printer} ${message}`);
+        return { ok: false, printer, error: message };
+      }
+    } else if (stage === "brand") {
+      return { ok: false, printer, error: "У этого бренда нет отдельного баркода" };
     }
+  }
+
+  if (stage === "brand") {
+    return { ok: true, printer, format: `brand-${brandKind}` };
   }
 
   const tracking =

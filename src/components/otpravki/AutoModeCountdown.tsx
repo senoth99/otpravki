@@ -7,8 +7,8 @@ interface AutoModeCountdownProps {
   secondsLeft: number;
   totalSeconds: number;
   hasNext: boolean;
-  /** print — ждём перед печатью; next — пауза перед следующим заказом */
-  phase: "print" | "next";
+  /** between — пауза после баркода бренда; next — до следующего заказа */
+  phase: "between" | "next";
   showExitAuto?: boolean;
   onExitAutoMode?: () => void;
 }
@@ -31,7 +31,7 @@ export function AutoModeCountdown({
           <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Auto Mode</p>
         )}
         <p className="mt-4 text-sm text-gray-300">
-          {phase === "print" ? "Печать баркода и трека" : "Заказ отправлен"}
+          {phase === "between" ? "Баркод напечатан" : "Заказ отправлен"}
         </p>
         <p className="mt-1 text-2xl font-bold text-white">
           <OrderNumberDisplay orderNumber={orderNumber} className="justify-center" />
@@ -57,8 +57,8 @@ export function AutoModeCountdown({
         </div>
 
         <p className="mt-8 text-sm text-gray-400">
-          {phase === "print"
-            ? "Печать через…"
+          {phase === "between"
+            ? "Печать трека через…"
             : hasNext
               ? "Следующий заказ через…"
               : "Все заказы обработаны"}
