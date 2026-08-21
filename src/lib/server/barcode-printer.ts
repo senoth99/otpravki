@@ -9,7 +9,12 @@ import {
   printBrandBarcodeLabel,
 } from "@/lib/server/brand-barcode-label";
 import { downloadBarcodePdf, resolveBarcodeUrl } from "@/lib/server/orders-api";
-import { printPdfLabel } from "@/lib/server/pdf-label-printer";
+import { printPdfLabel, printPdfLabel4x6 } from "@/lib/server/pdf-label-printer";
+import {
+  buildTrackLabelPdf,
+  trackLabelFromOrder,
+} from "@/lib/server/track-label-pdf";
+import type { ShippingOrder } from "@/types/shipping";
 
 const execFileAsync = promisify(execFile);
 
@@ -185,9 +190,11 @@ export interface PrintLabelOptions {
   barcodeUrl?: string;
   barcodeData?: string;
   brand?: string;
+  order?: ShippingOrder;
+  trackingNumber?: string;
 }
 
-/** Печать этикетки СДЭК (PDF из barcodeUrl) или сгенерированного баркода (мок) */
+/** Бренд-макет (AMMO/Кураж) + красивая этикетка трека с составом заказа */
 export async function printToBarcodePrinter(
   orderNumber: string,
   options: PrintLabelOptions = {},
@@ -200,7 +207,7 @@ export async function printToBarcodePrinter(
     return { ok: false, printer: null, error: NO_PRINTER_MESSAGE };
   }
 
-  const brandKind = brandBarcodeKindFromStore(options.brand);
+  const brandKind = brandBarcodeKindFromStore(options.brand ?? options.order?.storeBrand);
   if (brandKind) {
     try {
       await printBrandBarcodeLabel(printer, brandKind, orderNumber);
@@ -214,15 +221,52 @@ export async function printToBarcodePrinter(
     }
   }
 
+  const tracking =
+    options.trackingNumber?.trim() ||
+    options.order?.trackingNumber?.trim() ||
+    options.barcodeData?.trim() ||
+    orderNumber;
+
+  try {
+    const labelInput = options.order
+      ? trackLabelFromOrder(options.order, tracking)
+      : {
+          brand: options.brand,
+          orderNumber,
+          trackingNumber: tracking,
+          items: [],
+        };
+    const pdf = await buildTrackLabelPdf(labelInput);
+    const stamp = `track-${Date.now()}`;
+    const format = await printPdfLabel4x6(printer, pdf, PRINT_DIR, stamp);
+    await logPrint(
+      `OK track-label ${format} printer=${printer} order=${orderNumber} track=${tracking} brand=${options.brand ?? options.order?.storeBrand ?? "?"}`,
+    );
+    return { ok: true, printer, format: `track-${format}` };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Не удалось напечатать этикетку трека";
+    await logPrint(`FAIL track-label printer=${printer} ${message}`);
+  }
+
+  // запасной путь: PDF СДЭК из Casher
   const remoteOrderId =
     options.orderId?.includes(":")
       ? options.orderId.split(":").slice(1).join(":")
       : options.orderId;
-  const labelUrl = resolveBarcodeUrl(remoteOrderId, options.barcodeUrl, options.brand);
+  const labelUrl = resolveBarcodeUrl(
+    remoteOrderId,
+    options.barcodeUrl,
+    options.brand ?? options.order?.storeBrand,
+  );
 
   if (labelUrl) {
     try {
-      const pdf = await downloadBarcodePdf(labelUrl, remoteOrderId ?? options.orderId, options.brand);
+      const pdf = await downloadBarcodePdf(
+        labelUrl,
+        remoteOrderId ?? options.orderId,
+        options.brand ?? options.order?.storeBrand,
+      );
       const stamp = `${Date.now()}`;
       const format = await printPdfLabel(printer, pdf, PRINT_DIR, stamp);
       await logPrint(
@@ -238,7 +282,7 @@ export async function printToBarcodePrinter(
   }
 
   let lastError = "Не удалось напечатать на принтере";
-  const barcodeData = options.barcodeData ?? orderNumber;
+  const barcodeData = options.barcodeData ?? tracking;
   const attempts: { format: string; ext: string; content: string; raw: boolean }[] = [
     { format: "zpl", ext: "zpl", content: buildLabelZpl(orderNumber, barcodeData), raw: true },
     { format: "tspl", ext: "tspl", content: buildLabelTspl(orderNumber, barcodeData), raw: true },

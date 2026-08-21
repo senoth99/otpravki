@@ -56,6 +56,8 @@ export async function POST(request: Request) {
       barcodeUrl: body.barcodeUrl,
       barcodeData: body.barcodeData,
       brand: body.order?.storeBrand,
+      order: body.order,
+      trackingNumber: body.order?.trackingNumber,
     });
     if (!result.ok) {
       return NextResponse.json(

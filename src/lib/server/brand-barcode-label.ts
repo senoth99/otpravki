@@ -2,6 +2,7 @@ import { existsSync } from "fs";
 import { mkdir, readFile } from "fs/promises";
 import path from "path";
 import { printPdfLabel4x6 } from "@/lib/server/pdf-label-printer";
+import { buildTrackLabelPdf, sampleTrackLabelInput } from "@/lib/server/track-label-pdf";
 
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
 const PRINT_DIR = path.join(DATA_DIR, "print");
@@ -9,10 +10,9 @@ const PRINT_DIR = path.join(DATA_DIR, "print");
 export type BrandBarcodeKind = "ammo" | "kurazh";
 export type TestLabelKind = BrandBarcodeKind | "track";
 
-const TEMPLATE_FILES: Record<TestLabelKind, string> = {
+const TEMPLATE_FILES: Record<BrandBarcodeKind, string> = {
   ammo: "ammo-150x100.pdf",
   kurazh: "kurazh-150x100.pdf",
-  track: "track-150x100.pdf",
 };
 
 export function brandNeedsSecondBarcode(brand?: string): boolean {
@@ -45,7 +45,7 @@ function labelsDirCandidates(): string[] {
   ].filter(Boolean);
 }
 
-export function resolveLabelTemplate(kind: TestLabelKind): string {
+export function resolveLabelTemplate(kind: BrandBarcodeKind): string {
   const file = TEMPLATE_FILES[kind];
   for (const dir of labelsDirCandidates()) {
     const full = path.join(dir, file);
@@ -55,11 +55,16 @@ export function resolveLabelTemplate(kind: TestLabelKind): string {
 }
 
 export async function printLabelTemplate(printer: string, kind: TestLabelKind): Promise<string> {
+  await mkdir(PRINT_DIR, { recursive: true });
+
+  if (kind === "track") {
+    const pdf = await buildTrackLabelPdf(sampleTrackLabelInput());
+    return printPdfLabel4x6(printer, pdf, PRINT_DIR, `track-${Date.now()}`);
+  }
+
   const templatePath = resolveLabelTemplate(kind);
   const pdf = await readFile(templatePath);
-  await mkdir(PRINT_DIR, { recursive: true });
-  const format = await printPdfLabel4x6(printer, pdf, PRINT_DIR, `${kind}-${Date.now()}`);
-  return format;
+  return printPdfLabel4x6(printer, pdf, PRINT_DIR, `${kind}-${Date.now()}`);
 }
 
 export async function printBrandBarcodeLabel(

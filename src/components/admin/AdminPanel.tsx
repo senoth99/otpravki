@@ -213,7 +213,7 @@ export function AdminPanel() {
                 [
                   { kind: "ammo", label: "Тест баркодник AMMO" },
                   { kind: "kurazh", label: "Тест баркодник Кураж" },
-                  { kind: "track", label: "Тест трек номер" },
+                  { kind: "track", label: "Тест этикетки трека" },
                 ] as const
               ).map((item) => (
                 <button

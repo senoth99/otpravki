@@ -165,7 +165,7 @@ if [[ -d "$APP_DIR/labels" ]]; then
   cp -R "$APP_DIR/labels/." .next/standalone/labels/
 fi
 echo "==> Зависимости standalone (socket.io, undici)..."
-npm install --prefix .next/standalone --omit=dev socket.io@^4.8.1 undici@^7.27.2
+npm install --prefix .next/standalone --omit=dev socket.io@^4.8.1 undici@^7.27.2 pdf-lib@^1.17.1 @pdf-lib/fontkit@^1.1.1
 
 UNIT_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 echo "==> Настраиваю systemd ($SERVICE_NAME)..."
