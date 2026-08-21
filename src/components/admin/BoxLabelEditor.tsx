@@ -144,7 +144,7 @@ export function BoxLabelEditor() {
               key={logoKey}
               src={`/api/admin/box-label/logo?brand=${brandId}&t=${logoKey}`}
               alt={`Логотип ${brandLabel}`}
-              className="h-14 w-14 object-contain"
+              className="h-12 w-auto max-w-[70%] object-contain"
               onLoad={() => setLogoOk(true)}
               onError={() => setLogoOk(false)}
             />

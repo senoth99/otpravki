@@ -99,24 +99,71 @@ async function fetchBytes(url: string): Promise<Buffer | null> {
   }
 }
 
+/** Белый/светлый логотип на прозрачном → чёрный на белом (иначе на этикетке не видно). */
+async function forceDarkOnWhite(buf: Buffer): Promise<Buffer> {
+  const { data, info } = await sharp(buf)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  let opaque = 0;
+  let light = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3]! < 30) continue;
+    opaque += 1;
+    const gray = (data[i]! + data[i + 1]! + data[i + 2]!) / 3;
+    if (gray > 180) light += 1;
+  }
+
+  const invertLight = opaque > 0 && light / opaque >= 0.55;
+  for (let i = 0; i < data.length; i += 4) {
+    const a = data[i + 3]!;
+    if (a < 30) {
+      data[i] = 255;
+      data[i + 1] = 255;
+      data[i + 2] = 255;
+      data[i + 3] = 255;
+      continue;
+    }
+    if (invertLight) {
+      data[i] = 0;
+      data[i + 1] = 0;
+      data[i + 2] = 0;
+      data[i + 3] = 255;
+    } else {
+      // обычный тёмный логотип: flatten alpha на белый
+      const alpha = a / 255;
+      data[i] = Math.round(data[i]! * alpha + 255 * (1 - alpha));
+      data[i + 1] = Math.round(data[i + 1]! * alpha + 255 * (1 - alpha));
+      data[i + 2] = Math.round(data[i + 2]! * alpha + 255 * (1 - alpha));
+      data[i + 3] = 255;
+    }
+  }
+
+  return sharp(data, {
+    raw: { width: info.width, height: info.height, channels: 4 },
+  })
+    .grayscale()
+    .png({ compressionLevel: 8 })
+    .toBuffer();
+}
+
 async function toPrintablePng(buf: Buffer): Promise<Buffer | null> {
   try {
-    return await sharp(buf, { animated: true, pages: 1 })
+    const frame = await sharp(buf, { animated: true, pages: 1 })
       .rotate()
-      .resize({ width: 600, height: 600, fit: "inside", withoutEnlargement: false })
-      .flatten({ background: { r: 255, g: 255, b: 255 } })
-      .grayscale()
-      .png({ compressionLevel: 8 })
+      .resize({ width: 900, height: 900, fit: "inside", withoutEnlargement: false })
+      .png()
       .toBuffer();
+    return await forceDarkOnWhite(frame);
   } catch {
     try {
-      return await sharp(buf)
+      const frame = await sharp(buf)
         .rotate()
-        .resize({ width: 600, height: 600, fit: "inside" })
-        .flatten({ background: { r: 255, g: 255, b: 255 } })
-        .grayscale()
-        .png({ compressionLevel: 8 })
+        .resize({ width: 900, height: 900, fit: "inside" })
+        .png()
         .toBuffer();
+      return await forceDarkOnWhite(frame);
     } catch {
       return null;
     }

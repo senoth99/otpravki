@@ -121,8 +121,10 @@ export async function buildBoxLabelPdf(input: BoxLabelInput): Promise<Buffer> {
   const logoImage = await pdf.embedPng(logo.png);
 
   const contentW = PAGE_W - MARGIN_X * 2;
-  const logoMax = 52;
-  const logoScale = Math.min(logoMax / logoImage.width, logoMax / logoImage.height, 1);
+  // Широкие вордмарки (SHECASH) — по ширине; квадратные эмблемы — по высоте.
+  const logoMaxW = contentW * 0.72;
+  const logoMaxH = 44;
+  const logoScale = Math.min(logoMaxW / logoImage.width, logoMaxH / logoImage.height, 1);
   const logoW = logoImage.width * logoScale;
   const logoH = logoImage.height * logoScale;
 
