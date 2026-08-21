@@ -3,6 +3,7 @@ import { existsSync } from "fs";
 import path from "path";
 import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
+import QRCode from "qrcode";
 import { code128ModuleCount, encodeCode128B } from "@/lib/server/code128";
 import { externalFetch } from "@/lib/server/external-fetch";
 import type { ShippingOrder, ShippingOrderItem } from "@/types/shipping";
@@ -13,8 +14,7 @@ const PAGE_H = 4 * 72;
 const MARGIN = 10;
 const BLACK = rgb(0, 0, 0);
 const WHITE = rgb(1, 1, 1);
-const GRAY = rgb(0.35, 0.35, 0.35);
-const LIGHT = rgb(0.88, 0.88, 0.88);
+const GRAY = rgb(0.22, 0.22, 0.22);
 
 export type TrackLabelInput = {
   brand?: string;
@@ -53,9 +53,26 @@ export function brandDisplayName(brand?: string): string {
   const value = (brand ?? "").trim();
   if (!value) return "CASHER";
   const lower = value.toLowerCase();
-  if (lower === "ammo" || lower === "ammd" || lower.includes("ammo")) return "AMMD";
+  if (lower === "ammo" || lower === "ammd" || lower.includes("ammo") || lower.includes("ammd")) {
+    return "AMMO";
+  }
   if (lower.includes("кураж") || lower.includes("kurazh")) return "КУРАЖ";
+  if (lower.includes("casher") || lower.includes("кэшер") || lower.includes("кешер")) {
+    return "CASHER";
+  }
   return value.toUpperCase();
+}
+
+/** Сайт бренда для QR, если в заказе нет честных знаков */
+export function brandSiteUrl(brand?: string): string {
+  const lower = (brand ?? "").trim().toLowerCase();
+  if (lower === "ammo" || lower === "ammd" || lower.includes("ammo") || lower.includes("ammd")) {
+    return "https://ammobrand.ru";
+  }
+  if (lower.includes("кураж") || lower.includes("kurazh")) {
+    return "https://kurazhdvizh.com";
+  }
+  return "https://cashercollection.com";
 }
 
 function truncate(font: PDFFont, text: string, size: number, maxWidth: number): string {
@@ -158,6 +175,17 @@ async function embedProductImage(
   }
 }
 
+async function embedQrPng(pdf: PDFDocument, payload: string, px = 280): Promise<PDFImage> {
+  const buf = await QRCode.toBuffer(payload, {
+    type: "png",
+    errorCorrectionLevel: "M",
+    margin: 1,
+    width: px,
+    color: { dark: "#000000", light: "#FFFFFF" },
+  });
+  return pdf.embedPng(buf);
+}
+
 function drawZoneFrame(
   page: PDFPage,
   x: number,
@@ -171,7 +199,7 @@ function drawZoneFrame(
     width: w,
     height: h,
     borderColor: BLACK,
-    borderWidth: 1.2,
+    borderWidth: 1.4,
     color: WHITE,
   });
 }
@@ -183,14 +211,14 @@ function drawZoneTitle(
   x: number,
   top: number,
 ) {
-  const size = 7;
+  const size = 9;
   const pad = 4;
   const tw = font.widthOfTextAtSize(title, size);
   page.drawRectangle({
     x: x + 8,
     y: top - size / 2 - 1,
     width: tw + pad * 2,
-    height: size + 2,
+    height: size + 3,
     color: WHITE,
   });
   page.drawText(title, {
@@ -228,30 +256,15 @@ export function trackLabelFromOrder(
 
 export function sampleTrackLabelInput(): TrackLabelInput {
   return {
-    brand: "AMMD",
+    brand: "AMMO",
     orderNumber: "бв19",
     trackingNumber: "10300912367",
     city: "Москва",
     customerName: "Тест",
     items: [
-      {
-        productName: "Футболка Classic",
-        size: "M",
-        quantity: 2,
-        chestnyZnak: "04650123456789",
-      },
-      {
-        productName: "Худи Oversized",
-        size: "L",
-        quantity: 1,
-        chestnyZnak: null,
-      },
-      {
-        productName: "Носки комплект",
-        size: "ONE",
-        quantity: 3,
-        chestnyZnak: "04650987654321",
-      },
+      { productName: "Футболка Classic", size: "M", quantity: 2, chestnyZnak: null },
+      { productName: "Худи Oversized", size: "L", quantity: 1, chestnyZnak: null },
+      { productName: "Носки комплект", size: "ONE", quantity: 3, chestnyZnak: null },
     ],
   };
 }
@@ -275,13 +288,12 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
   const brandY = PAGE_H - MARGIN - brandSize;
   drawCenteredText(page, bold, brand, brandSize, brandY);
 
-  // тонкая линия под брендом
   const ruleY = brandY - 8;
   page.drawRectangle({
     x: MARGIN,
     y: ruleY,
     width: PAGE_W - MARGIN * 2,
-    height: 1.1,
+    height: 1.4,
     color: BLACK,
   });
 
@@ -294,9 +306,8 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
   const leftX = MARGIN;
   const rightX = MARGIN + leftW + gap;
 
-  // ── Левая колонка: штрих + трек + ЧЗ ──
   const track = input.trackingNumber.replace(/\s+/g, "");
-  const barcodeH = 52;
+  const barcodeH = 48;
   const barcodeW = leftW - 4;
   const barcodeY = contentTop - barcodeH;
   try {
@@ -313,106 +324,125 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
     });
   }
 
-  const trackSize = track.length > 16 ? 9 : 11;
+  const trackSize = track.length > 16 ? 11 : 13;
   const trackLabel = truncate(bold, track, trackSize, leftW - 4);
   const trackTextW = bold.widthOfTextAtSize(trackLabel, trackSize);
   page.drawText(trackLabel, {
     x: leftX + (leftW - trackTextW) / 2,
-    y: barcodeY - 14,
+    y: barcodeY - 16,
     size: trackSize,
     font: bold,
     color: BLACK,
   });
 
-  const czTop = barcodeY - 22;
+  const czTop = barcodeY - 24;
   const czBottom = contentBottom;
-  const czH = Math.max(48, czTop - czBottom);
-  drawZoneFrame(page, leftX, czBottom, leftW, czH);
-  drawZoneTitle(page, bold, "Честные знаки", leftX, czTop);
-
+  const czH = Math.max(56, czTop - czBottom);
   const czItems = input.items.filter((item) => Boolean(item.chestnyZnak?.trim()));
-  const slots = Math.max(czItems.length, input.items.some((i) => i.chestnyZnak) ? czItems.length : 2);
-  const slotCount = Math.min(Math.max(slots, 2), 6);
-  const innerPad = 8;
-  const slotGap = 5;
-  const usableW = leftW - innerPad * 2;
-  const usableH = czH - 16;
-  const cols = Math.min(slotCount, 3);
-  const rows = Math.ceil(slotCount / cols);
-  const slotW = (usableW - slotGap * (cols - 1)) / cols;
-  const slotH = (usableH - slotGap * (rows - 1)) / rows;
+  const hasCz = czItems.length > 0;
+  const zoneTitle = hasCz ? "Честные знаки" : "Сайт";
+  drawZoneFrame(page, leftX, czBottom, leftW, czH);
+  drawZoneTitle(page, bold, zoneTitle, leftX, czTop);
 
-  for (let i = 0; i < slotCount; i++) {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const sx = leftX + innerPad + col * (slotW + slotGap);
-    const sy = czBottom + innerPad + (rows - 1 - row) * (slotH + slotGap);
-    page.drawRectangle({
-      x: sx,
-      y: sy,
-      width: slotW,
-      height: slotH,
-      borderColor: GRAY,
-      borderWidth: 0.8,
-      color: LIGHT,
-      borderDashArray: [2, 2],
-    });
-    const hint = czItems[i]?.chestnyZnak?.trim();
-    if (hint) {
-      const short = truncate(font, hint, 5.5, slotW - 4);
-      const sw = font.widthOfTextAtSize(short, 5.5);
+  const innerPad = 10;
+  const usableW = leftW - innerPad * 2;
+  const usableH = czH - 18;
+  const areaX = leftX + innerPad;
+  const areaY = czBottom + innerPad;
+
+  if (hasCz) {
+    // Одна зона: QR по каждому ЧЗ / GTIN
+    const codes = czItems
+      .map((item) => item.chestnyZnak?.trim())
+      .filter((code): code is string => Boolean(code));
+    const unique = [...new Set(codes)].slice(0, 4);
+    const qrImages = await Promise.all(unique.map((code) => embedQrPng(pdf, code, 220)));
+    const n = qrImages.length;
+    const gapQr = 6;
+    const cell = Math.min(
+      usableH - 14,
+      (usableW - gapQr * Math.max(n - 1, 0)) / Math.max(n, 1),
+    );
+    const totalW = n * cell + gapQr * Math.max(n - 1, 0);
+    let qx = areaX + Math.max(0, (usableW - totalW) / 2);
+    const qy = areaY + 12;
+    for (let i = 0; i < n; i++) {
+      const img = qrImages[i];
+      page.drawImage(img, { x: qx, y: qy, width: cell, height: cell });
+      const short = truncate(font, unique[i], 7, cell);
+      const sw = font.widthOfTextAtSize(short, 7);
       page.drawText(short, {
-        x: sx + (slotW - sw) / 2,
-        y: sy + 3,
-        size: 5.5,
+        x: qx + (cell - sw) / 2,
+        y: areaY + 2,
+        size: 7,
         font,
-        color: GRAY,
+        color: BLACK,
       });
+      qx += cell + gapQr;
     }
+  } else {
+    const site = brandSiteUrl(input.brand);
+    const qr = await embedQrPng(pdf, site, 360);
+    const qrSize = Math.min(usableW, usableH - 16);
+    const qx = areaX + (usableW - qrSize) / 2;
+    const qy = areaY + 14;
+    page.drawImage(qr, { x: qx, y: qy, width: qrSize, height: qrSize });
+    const host = site.replace(/^https?:\/\//, "");
+    const hostSize = 9;
+    const hostText = truncate(bold, host, hostSize, usableW);
+    const hw = bold.widthOfTextAtSize(hostText, hostSize);
+    page.drawText(hostText, {
+      x: areaX + (usableW - hw) / 2,
+      y: areaY + 2,
+      size: hostSize,
+      font: bold,
+      color: BLACK,
+    });
   }
 
   // ── Правая колонка: доп. инфо ──
   drawZoneFrame(page, rightX, contentBottom, rightW, contentH);
   drawZoneTitle(page, bold, "Доп. инфо", rightX, contentTop);
 
-  let cursorY = contentTop - 16;
+  let cursorY = contentTop - 18;
   const infoPad = 8;
+  const orderSize = 13;
   const orderLine = `Заказ № ${input.orderNumber}`;
-  page.drawText(truncate(bold, orderLine, 10, rightW - infoPad * 2), {
+  page.drawText(truncate(bold, orderLine, orderSize, rightW - infoPad * 2), {
     x: rightX + infoPad,
     y: cursorY,
-    size: 10,
+    size: orderSize,
     font: bold,
     color: BLACK,
   });
-  cursorY -= 12;
+  cursorY -= 15;
 
   const meta: string[] = [];
   if (input.city?.trim()) meta.push(input.city.trim());
   if (input.customerName?.trim()) meta.push(input.customerName.trim());
   if (meta.length) {
-    page.drawText(truncate(font, meta.join(" · "), 7, rightW - infoPad * 2), {
+    page.drawText(truncate(font, meta.join(" · "), 10, rightW - infoPad * 2), {
       x: rightX + infoPad,
       y: cursorY,
-      size: 7,
+      size: 10,
       font,
-      color: GRAY,
+      color: BLACK,
     });
-    cursorY -= 10;
+    cursorY -= 12;
   }
 
   page.drawRectangle({
     x: rightX + infoPad,
     y: cursorY + 2,
     width: rightW - infoPad * 2,
-    height: 0.6,
-    color: LIGHT,
+    height: 0.9,
+    color: BLACK,
   });
-  cursorY -= 6;
+  cursorY -= 8;
 
-  const maxItems = 8;
+  const maxItems = 6;
   const items = input.items.slice(0, maxItems);
-  const rowH = Math.min(34, Math.max(22, (cursorY - contentBottom - 8) / Math.max(items.length, 1)));
+  const rowH = Math.min(40, Math.max(28, (cursorY - contentBottom - 10) / Math.max(items.length, 1)));
 
   const images = await Promise.all(
     items.map((item) => embedProductImage(pdf, item.imageUrl)),
@@ -424,7 +454,7 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
     const rowBottom = cursorY - rowH;
     if (rowBottom < contentBottom + 4) break;
 
-    const thumb = Math.min(rowH - 4, 28);
+    const thumb = Math.min(rowH - 4, 32);
     const thumbX = rightX + infoPad;
     const thumbY = rowBottom + (rowH - thumb) / 2;
 
@@ -434,12 +464,11 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
       width: thumb,
       height: thumb,
       borderColor: BLACK,
-      borderWidth: 0.6,
+      borderWidth: 0.8,
       color: WHITE,
     });
 
     if (img) {
-      // ч/б эффект на термо: рисуем как есть — принтер отрендерит монохром
       const scale = Math.min(thumb / img.width, thumb / img.height);
       const dw = img.width * scale;
       const dh = img.height * scale;
@@ -449,32 +478,33 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
         width: dw,
         height: dh,
       });
-      // лёгкая «сетка» поверх не нужна — gs сделает 1-bit
     }
 
-    const textX = thumbX + thumb + 5;
+    const textX = thumbX + thumb + 6;
     const textMax = rightX + rightW - infoPad - textX;
-    const name = truncate(bold, item.productName, 7.5, textMax);
+    const nameSize = 10;
+    const name = truncate(bold, item.productName, nameSize, textMax);
     page.drawText(name, {
       x: textX,
-      y: thumbY + thumb - 9,
-      size: 7.5,
+      y: thumbY + thumb - 12,
+      size: nameSize,
       font: bold,
       color: BLACK,
     });
 
+    const detailSize = 10;
     const detail = truncate(
-      font,
+      bold,
       `${item.size || "—"}  ·  ×${item.quantity}`,
-      7,
+      detailSize,
       textMax,
     );
     page.drawText(detail, {
       x: textX,
-      y: thumbY + 3,
-      size: 7,
-      font,
-      color: GRAY,
+      y: thumbY + 4,
+      size: detailSize,
+      font: bold,
+      color: BLACK,
     });
 
     cursorY = rowBottom - 2;
@@ -485,9 +515,9 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
     page.drawText(more, {
       x: rightX + infoPad,
       y: contentBottom + 4,
-      size: 6.5,
-      font,
-      color: GRAY,
+      size: 9,
+      font: bold,
+      color: BLACK,
     });
   }
 
