@@ -6,14 +6,11 @@ import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { getBoxLabelBrand, type BoxLabelBrandId } from "@/lib/box-label-brands";
 import { getBrandSiteLogo } from "@/lib/server/brand-site-logo";
 
-/**
- * Портрет 100×150 мм (4×6″) — совпадает с носителем TSC (WIDTH×HEIGHT),
- * без четверть-оборота: иначе PDFFitPage съезжает в сторону.
- */
-const PAGE_W = 4 * 72;
-const PAGE_H = 6 * 72;
-const MARGIN_X = 20;
-const MARGIN_Y = 22;
+/** Альбом 150×100 мм (6×4″) — горизонтальная этикетка как бренд/трек. */
+const PAGE_W = 6 * 72;
+const PAGE_H = 4 * 72;
+const MARGIN_X = 28;
+const MARGIN_Y = 14;
 const BLACK = rgb(0, 0, 0);
 const WHITE = rgb(1, 1, 1);
 
@@ -103,10 +100,6 @@ export async function buildBoxLabelPdf(input: BoxLabelInput): Promise<Buffer> {
   const color = formatColor(input.color);
   const size = formatSize(input.size);
 
-  if (!category && !name && !color && !size) {
-    // Превью с одним логотипом — ок; на печать всё равно нужна надпись
-  }
-
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
   const page = pdf.addPage([PAGE_W, PAGE_H]);
@@ -122,21 +115,20 @@ export async function buildBoxLabelPdf(input: BoxLabelInput): Promise<Buffer> {
   const logoImage = await pdf.embedPng(logo.png);
 
   const contentW = PAGE_W - MARGIN_X * 2;
-  const logoMaxW = contentW * 0.55;
-  const logoMaxH = 56;
+  const logoMaxW = contentW * 0.42;
+  const logoMaxH = 42;
   const logoScale = Math.min(logoMaxW / logoImage.width, logoMaxH / logoImage.height, 1);
   const logoW = logoImage.width * logoScale;
   const logoH = logoImage.height * logoScale;
 
   const brandLabel = brand.label.toUpperCase();
-  const brandSize = fitFontSize(bold, brandLabel, contentW, 16, 11);
+  const brandSize = fitFontSize(bold, brandLabel, contentW, 14, 10);
 
-  // Ритм как в превью: лого → поля с равными зазорами → бренд внизу
-  const gap = 14;
-  const catSize = category ? fitFontSize(font, category, contentW, 16, 11) : 0;
-  const nameSize = name ? fitFontSize(bold, name, contentW, 40, 20) : 0;
-  const colorSize = color ? fitFontSize(font, color, contentW, 13, 9) : 0;
-  const sizeSize = size ? fitFontSize(bold, size, contentW, 26, 14) : 0;
+  const gap = 10;
+  const catSize = category ? fitFontSize(font, category, contentW, 15, 10) : 0;
+  const nameSize = name ? fitFontSize(bold, name, contentW, 36, 18) : 0;
+  const colorSize = color ? fitFontSize(font, color, contentW, 12, 9) : 0;
+  const sizeSize = size ? fitFontSize(bold, size, contentW, 22, 12) : 0;
 
   const blockH =
     logoH +
@@ -147,7 +139,7 @@ export async function buildBoxLabelPdf(input: BoxLabelInput): Promise<Buffer> {
 
   const topY = PAGE_H - MARGIN_Y;
   const bottomBrandY = MARGIN_Y;
-  const available = topY - bottomBrandY - brandSize - 20;
+  const available = topY - bottomBrandY - brandSize - 12;
   const startY = topY - Math.max(0, (available - blockH) / 2);
 
   let y = startY - logoH;

@@ -166,7 +166,7 @@ export function BoxLabelEditor() {
 
       <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <p className="border-b border-gray-100 px-4 py-2 text-xs font-medium uppercase tracking-wide text-gray-400">
-          Превью печати 100×150
+          Превью печати 150×100
         </p>
         <div className="flex justify-center bg-gray-100 px-4 py-4">
           {previewUrl ? (
@@ -174,12 +174,12 @@ export function BoxLabelEditor() {
             <img
               src={previewUrl}
               alt="Превью этикетки"
-              className={`h-auto w-full max-w-[240px] border border-gray-200 bg-white shadow-sm ${
+              className={`h-auto w-full max-w-[360px] border border-gray-200 bg-white shadow-sm ${
                 previewBusy ? "opacity-60" : ""
               }`}
             />
           ) : (
-            <div className="flex aspect-[2/3] w-full max-w-[240px] items-center justify-center bg-white text-sm text-gray-400">
+            <div className="flex aspect-[3/2] w-full max-w-[360px] items-center justify-center bg-white text-sm text-gray-400">
               {previewBusy ? "Сборка…" : previewError ?? "Заполни поля"}
             </div>
           )}
@@ -195,7 +195,7 @@ export function BoxLabelEditor() {
         onClick={() => void printLabel()}
         className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-gray-900 px-5 text-base font-semibold text-white shadow-sm active:scale-[0.99] disabled:opacity-50"
       >
-        {busy ? "Печать…" : "Печать надписи 100×150"}
+        {busy ? "Печать…" : "Печать надписи 150×100"}
       </button>
 
       {message && (

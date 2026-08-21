@@ -6,7 +6,7 @@ import { hasAdminAccess } from "@/lib/server/admin-pin";
 import { getBoxLabelBrand, type BoxLabelBrandId } from "@/lib/box-label-brands";
 import { buildBoxLabelPdf } from "@/lib/server/box-label-pdf";
 import { detectBarcodePrinter } from "@/lib/server/barcode-printer";
-import { printPdfLabelPortrait4x6 } from "@/lib/server/pdf-label-printer";
+import { printPdfLabel4x6 } from "@/lib/server/pdf-label-printer";
 import { renderLabelPdfToPng } from "@/lib/server/render-label-preview";
 
 export const maxDuration = 60;
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
     }
 
     await mkdir(PRINT_DIR, { recursive: true });
-    const format = await printPdfLabelPortrait4x6(
+    const format = await printPdfLabel4x6(
       printer,
       pdf,
       PRINT_DIR,
