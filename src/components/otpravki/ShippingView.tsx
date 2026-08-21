@@ -6,7 +6,7 @@ import { useHardwareScanner } from "@/hooks/useHardwareScanner";
 import { buildAssemblyAllocation } from "@/lib/assembly-status";
 import { resolveScanFromBarcode } from "@/lib/barcode-product";
 import { formatMoscowDate } from "@/lib/format";
-import { getOrderDisplayStatus } from "@/lib/order-status";
+import { getOrderDisplayStatus, type OrderDisplayStatus } from "@/lib/order-status";
 import { findFirstAutoOrderIndex, getSortedOrderIndices } from "@/lib/order-sort";
 import { isBloggerOrder, orderIsBlogger } from "@/lib/blogger-order";
 import { printOrderBarcode } from "@/lib/print-barcode";
@@ -94,24 +94,33 @@ function getOrderStoreBrand(order: ShippingOrder): string {
 
 function findNextActiveOrderId(
   orders: ShippingOrder[],
+  statuses: OrderDisplayStatus[],
   fromId: string | null,
   brand: string,
-  readyOrderIds?: ReadonlySet<string>,
 ): string | null {
-  const isEligible = (order: ShippingOrder) =>
-    !order.barcodePrinted &&
-    getOrderStoreBrand(order) === brand &&
-    (!readyOrderIds || readyOrderIds.has(order.id));
+  const brandIndices = orders
+    .map((_, index) => index)
+    .filter((index) => getOrderStoreBrand(orders[index]) === brand);
 
-  const from = fromId ? orders.findIndex((order) => order.id === fromId) : -1;
-  for (let i = from + 1; i < orders.length; i++) {
-    if (isEligible(orders[i])) {
-      return orders[i].id;
-    }
-  }
-  for (let i = 0; i < (from >= 0 ? from : orders.length); i++) {
-    if (isEligible(orders[i])) {
-      return orders[i].id;
+  if (brandIndices.length === 0) return null;
+
+  // Та же очередь, что в OrderPicker: статус → срочность → номер
+  const sortedIndices = getSortedOrderIndices(
+    brandIndices.map((index) => orders[index]),
+    brandIndices.map((index) => statuses[index]),
+  ).map((localPos) => brandIndices[localPos]);
+
+  const fromPos = fromId
+    ? sortedIndices.findIndex((index) => orders[index].id === fromId)
+    : -1;
+
+  const start = fromPos >= 0 ? fromPos + 1 : 0;
+  for (let step = 0; step < sortedIndices.length; step++) {
+    const pos = (start + step) % sortedIndices.length;
+    if (fromPos >= 0 && pos === fromPos) continue;
+    const index = sortedIndices[pos];
+    if (!orders[index].barcodePrinted) {
+      return orders[index].id;
     }
   }
   return null;
@@ -436,15 +445,19 @@ export function ShippingView({
 
   const goToNextOrder = useCallback(
     (updatedOrders: ShippingOrder[], fromOrderId?: string | null) => {
+      const allocation = buildAssemblyAllocation(updatedOrders, assemblyItems);
+      const nextStatuses = updatedOrders.map((order) =>
+        getOrderDisplayStatus(order, assemblyItems, allocation),
+      );
       const nextId = findNextActiveOrderId(
         updatedOrders,
+        nextStatuses,
         fromOrderId ?? currentOrderId,
         selectedBrand,
-        readyOrderIds,
       );
       if (nextId) setCurrentOrderId(nextId);
     },
-    [currentOrderId, readyOrderIds, selectedBrand],
+    [assemblyItems, currentOrderId, selectedBrand],
   );
 
   const startBetweenCountdown = useCallback(
@@ -491,8 +504,9 @@ export function ShippingView({
               }
             : order,
         );
-        if (!options.auto) {
-          goToNextOrder(updated, shippedId);
+        // В ручном режиме не прыгаем сразу — «Следующий заказ» сдвинет очередь один раз
+        if (options.auto) {
+          // current остаётся на отправленном до таймера next; переход в эффекте countdown
         }
         return updated;
       });
@@ -514,7 +528,7 @@ export function ShippingView({
         setManualConfirmOrder(snapshot);
       }
     },
-    [goToNextOrder, onOrderShipped, onOrdersChange, user],
+    [onOrderShipped, onOrdersChange, user],
   );
 
   const printTrackAndFinish = useCallback(
@@ -630,8 +644,9 @@ export function ShippingView({
   }, [manualConfirmOrder, reprinting, countdown, startBetweenCountdown]);
 
   const handleNextOrder = () => {
+    const fromId = manualConfirmOrder?.id ?? currentOrderId;
     setManualConfirmOrder(null);
-    goToNextOrder(orders);
+    goToNextOrder(orders, fromId);
   };
 
   useEffect(() => {
@@ -727,10 +742,23 @@ export function ShippingView({
     if (manualConfirmOrder) return;
     if (countdown) return;
     if (currentOrder?.barcodePrinted) {
-      const nextId = findNextActiveOrderId(orders, currentOrderId, selectedBrand);
+      const nextId = findNextActiveOrderId(
+        orders,
+        orderStatuses,
+        currentOrderId,
+        selectedBrand,
+      );
       if (nextId) setCurrentOrderId(nextId);
     }
-  }, [orders, currentOrderId, currentOrder, manualConfirmOrder, selectedBrand, countdown]);
+  }, [
+    orders,
+    orderStatuses,
+    currentOrderId,
+    currentOrder,
+    manualConfirmOrder,
+    selectedBrand,
+    countdown,
+  ]);
 
   useEffect(() => {
     if (brandOptions.length === 0) {
