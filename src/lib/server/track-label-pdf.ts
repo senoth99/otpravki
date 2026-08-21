@@ -52,16 +52,32 @@ function resolveFont(file: string): string {
 
 export function brandDisplayName(brand?: string): string {
   const value = (brand ?? "").trim();
-  if (!value) return "CASHER";
+  if (!value) return "CA$HER";
   const lower = value.toLowerCase();
   if (lower === "ammo" || lower === "ammd" || lower.includes("ammo") || lower.includes("ammd")) {
     return "AMMO";
   }
   if (lower.includes("кураж") || lower.includes("kurazh")) return "КУРАЖ";
-  if (lower.includes("casher") || lower.includes("кэшер") || lower.includes("кешер")) {
-    return "CASHER";
+  if (
+    lower.includes("casher") ||
+    lower.includes("кэшер") ||
+    lower.includes("кешер") ||
+    lower.includes("ca$her")
+  ) {
+    return "CA$HER";
   }
   return value.toUpperCase();
+}
+
+export function isCasherBrand(brand?: string): boolean {
+  const lower = (brand ?? "").trim().toLowerCase();
+  if (!lower) return true; // дефолт бренда приложения
+  return (
+    lower.includes("casher") ||
+    lower.includes("кэшер") ||
+    lower.includes("кешер") ||
+    lower.includes("ca$her")
+  );
 }
 
 export function brandSiteUrl(brand?: string): string {
@@ -322,21 +338,39 @@ export function trackLabelFromOrder(
 
 export function sampleTrackLabelInput(): TrackLabelInput {
   return {
-    brand: "AMMO",
-    orderNumber: "AMMO-1786188545427",
-    trackingNumber: "10304639606",
-    city: "Калининград",
-    customerName: "Гусева Анна Владимировна",
+    brand: "CASHER",
+    orderNumber: "бв19",
+    trackingNumber: "10300912367",
+    city: "Москва",
+    customerName: "Иванов Иван Иванович",
     items: [
       {
-        productName: 'ФУТБОЛКА "CAMMO" WHITE',
-        size: "L",
+        productName: "ШТАНЫ LIGHT CLASSIC",
+        size: "S",
         quantity: 1,
         chestnyZnak: null,
-        imageUrl: "/api/images/yc/products/sample.jpg",
       },
     ],
   };
+}
+
+function drawCentered(
+  page: PDFPage,
+  font: PDFFont,
+  text: string,
+  size: number,
+  y: number,
+  leftX: number,
+  width: number,
+) {
+  const tw = font.widthOfTextAtSize(text, size);
+  page.drawText(text, {
+    x: leftX + Math.max(0, (width - tw) / 2),
+    y,
+    size,
+    font,
+    color: BLACK,
+  });
 }
 
 /** Портрет 100×150 мм под TSC TE300 — без альбомных полей. */
@@ -344,6 +378,7 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
   const pageW = labelWidthPoints();
   const pageH = labelHeightPoints();
   const margin = 4;
+  const casher = isCasherBrand(input.brand);
 
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
@@ -359,7 +394,7 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
   page.drawRectangle({ x: 0, y: 0, width: pageW, height: pageH, color: WHITE });
 
   const brand = brandDisplayName(input.brand);
-  const brandSize = 20;
+  const brandSize = casher ? 22 : 20;
   const brandY = pageH - margin - brandSize;
   drawCenteredText(page, bold, brand, brandSize, brandY, pageW);
 
@@ -375,38 +410,66 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
   let cursor = ruleY - 6;
   const contentW = pageW - margin * 2;
   const leftX = margin;
-
   const track = input.trackingNumber.replace(/\s+/g, "");
-  const barcodeH = 44;
-  const barcodeY = cursor - barcodeH;
-  try {
-    void code128ModuleCount(track);
-    drawCode128(page, track, leftX, barcodeY, contentW, barcodeH);
-  } catch {
-    page.drawRectangle({
-      x: leftX,
-      y: barcodeY,
-      width: contentW,
-      height: barcodeH,
-      borderColor: BLACK,
-      borderWidth: 1,
-    });
-  }
+  const orderNo = input.orderNumber.trim();
 
-  const trackSize = 12;
-  const trackW = bold.widthOfTextAtSize(track, trackSize);
-  page.drawText(track, {
-    x: leftX + Math.max(0, (contentW - trackW) / 2),
-    y: barcodeY - 14,
-    size: trackSize,
-    font: bold,
-    color: BLACK,
-  });
-  cursor = barcodeY - 20;
+  if (casher) {
+    // Центр как в образце 4.pdf: штрих → трек → номер заказа
+    const blockH = 108;
+    const blockTop = cursor;
+    const blockBottom = cursor - blockH;
+    drawZoneFrame(page, leftX, blockBottom, contentW, blockH);
+    drawZoneTitle(page, bold, "Трек", leftX, blockTop);
+
+    const padX = 10;
+    const barcodeH = 52;
+    const barcodeW = contentW - padX * 2;
+    const barcodeY = blockTop - 14 - barcodeH;
+    try {
+      void code128ModuleCount(track);
+      drawCode128(page, track, leftX + padX, barcodeY, barcodeW, barcodeH);
+    } catch {
+      page.drawRectangle({
+        x: leftX + padX,
+        y: barcodeY,
+        width: barcodeW,
+        height: barcodeH,
+        borderColor: BLACK,
+        borderWidth: 1,
+      });
+    }
+
+    const trackSize = track.length > 14 ? 13 : 15;
+    drawCentered(page, bold, track, trackSize, barcodeY - 18, leftX, contentW);
+
+    const orderSize = orderNo.length > 18 ? 11 : 13;
+    drawCentered(page, bold, orderNo, orderSize, barcodeY - 36, leftX, contentW);
+    cursor = blockBottom - 6;
+  } else {
+    const barcodeH = 44;
+    const barcodeY = cursor - barcodeH;
+    try {
+      void code128ModuleCount(track);
+      drawCode128(page, track, leftX, barcodeY, contentW, barcodeH);
+    } catch {
+      page.drawRectangle({
+        x: leftX,
+        y: barcodeY,
+        width: contentW,
+        height: barcodeH,
+        borderColor: BLACK,
+        borderWidth: 1,
+      });
+    }
+
+    const trackSize = 12;
+    drawCentered(page, bold, track, trackSize, barcodeY - 14, leftX, contentW);
+    cursor = barcodeY - 20;
+  }
 
   const czItems = input.items.filter((item) => Boolean(item.chestnyZnak?.trim()));
   const hasCz = czItems.length > 0;
-  const qrBlockH = 72;
+  const qrBlockH = casher ? 64 : 72;
   const qrTop = cursor;
   const qrBottom = cursor - qrBlockH;
   drawZoneFrame(page, leftX, qrBottom, contentW, qrBlockH);
@@ -453,10 +516,13 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
   let y = cursor - 16;
   const textW = contentW - infoPad * 2;
 
-  const orderLines = wrapLines(bold, `Заказ № ${input.orderNumber}`, 11, textW, 2);
-  for (const line of orderLines) {
-    page.drawText(line, { x: leftX + infoPad, y, size: 11, font: bold, color: BLACK });
-    y -= 13;
+  // У Casher номер заказа уже в центре — в доп.инфо не дублируем
+  if (!casher) {
+    const orderLines = wrapLines(bold, `Заказ № ${input.orderNumber}`, 11, textW, 2);
+    for (const line of orderLines) {
+      page.drawText(line, { x: leftX + infoPad, y, size: 11, font: bold, color: BLACK });
+      y -= 13;
+    }
   }
 
   if (input.city?.trim()) {
@@ -485,7 +551,7 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
   const items = input.items.slice(0, 5);
   const images = await Promise.all(items.map((item) => embedProductImage(pdf, item.imageUrl)));
   const avail = y - infoBottom - 6;
-  const rowH = Math.min(48, Math.max(34, avail / Math.max(items.length, 1)));
+  const rowH = Math.min(72, Math.max(36, avail / Math.max(items.length, 1)));
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
@@ -493,7 +559,7 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
     const rowBottom = y - rowH;
     if (rowBottom < infoBottom + 4) break;
 
-    const thumb = Math.min(rowH - 4, 40);
+    const thumb = Math.min(rowH - 4, 56);
     const thumbX = leftX + infoPad;
     const thumbY = rowBottom + (rowH - thumb) / 2;
 
