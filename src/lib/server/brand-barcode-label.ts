@@ -1,7 +1,7 @@
-import { mkdir, writeFile } from "fs/promises";
+import { existsSync } from "fs";
+import { mkdir, readFile } from "fs/promises";
 import path from "path";
-import { labelHeightMm, labelWidthMm, labelWidthPx } from "@/lib/label-media";
-import { sendRawTspl } from "@/lib/server/tspl-label-printer";
+import { printPdfLabel } from "@/lib/server/pdf-label-printer";
 
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
 const PRINT_DIR = path.join(DATA_DIR, "print");
@@ -9,32 +9,11 @@ const PRINT_DIR = path.join(DATA_DIR, "print");
 export type BrandBarcodeKind = "ammo" | "kurazh";
 export type TestLabelKind = BrandBarcodeKind | "track";
 
-const FONT_DOT_WIDTH: Record<string, number> = {
-  "1": 8,
-  "2": 12,
-  "3": 16,
-  "4": 24,
-  "5": 32,
+const TEMPLATE_FILES: Record<TestLabelKind, string> = {
+  ammo: "ammo-150x100.pdf",
+  kurazh: "kurazh-150x100.pdf",
+  track: "track-150x100.pdf",
 };
-
-function tsplEscape(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-}
-
-function centerTextX(text: string, font: string, mag: number): number {
-  const glyph = FONT_DOT_WIDTH[font] ?? 16;
-  const width = glyph * mag * text.length;
-  return Math.max(16, Math.round((labelWidthPx() - width) / 2));
-}
-
-function estimateCode128Width(data: string, narrow: number): number {
-  return (11 * (data.length + 1) + 13) * narrow;
-}
-
-function centerBarcodeX(data: string, narrow: number): number {
-  const width = estimateCode128Width(data, narrow);
-  return Math.max(16, Math.round((labelWidthPx() - width) / 2));
-}
 
 export function brandNeedsSecondBarcode(brand?: string): boolean {
   const value = (brand ?? "").trim().toLowerCase();
@@ -56,91 +35,41 @@ export function brandBarcodeKindFromStore(brand?: string): BrandBarcodeKind | nu
   return "kurazh";
 }
 
-function buildFilledBarcodeTspl(options: {
-  title: string;
-  code: string;
-  footer: string;
-}): string {
-  const code = options.code.replace(/[^\x20-\x7E]/g, "").trim() || "TEST";
-  const title = options.title.replace(/[^\x20-\x7E]/g, "").trim() || "LABEL";
-  const footer = options.footer.replace(/[^\x20-\x7E]/g, "").trim() || code;
-  const titleFont = title.length > 8 ? "4" : "5";
-  const titleMag = title.length > 10 ? 2 : 3;
-  const narrow = code.length > 16 ? 2 : 3;
-  const barcodeHeight = 780;
-  const barcodeY = 220;
-
+function labelsDirCandidates(): string[] {
+  const extra = process.env.APP_DIR?.trim();
   return [
-    `SIZE ${labelWidthMm()} mm,${labelHeightMm()} mm`,
-    "GAP 2 mm,0",
-    "DIRECTION 1",
-    "REFERENCE 0,0",
-    "CLS",
-    `TEXT ${centerTextX(title, titleFont, titleMag)},40,"${titleFont}",0,${titleMag},${titleMag},"${tsplEscape(title)}"`,
-    `BARCODE ${centerBarcodeX(code, narrow)},${barcodeY},"128",${barcodeHeight},0,0,${narrow},${narrow * 2},"${tsplEscape(code)}"`,
-    `TEXT ${centerTextX(footer, "3", 2)},${barcodeY + barcodeHeight + 30},"3",0,2,2,"${tsplEscape(footer)}"`,
-    "PRINT 1,1",
-    "",
-  ].join("\r\n");
+    extra ? path.join(extra, "labels") : "",
+    path.join(process.cwd(), "labels"),
+    path.join(process.cwd(), "..", "labels"),
+    path.join(process.cwd(), "..", "..", "labels"),
+  ].filter(Boolean);
 }
 
-export function buildBrandBarcodeTspl(kind: BrandBarcodeKind, code: string): string {
-  if (kind === "ammo") {
-    return buildFilledBarcodeTspl({
-      title: "AMMO",
-      code,
-      footer: code,
-    });
+export function resolveLabelTemplate(kind: TestLabelKind): string {
+  const file = TEMPLATE_FILES[kind];
+  for (const dir of labelsDirCandidates()) {
+    const full = path.join(dir, file);
+    if (existsSync(full)) return full;
   }
-  return buildFilledBarcodeTspl({
-    title: "KURAZHDVIZH",
-    code,
-    footer: code,
-  });
+  throw new Error(`Нет макета ${file} в labels/`);
 }
 
-export function buildTrackBarcodeTspl(code: string): string {
-  return buildFilledBarcodeTspl({
-    title: "CDEK TRACK",
-    code,
-    footer: code,
-  });
-}
-
-export function testLabelSample(kind: TestLabelKind): { title: string; code: string; tspl: string } {
-  if (kind === "ammo") {
-    return { title: "AMMO", code: "AMMO-TEST", tspl: buildBrandBarcodeTspl("ammo", "AMMO-TEST") };
-  }
-  if (kind === "kurazh") {
-    return {
-      title: "KURAZHDVIZH",
-      code: "KURAZH-TEST",
-      tspl: buildBrandBarcodeTspl("kurazh", "KURAZH-TEST"),
-    };
-  }
-  return {
-    title: "CDEK TRACK",
-    code: "12345678901234",
-    tspl: buildTrackBarcodeTspl("12345678901234"),
-  };
-}
-
-export async function printTsplCommands(printer: string, tspl: string, stamp: string): Promise<void> {
+export async function printLabelTemplate(printer: string, kind: TestLabelKind): Promise<string> {
+  const templatePath = resolveLabelTemplate(kind);
+  const pdf = await readFile(templatePath);
   await mkdir(PRINT_DIR, { recursive: true });
-  const file = path.join(PRINT_DIR, `brand-${stamp}.tspl`);
-  const payload = Buffer.from(tspl, "utf-8");
-  await writeFile(file, payload);
-  await sendRawTspl(printer, file, payload);
+  const format = await printPdfLabel(printer, pdf, PRINT_DIR, `${kind}-${Date.now()}`);
+  return format;
 }
 
 export async function printBrandBarcodeLabel(
   printer: string,
   kind: BrandBarcodeKind,
-  code: string,
+  _code?: string,
 ): Promise<void> {
-  await printTsplCommands(printer, buildBrandBarcodeTspl(kind, code), `${kind}-${Date.now()}`);
+  await printLabelTemplate(printer, kind);
 }
 
-export async function printTrackBarcodeLabel(printer: string, code: string): Promise<void> {
-  await printTsplCommands(printer, buildTrackBarcodeTspl(code), `track-${Date.now()}`);
+export async function printTrackSampleLabel(printer: string): Promise<void> {
+  await printLabelTemplate(printer, "track");
 }

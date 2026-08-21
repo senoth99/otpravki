@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { requireMutatingAuth } from "@/lib/server/api-auth";
 import { hasAdminAccess } from "@/lib/server/admin-pin";
 import {
-  printTsplCommands,
-  testLabelSample,
+  printLabelTemplate,
   type TestLabelKind,
 } from "@/lib/server/brand-barcode-label";
 import { detectBarcodePrinter } from "@/lib/server/barcode-printer";
@@ -40,14 +39,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const sample = testLabelSample(kind);
   try {
-    await printTsplCommands(printer, sample.tspl, `test-${kind}-${Date.now()}`);
+    const format = await printLabelTemplate(printer, kind);
     return NextResponse.json({
       ok: true,
       kind,
       printer,
-      code: sample.code,
+      format,
     });
   } catch (error) {
     return NextResponse.json(
