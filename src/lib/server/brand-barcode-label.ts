@@ -2,7 +2,11 @@ import { existsSync } from "fs";
 import { mkdir, readFile } from "fs/promises";
 import path from "path";
 import { printPdfLabel4x6 } from "@/lib/server/pdf-label-printer";
-import { buildTrackLabelPdf, sampleTrackLabelInput } from "@/lib/server/track-label-pdf";
+import {
+  buildTrackLabelPdf,
+  sampleTrackLabelInput,
+  type TestTrackBrand,
+} from "@/lib/server/track-label-pdf";
 import {
   brandBarcodeKindFromStore,
   brandNeedsSecondBarcode,
@@ -10,10 +14,13 @@ import {
 } from "@/lib/brand-second-label";
 
 export { brandBarcodeKindFromStore, brandNeedsSecondBarcode, type BrandBarcodeKind };
+export type { TestTrackBrand };
 
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
 const PRINT_DIR = path.join(DATA_DIR, "print");
 
+export type TestPrintKind = "brand" | "track";
+/** @deprecated use TestPrintKind + brand */
 export type TestLabelKind = BrandBarcodeKind | "track";
 
 const TEMPLATE_FILES: Record<BrandBarcodeKind, string> = {
@@ -40,17 +47,36 @@ export function resolveLabelTemplate(kind: BrandBarcodeKind): string {
   throw new Error(`Нет макета ${file} в labels/`);
 }
 
-export async function printLabelTemplate(printer: string, kind: TestLabelKind): Promise<string> {
+export function parseTestBrand(value: unknown): TestTrackBrand | null {
+  if (value === "casher" || value === "ammo" || value === "kurazh") return value;
+  return null;
+}
+
+export async function printTestLabel(
+  printer: string,
+  kind: TestPrintKind,
+  brand: TestTrackBrand,
+): Promise<string> {
   await mkdir(PRINT_DIR, { recursive: true });
 
   if (kind === "track") {
-    const pdf = await buildTrackLabelPdf(sampleTrackLabelInput());
-    return printPdfLabel4x6(printer, pdf, PRINT_DIR, `track-${Date.now()}`);
+    const pdf = await buildTrackLabelPdf(sampleTrackLabelInput(brand));
+    return printPdfLabel4x6(printer, pdf, PRINT_DIR, `track-${brand}-${Date.now()}`);
   }
 
-  const templatePath = resolveLabelTemplate(kind);
+  if (brand === "casher") {
+    throw new Error("У Casher нет отдельной бренд-этикетки — только трек");
+  }
+
+  const templatePath = resolveLabelTemplate(brand);
   const pdf = await readFile(templatePath);
-  return printPdfLabel4x6(printer, pdf, PRINT_DIR, `${kind}-${Date.now()}`);
+  return printPdfLabel4x6(printer, pdf, PRINT_DIR, `${brand}-${Date.now()}`);
+}
+
+/** Совместимость со старым API kind=ammo|kurazh|track */
+export async function printLabelTemplate(printer: string, kind: TestLabelKind): Promise<string> {
+  if (kind === "track") return printTestLabel(printer, "track", "casher");
+  return printTestLabel(printer, "brand", kind);
 }
 
 export async function printBrandBarcodeLabel(
@@ -58,9 +84,12 @@ export async function printBrandBarcodeLabel(
   kind: BrandBarcodeKind,
   _code?: string,
 ): Promise<void> {
-  await printLabelTemplate(printer, kind);
+  await printTestLabel(printer, "brand", kind);
 }
 
-export async function printTrackSampleLabel(printer: string): Promise<void> {
-  await printLabelTemplate(printer, "track");
+export async function printTrackSampleLabel(
+  printer: string,
+  brand: TestTrackBrand = "casher",
+): Promise<void> {
+  await printTestLabel(printer, "track", brand);
 }

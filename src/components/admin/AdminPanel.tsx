@@ -16,6 +16,7 @@ export function AdminPanel() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [printMessage, setPrintMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [testBrand, setTestBrand] = useState<"casher" | "ammo" | "kurazh">("casher");
 
   useEffect(() => {
     let cancelled = false;
@@ -46,8 +47,15 @@ export function AdminPanel() {
     window.location.href = "/otpravki";
   };
 
-  const printTestLabel = async (kind: "ammo" | "kurazh" | "track") => {
+  const printTestLabel = async (kind: "brand" | "track") => {
     if (busy) return;
+    if (kind === "brand" && testBrand === "casher") {
+      setPrintMessage({
+        ok: false,
+        text: "У Casher нет бренд-этикетки — выбери AMMO или Кураж",
+      });
+      return;
+    }
     setBusy(true);
     setPrintMessage(null);
     try {
@@ -56,7 +64,7 @@ export function AdminPanel() {
         cache: "no-store",
         credentials: "same-origin",
         headers: { ...mutatingApiHeaders(), Accept: "application/json" },
-        body: JSON.stringify({ kind }),
+        body: JSON.stringify({ kind, brand: testBrand }),
       });
       const data = (await res.json()) as { ok?: boolean; message?: string; printer?: string };
       if (!res.ok || !data.ok) {
@@ -209,24 +217,62 @@ export function AdminPanel() {
               <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
                 Тест печати 150×100
               </p>
-              {(
-                [
-                  { kind: "ammo", label: "Тест баркодник AMMO" },
-                  { kind: "kurazh", label: "Тест баркодник Кураж" },
-                  { kind: "track", label: "Тест этикетки трека (Casher)" },
-                ] as const
-              ).map((item) => (
-                <button
-                  key={item.kind}
-                  type="button"
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium text-gray-700">Бренд</span>
+                <select
+                  value={testBrand}
                   disabled={busy}
-                  onClick={() => void printTestLabel(item.kind)}
-                  className="flex min-h-16 w-full items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 text-left shadow-sm active:scale-[0.99] disabled:opacity-50"
+                  onChange={(e) =>
+                    setTestBrand(e.target.value as "casher" | "ammo" | "kurazh")
+                  }
+                  className="min-h-12 w-full rounded-2xl border border-gray-200 bg-white px-4 text-base font-semibold text-gray-900 shadow-sm disabled:opacity-50"
                 >
-                  <span className="block text-base font-semibold text-gray-900">{item.label}</span>
-                  <span className="text-sm text-gray-400">Печать</span>
-                </button>
-              ))}
+                  <option value="casher">Casher</option>
+                  <option value="ammo">AMMO</option>
+                  <option value="kurazh">Кураж</option>
+                </select>
+              </label>
+              <button
+                type="button"
+                disabled={busy || testBrand === "casher"}
+                onClick={() => void printTestLabel("brand")}
+                className="flex min-h-16 w-full items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 text-left shadow-sm active:scale-[0.99] disabled:opacity-50"
+              >
+                <span>
+                  <span className="block text-base font-semibold text-gray-900">
+                    Тест бренд-этикетки
+                  </span>
+                  <span className="mt-0.5 block text-sm text-gray-500">
+                    {testBrand === "casher"
+                      ? "Только AMMO / Кураж"
+                      : testBrand === "ammo"
+                        ? "Макет AMMO"
+                        : "Макет Кураж"}
+                  </span>
+                </span>
+                <span className="text-sm text-gray-400">Печать</span>
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void printTestLabel("track")}
+                className="flex min-h-16 w-full items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 text-left shadow-sm active:scale-[0.99] disabled:opacity-50"
+              >
+                <span>
+                  <span className="block text-base font-semibold text-gray-900">
+                    Тест этикетки трека
+                  </span>
+                  <span className="mt-0.5 block text-sm text-gray-500">
+                    Образец для{" "}
+                    {testBrand === "casher"
+                      ? "Casher"
+                      : testBrand === "ammo"
+                        ? "AMMO"
+                        : "Кураж"}
+                  </span>
+                </span>
+                <span className="text-sm text-gray-400">Печать</span>
+              </button>
               {printMessage && (
                 <p
                   className={`rounded-xl px-3 py-2 text-sm ${

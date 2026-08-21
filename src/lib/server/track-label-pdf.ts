@@ -402,17 +402,40 @@ export function trackLabelFromOrder(
   };
 }
 
-export function sampleTrackLabelInput(): TrackLabelInput {
+export type TestTrackBrand = "casher" | "ammo" | "kurazh";
+
+export function sampleTrackLabelInput(brand: TestTrackBrand = "casher"): TrackLabelInput {
+  const byBrand: Record<
+    TestTrackBrand,
+    { brand: string; orderNumber: string; productName: string }
+  > = {
+    casher: {
+      brand: "CASHER",
+      orderNumber: "бв19",
+      productName: "ШТАНЫ LIGHT CLASSIC",
+    },
+    ammo: {
+      brand: "AMMO",
+      orderNumber: "ам42",
+      productName: "ФУТБОЛКА ONLY 52",
+    },
+    kurazh: {
+      brand: "KURAZHDVIZH",
+      orderNumber: "т301",
+      productName: 'ДЖЕРСИ "ЖИТЬ В КАЙФ" YELLOW',
+    },
+  };
+  const meta = byBrand[brand] ?? byBrand.casher;
   return {
-    brand: "CASHER",
-    orderNumber: "бв19",
+    brand: meta.brand,
+    orderNumber: meta.orderNumber,
     trackingNumber: "10300912367",
     city: "Москва",
     customerName: "Иванов Иван Иванович",
     items: [
       {
-        productName: "ШТАНЫ LIGHT CLASSIC",
-        size: "S",
+        productName: meta.productName,
+        size: "M",
         quantity: 1,
         chestnyZnak: null,
         imageUrl:
