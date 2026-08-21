@@ -773,8 +773,13 @@ export function ShippingView({
     if (manualConfirmOrder) return;
     if (activeIndices.length === 0) return;
     if (activeIndices.includes(currentIndex)) return;
-    setCurrentOrderId(orders[activeIndices[0]].id);
-  }, [currentIndex, orders, activeIndices, manualConfirmOrder]);
+    const sortedLocal = getSortedOrderIndices(
+      activeIndices.map((index) => orders[index]),
+      activeIndices.map((index) => orderStatuses[index]),
+    );
+    const firstIndex = activeIndices[sortedLocal[0] ?? 0];
+    setCurrentOrderId(orders[firstIndex].id);
+  }, [currentIndex, orders, orderStatuses, activeIndices, manualConfirmOrder]);
 
   useEffect(() => {
     if (selectionResetKey === lastSelectionResetKeyRef.current) return;
