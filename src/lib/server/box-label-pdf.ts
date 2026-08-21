@@ -6,10 +6,14 @@ import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { getBoxLabelBrand, type BoxLabelBrandId } from "@/lib/box-label-brands";
 import { getBrandSiteLogo } from "@/lib/server/brand-site-logo";
 
-/** Альбом 150×100 мм (6×4″) — как остальные этикетки на TSC. */
-const PAGE_W = 6 * 72;
-const PAGE_H = 4 * 72;
-const MARGIN_X = 24;
+/**
+ * Портрет 100×150 мм (4×6″) — совпадает с носителем TSC (WIDTH×HEIGHT),
+ * без четверть-оборота: иначе PDFFitPage съезжает в сторону.
+ */
+const PAGE_W = 4 * 72;
+const PAGE_H = 6 * 72;
+const MARGIN_X = 20;
+const MARGIN_Y = 22;
 const BLACK = rgb(0, 0, 0);
 const WHITE = rgb(1, 1, 1);
 
@@ -77,20 +81,17 @@ function drawCentered(
   font: PDFFont,
   text: string,
   size: number,
-  y: number,
-  maxWidth: number,
+  baselineY: number,
 ) {
-  const tw = Math.min(font.widthOfTextAtSize(text, size), maxWidth);
+  const tw = font.widthOfTextAtSize(text, size);
   const x = (PAGE_W - tw) / 2;
   page.drawText(text, {
     x,
-    y,
+    y: baselineY,
     size,
     font,
     color: BLACK,
-    maxWidth,
   });
-  return size;
 }
 
 export async function buildBoxLabelPdf(input: BoxLabelInput): Promise<Buffer> {
@@ -103,7 +104,7 @@ export async function buildBoxLabelPdf(input: BoxLabelInput): Promise<Buffer> {
   const size = formatSize(input.size);
 
   if (!category && !name && !color && !size) {
-    throw new Error("Заполни хотя бы одно поле надписи");
+    // Превью с одним логотипом — ок; на печать всё равно нужна надпись
   }
 
   const pdf = await PDFDocument.create();
@@ -121,14 +122,35 @@ export async function buildBoxLabelPdf(input: BoxLabelInput): Promise<Buffer> {
   const logoImage = await pdf.embedPng(logo.png);
 
   const contentW = PAGE_W - MARGIN_X * 2;
-  const logoMaxW = contentW * 0.45;
-  const logoMaxH = 48;
+  const logoMaxW = contentW * 0.55;
+  const logoMaxH = 56;
   const logoScale = Math.min(logoMaxW / logoImage.width, logoMaxH / logoImage.height, 1);
   const logoW = logoImage.width * logoScale;
   const logoH = logoImage.height * logoScale;
 
-  // Горизонтальная этикетка, стопка по центру сверху вниз
-  let y = PAGE_H - 18 - logoH;
+  const brandLabel = brand.label.toUpperCase();
+  const brandSize = fitFontSize(bold, brandLabel, contentW, 16, 11);
+
+  // Ритм как в превью: лого → поля с равными зазорами → бренд внизу
+  const gap = 14;
+  const catSize = category ? fitFontSize(font, category, contentW, 16, 11) : 0;
+  const nameSize = name ? fitFontSize(bold, name, contentW, 40, 20) : 0;
+  const colorSize = color ? fitFontSize(font, color, contentW, 13, 9) : 0;
+  const sizeSize = size ? fitFontSize(bold, size, contentW, 26, 14) : 0;
+
+  const blockH =
+    logoH +
+    (category ? gap + catSize : 0) +
+    (name ? gap + nameSize : 0) +
+    (color ? gap + colorSize : 0) +
+    (size ? gap + sizeSize : 0);
+
+  const topY = PAGE_H - MARGIN_Y;
+  const bottomBrandY = MARGIN_Y;
+  const available = topY - bottomBrandY - brandSize - 20;
+  const startY = topY - Math.max(0, (available - blockH) / 2);
+
+  let y = startY - logoH;
   page.drawImage(logoImage, {
     x: (PAGE_W - logoW) / 2,
     y,
@@ -136,33 +158,24 @@ export async function buildBoxLabelPdf(input: BoxLabelInput): Promise<Buffer> {
     height: logoH,
   });
 
-  y -= 16;
   if (category) {
-    const sz = fitFontSize(font, category, contentW, 18, 11);
-    drawCentered(page, font, category, sz, y, contentW);
-    y -= sz + 8;
+    y -= gap + catSize;
+    drawCentered(page, font, category, catSize, y);
   }
-
   if (name) {
-    const sz = fitFontSize(bold, name, contentW, 36, 18);
-    drawCentered(page, bold, name, sz, y, contentW);
-    y -= sz + 8;
+    y -= gap + nameSize;
+    drawCentered(page, bold, name, nameSize, y);
   }
-
   if (color) {
-    const sz = fitFontSize(bold, color, contentW, 12, 9);
-    drawCentered(page, bold, color, sz, y, contentW);
-    y -= sz + 8;
+    y -= gap + colorSize;
+    drawCentered(page, font, color, colorSize, y);
   }
-
   if (size) {
-    const sz = fitFontSize(bold, size, contentW, 22, 12);
-    drawCentered(page, bold, size, sz, y, contentW);
+    y -= gap + sizeSize;
+    drawCentered(page, bold, size, sizeSize, y);
   }
 
-  const brandLabel = brand.label.toUpperCase();
-  const brandSize = fitFontSize(bold, brandLabel, contentW, 14, 10);
-  drawCentered(page, bold, brandLabel, brandSize, 14, contentW);
+  drawCentered(page, bold, brandLabel, brandSize, bottomBrandY);
 
   return Buffer.from(await pdf.save());
 }
