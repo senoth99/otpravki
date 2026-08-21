@@ -118,16 +118,65 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** TSC TE300: 4×6, без полей, вписать по ширине, альбом. */
+const LABEL_LP_4X6 = [
+  [
+    "-o",
+    "PageSize=w4h6",
+    "-o",
+    "landscape",
+    "-o",
+    "fit-to-page",
+    "-o",
+    "scaling=100",
+    "-o",
+    "Resolution=300dpi",
+  ],
+  ["-o", "media=w4h6", "-o", "orientation-requested=4", "-o", "fit-to-page", "-o", "Resolution=300dpi"],
+  ["-o", "PageSize=w4h6", "-o", "fit-to-page", "-o", "Resolution=300dpi"],
+];
+
 const LABEL_LP_OPTS = [
+  ...LABEL_LP_4X6,
   ["-o", `media=${labelMediaOption()}`, "-o", "fit-to-page"],
-  ["-o", "media=4x6", "-o", "fit-to-page"],
   ["-o", "fit-to-page"],
   [],
 ];
 
 export type LabelPrintFormat = "tspl" | "pdf" | "png";
 
-/** Печать этикетки 150×100: TSPL raw → PDF → PNG */
+async function printPdfViaCups(printer: string, pdfPath: string): Promise<boolean> {
+  for (const opts of LABEL_LP_4X6) {
+    try {
+      await runLp(printer, pdfPath, opts);
+      await sleep(POST_SPOOL_MS);
+      return true;
+    } catch {
+      // next option set
+    }
+  }
+  return false;
+}
+
+/** Макеты AMMD/Кураж: 4×6 landscape, fit-to-page, 300 dpi. */
+export async function printPdfLabel4x6(
+  printer: string,
+  pdf: Buffer,
+  workDir: string,
+  stamp: string,
+): Promise<LabelPrintFormat> {
+  assertPdfBuffer(pdf);
+  const pdfPath = path.join(workDir, `label-${stamp}.pdf`);
+  await writeFile(pdfPath, pdf);
+
+  if (await printPdfViaCups(printer, pdfPath)) return "pdf";
+
+  await printTsplLabel(printer, pdfPath, workDir, stamp);
+  await sleep(POST_SPOOL_MS);
+  return "tspl";
+}
+
+/** Печать этикетки 150×100: TSPL raw → PDF 4×6 → PNG */
 export async function printPdfLabel(
   printer: string,
   pdf: Buffer,

@@ -9,7 +9,7 @@ export function labelHeightMm(): number {
 }
 
 export function labelDpi(): number {
-  return Number(process.env.BARCODE_LABEL_DPI ?? 203);
+  return Number(process.env.BARCODE_LABEL_DPI ?? 300);
 }
 
 export function mmToPx(mm: number, dpi = labelDpi()): number {

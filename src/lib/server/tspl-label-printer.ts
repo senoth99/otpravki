@@ -197,6 +197,27 @@ function rotateBitmap(raster: Raster, degrees: number): Raster {
   return { bitmap: out, widthBits: newW, height: newH, widthBytes: newWB };
 }
 
+function stretchToLabel(raster: Raster): Raster {
+  const targetW = Math.ceil(labelWidthPx() / 8) * 8;
+  const targetH = labelHeightPx();
+  if (raster.widthBits === targetW && raster.height === targetH) return raster;
+
+  const newWB = targetW / 8;
+  const out = Buffer.alloc(newWB * targetH);
+
+  for (let y = 0; y < targetH; y++) {
+    const sy = Math.min(raster.height - 1, Math.floor((y * raster.height) / targetH));
+    for (let x = 0; x < targetW; x++) {
+      const sx = Math.min(raster.widthBits - 1, Math.floor((x * raster.widthBits) / targetW));
+      if (getBit(raster.bitmap, raster.widthBytes, sx, sy)) {
+        setBit(out, newWB, x, y, true);
+      }
+    }
+  }
+
+  return { bitmap: out, widthBits: targetW, height: targetH, widthBytes: newWB };
+}
+
 function prepareRaster(
   raster: Raster,
   invert: boolean,
@@ -214,10 +235,9 @@ function prepareRaster(
     prepared = rotateBitmap(prepared, LABEL_ROTATION);
   }
 
-  const offsetX = Math.max(0, Math.round((labelWidthPx() - prepared.widthBits) / 2));
-  const offsetY = Math.max(0, Math.round((labelHeightPx() - prepared.height) / 2));
+  prepared = stretchToLabel(prepared);
 
-  return { ...prepared, offsetX, offsetY };
+  return { ...prepared, offsetX: 0, offsetY: 0 };
 }
 
 export function buildTsplLabel(

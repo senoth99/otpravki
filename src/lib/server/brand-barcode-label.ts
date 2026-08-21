@@ -1,7 +1,7 @@
 import { existsSync } from "fs";
 import { mkdir, readFile } from "fs/promises";
 import path from "path";
-import { printPdfLabel } from "@/lib/server/pdf-label-printer";
+import { printPdfLabel4x6 } from "@/lib/server/pdf-label-printer";
 
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
 const PRINT_DIR = path.join(DATA_DIR, "print");
@@ -58,7 +58,7 @@ export async function printLabelTemplate(printer: string, kind: TestLabelKind): 
   const templatePath = resolveLabelTemplate(kind);
   const pdf = await readFile(templatePath);
   await mkdir(PRINT_DIR, { recursive: true });
-  const format = await printPdfLabel(printer, pdf, PRINT_DIR, `${kind}-${Date.now()}`);
+  const format = await printPdfLabel4x6(printer, pdf, PRINT_DIR, `${kind}-${Date.now()}`);
   return format;
 }
 
