@@ -119,7 +119,7 @@ function sleep(ms: number) {
 }
 
 /** TSC TE300: 4×6, без полей, вписать по ширине, альбом. */
-const LABEL_LP_4X6 = [
+const LABEL_LP_4X6_LANDSCAPE = [
   [
     "-o",
     "PageSize=w4h6",
@@ -136,8 +136,24 @@ const LABEL_LP_4X6 = [
   ["-o", "PageSize=w4h6", "-o", "fit-to-page", "-o", "Resolution=300dpi"],
 ];
 
+/** Портрет 4×6 (100×150) — этикетка трека. */
+const LABEL_LP_4X6_PORTRAIT = [
+  [
+    "-o",
+    "PageSize=w4h6",
+    "-o",
+    "fit-to-page",
+    "-o",
+    "scaling=100",
+    "-o",
+    "Resolution=300dpi",
+  ],
+  ["-o", "media=w4h6", "-o", "fit-to-page", "-o", "Resolution=300dpi"],
+  ["-o", `media=${labelMediaOption()}`, "-o", "fit-to-page"],
+];
+
 const LABEL_LP_OPTS = [
-  ...LABEL_LP_4X6,
+  ...LABEL_LP_4X6_LANDSCAPE,
   ["-o", `media=${labelMediaOption()}`, "-o", "fit-to-page"],
   ["-o", "fit-to-page"],
   [],
@@ -145,20 +161,24 @@ const LABEL_LP_OPTS = [
 
 export type LabelPrintFormat = "tspl" | "pdf" | "png";
 
-async function printPdfViaCups(printer: string, pdfPath: string): Promise<boolean> {
-  for (const opts of LABEL_LP_4X6) {
+async function printPdfViaCups(
+  printer: string,
+  pdfPath: string,
+  optionSets: string[][],
+): Promise<boolean> {
+  for (const opts of optionSets) {
     try {
       await runLp(printer, pdfPath, opts);
       await sleep(POST_SPOOL_MS);
       return true;
     } catch {
-      // next option set
+      // next
     }
   }
   return false;
 }
 
-/** Макеты AMMD/Кураж: 4×6 landscape, fit-to-page, 300 dpi. */
+/** Макеты AMMO/Кураж: 4×6 landscape. */
 export async function printPdfLabel4x6(
   printer: string,
   pdf: Buffer,
@@ -169,11 +189,35 @@ export async function printPdfLabel4x6(
   const pdfPath = path.join(workDir, `label-${stamp}.pdf`);
   await writeFile(pdfPath, pdf);
 
-  if (await printPdfViaCups(printer, pdfPath)) return "pdf";
+  if (await printPdfViaCups(printer, pdfPath, LABEL_LP_4X6_LANDSCAPE)) return "pdf";
 
   await printTsplLabel(printer, pdfPath, workDir, stamp);
   await sleep(POST_SPOOL_MS);
   return "tspl";
+}
+
+/** Этикетка трека: портрет 100×150, без landscape. */
+export async function printPdfLabelPortrait4x6(
+  printer: string,
+  pdf: Buffer,
+  workDir: string,
+  stamp: string,
+): Promise<LabelPrintFormat> {
+  assertPdfBuffer(pdf);
+  const pdfPath = path.join(workDir, `label-${stamp}.pdf`);
+  await writeFile(pdfPath, pdf);
+
+  // TSPL сначала — размер PDF уже = этикетка, без лишних полей CUPS
+  try {
+    await printTsplLabel(printer, pdfPath, workDir, stamp);
+    await sleep(POST_SPOOL_MS);
+    return "tspl";
+  } catch {
+    // fallback CUPS
+  }
+
+  if (await printPdfViaCups(printer, pdfPath, LABEL_LP_4X6_PORTRAIT)) return "pdf";
+  throw new Error("Не удалось напечатать этикетку трека");
 }
 
 /** Печать этикетки 150×100: TSPL raw → PDF 4×6 → PNG */
