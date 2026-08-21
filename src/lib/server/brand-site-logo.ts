@@ -112,30 +112,41 @@ async function forceDarkOnWhite(buf: Buffer): Promise<Buffer> {
     if (data[i + 3]! < 30) continue;
     opaque += 1;
     const gray = (data[i]! + data[i + 1]! + data[i + 2]!) / 3;
-    if (gray > 180) light += 1;
+    if (gray > 160) light += 1;
   }
 
-  const invertLight = opaque > 0 && light / opaque >= 0.55;
+  // SHECASH и похожие: белый знак по альфе → чёрный на белом.
+  const invertLight = opaque > 0 && light / opaque >= 0.45;
+
   for (let i = 0; i < data.length; i += 4) {
     const a = data[i + 3]!;
-    if (a < 30) {
+    const gray = (data[i]! + data[i + 1]! + data[i + 2]!) / 3;
+
+    if (invertLight) {
+      if (a < 30) {
+        data[i] = 255;
+        data[i + 1] = 255;
+        data[i + 2] = 255;
+      } else {
+        data[i] = 0;
+        data[i + 1] = 0;
+        data[i + 2] = 0;
+      }
+      data[i + 3] = 255;
+      continue;
+    }
+
+    // Тёмный логотип / светло-серый на белом (Кураж): всё «не фон» → чёрный.
+    const isBg = a < 30 || gray > 245;
+    if (isBg) {
       data[i] = 255;
       data[i + 1] = 255;
       data[i + 2] = 255;
       data[i + 3] = 255;
-      continue;
-    }
-    if (invertLight) {
+    } else {
       data[i] = 0;
       data[i + 1] = 0;
       data[i + 2] = 0;
-      data[i + 3] = 255;
-    } else {
-      // обычный тёмный логотип: flatten alpha на белый
-      const alpha = a / 255;
-      data[i] = Math.round(data[i]! * alpha + 255 * (1 - alpha));
-      data[i + 1] = Math.round(data[i + 1]! * alpha + 255 * (1 - alpha));
-      data[i + 2] = Math.round(data[i + 2]! * alpha + 255 * (1 - alpha));
       data[i + 3] = 255;
     }
   }
