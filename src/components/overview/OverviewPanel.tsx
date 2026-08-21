@@ -14,7 +14,7 @@ import { orderIsBlogger } from "@/lib/blogger-order";
 import {
   buildOverviewStats,
   groupOrdersByProductId,
-  groupProductsToShip,
+  groupProductsFromOrders,
   type OverviewProduct,
   type OverviewSize,
   type OverviewStats,
@@ -467,7 +467,7 @@ export function OverviewPanel({
     enabled: !USE_MOCK_ORDERS,
   });
 
-  const products = useMemo(() => groupProductsToShip(assemblyItems), [assemblyItems]);
+  const products = useMemo(() => groupProductsFromOrders(orders), [orders]);
   const visibleProducts = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q || view !== "list") return products;

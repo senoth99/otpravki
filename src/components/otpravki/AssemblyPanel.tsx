@@ -1,8 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import {
+  applyProgressToAssemblyItems,
+  fetchAssemblyProgress,
+  pushAssemblyProgress,
+  subscribeAssemblyProgress,
+  type AssemblyProgressState,
+} from "@/lib/assembly-progress";
 import { getAssemblyViewSections } from "@/lib/assembly-demand";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import { isRushUrgency, resolveOrderUrgency } from "@/lib/urgency";
@@ -46,10 +53,13 @@ export function AssemblyPanel({
   const [selectedBrand, setSelectedBrand] = useState<string>(KNOWN_BRANDS[0]);
   const [filters, setFilters] = useState<OtpravkiFiltersState>(DEFAULT_FILTERS);
   const [reloading, setReloading] = useState(false);
+  const [progress, setProgress] = useState<AssemblyProgressState | null>(null);
+  const progressRef = useRef(progress);
+  progressRef.current = progress;
+
   const {
     assemblyItems,
     orders,
-    updateAssembly,
     isInternetOnline,
     isServerReachable,
     refreshFromApi,
@@ -69,6 +79,28 @@ export function AssemblyPanel({
     void refreshFromApi(selectedBrand);
   }, [refreshFromApi, selectedBrand]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void fetchAssemblyProgress().then((next) => {
+      if (!cancelled && next) setProgress(next);
+    });
+    const unsub = subscribeAssemblyProgress({
+      onProgress: (next) => {
+        if (next.revision < (progressRef.current?.revision ?? 0)) return;
+        setProgress(next);
+      },
+    });
+    return () => {
+      cancelled = true;
+      unsub();
+    };
+  }, []);
+
+  const syncedAssemblyItems = useMemo(
+    () => applyProgressToAssemblyItems(assemblyItems, progress),
+    [assemblyItems, progress],
+  );
+
   const brandOrders = useMemo(
     () => orders.filter((order) => getOrderStoreBrand(order) === selectedBrand && !order.barcodePrinted),
     [orders, selectedBrand],
@@ -80,7 +112,7 @@ export function AssemblyPanel({
   );
 
   const filteredAssemblyItems = useMemo(() => {
-    const brandAsm = assemblyItems.filter(
+    const brandAsm = syncedAssemblyItems.filter(
       (item) => (item.brand?.trim() || "CASHER") === selectedBrand,
     );
     if (filters.kind === "blogger") {
@@ -89,7 +121,12 @@ export function AssemblyPanel({
     if (filters.kind === "regular") {
       return brandAsm.filter((item) => item.isBlogger !== true);
     }
-    if (filters.query.trim() || filters.urgency !== "all" || filters.city !== "all" || filters.productIds.length > 0) {
+    if (
+      filters.query.trim() ||
+      filters.urgency !== "all" ||
+      filters.city !== "all" ||
+      filters.productIds.length > 0
+    ) {
       const allowedKeys = new Set(
         filteredOrders.flatMap((order) =>
           order.items.map((item) => `${item.productId}-${item.sizeId}-${orderIsBlogger(order)}`),
@@ -97,7 +134,10 @@ export function AssemblyPanel({
       );
       if (
         allowedKeys.size === 0 &&
-        (filters.query || filters.urgency !== "all" || filters.city !== "all" || filters.productIds.length > 0)
+        (filters.query ||
+          filters.urgency !== "all" ||
+          filters.city !== "all" ||
+          filters.productIds.length > 0)
       ) {
         return [];
       }
@@ -108,15 +148,45 @@ export function AssemblyPanel({
       }
     }
     return brandAsm;
-  }, [assemblyItems, selectedBrand, filters, filteredOrders]);
+  }, [syncedAssemblyItems, selectedBrand, filters, filteredOrders]);
 
   const handleFilteredAssemblyChange = (nextItems: AssemblyItem[]) => {
-    const nextById = new Map(nextItems.map((item) => [item.id, item]));
-    updateAssembly(
-      assemblyItems.map((item) =>
-        (item.brand?.trim() || "CASHER") === selectedBrand ? (nextById.get(item.id) ?? item) : item,
-      ),
-    );
+    const prevById = new Map(syncedAssemblyItems.map((item) => [item.id, item]));
+    const patch: Array<{ id: string; collectedCount: number; collectedAt?: number }> = [];
+
+    for (const item of nextItems) {
+      const prev = prevById.get(item.id);
+      if (!prev || prev.collectedCount === item.collectedCount) continue;
+      patch.push({
+        id: item.id,
+        collectedCount: item.collectedCount,
+        collectedAt: item.collectedAt,
+      });
+    }
+    if (patch.length === 0) return;
+
+    setProgress((current) => {
+      const items = { ...(current?.items ?? {}) };
+      for (const row of patch) {
+        if (row.collectedCount <= 0) delete items[row.id];
+        else {
+          items[row.id] = {
+            collectedCount: row.collectedCount,
+            collectedAt: row.collectedAt,
+          };
+        }
+      }
+      return {
+        revision: current?.revision ?? 0,
+        updatedAt: Date.now(),
+        updatedBy: "local",
+        items,
+      };
+    });
+
+    void pushAssemblyProgress(patch).then((remote) => {
+      if (remote) setProgress(remote);
+    });
   };
 
   const assemblySections = useMemo(

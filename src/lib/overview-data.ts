@@ -47,6 +47,16 @@ function sizeRank(size: string): number {
   return 50;
 }
 
+function sortOverviewProducts(products: OverviewProduct[]): OverviewProduct[] {
+  return products
+    .map((product) => ({
+      ...product,
+      sizes: [...product.sizes].sort((a, b) => sizeRank(a.size) - sizeRank(b.size)),
+    }))
+    .sort((a, b) => b.totalQty - a.totalQty || a.productName.localeCompare(b.productName, "ru"));
+}
+
+/** Пул со склада (warehouse-capped) — для справки, не для главных цифр. */
 export function groupProductsToShip(assemblyItems: AssemblyItem[]): OverviewProduct[] {
   const byProduct = new Map<string, OverviewProduct>();
 
@@ -72,12 +82,41 @@ export function groupProductsToShip(assemblyItems: AssemblyItem[]): OverviewProd
     if (!existing.imageUrl && item.imageUrl) existing.imageUrl = item.imageUrl;
   }
 
-  return [...byProduct.values()]
-    .map((product) => ({
-      ...product,
-      sizes: [...product.sizes].sort((a, b) => sizeRank(a.size) - sizeRank(b.size)),
-    }))
-    .sort((a, b) => b.totalQty - a.totalQty || a.productName.localeCompare(b.productName, "ru"));
+  return sortOverviewProducts([...byProduct.values()]);
+}
+
+/** Единицы и модели из активных заказов — те же заказы, что в «Заказов». */
+export function groupProductsFromOrders(orders: ShippingOrder[]): OverviewProduct[] {
+  const byProduct = new Map<string, OverviewProduct>();
+
+  for (const order of orders) {
+    if (order.barcodePrinted) continue;
+    const brand = order.storeBrand?.trim() || "CASHER";
+    for (const item of order.items) {
+      if (!item.productId || item.quantity <= 0) continue;
+      const existing = byProduct.get(item.productId);
+      if (!existing) {
+        byProduct.set(item.productId, {
+          productId: item.productId,
+          productName: item.productName,
+          brand,
+          imageUrl: item.imageUrl ?? "",
+          sizes: [{ size: item.size, quantity: item.quantity }],
+          totalQty: item.quantity,
+        });
+        continue;
+      }
+
+      const sizeRow = existing.sizes.find((row) => row.size === item.size);
+      if (sizeRow) sizeRow.quantity += item.quantity;
+      else existing.sizes.push({ size: item.size, quantity: item.quantity });
+      existing.totalQty += item.quantity;
+      if (!existing.imageUrl && item.imageUrl) existing.imageUrl = item.imageUrl;
+      if (!existing.brand) existing.brand = brand;
+    }
+  }
+
+  return sortOverviewProducts([...byProduct.values()]);
 }
 
 /** Активные заказы, в которых есть эта модель. */
@@ -110,12 +149,12 @@ export function groupOrdersByProductId(orders: ShippingOrder[]): Map<string, Shi
 }
 
 export function buildOverviewStats(
-  assemblyItems: AssemblyItem[],
+  _assemblyItems: AssemblyItem[],
   orders: ShippingOrder[],
   shippedArchive: ShippingOrder[] = [],
 ): OverviewStats {
   const active = orders.filter((order) => !order.barcodePrinted);
-  const products = groupProductsToShip(assemblyItems);
+  const products = groupProductsFromOrders(orders);
 
   return {
     orders: active.length,

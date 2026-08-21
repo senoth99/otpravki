@@ -74,6 +74,20 @@ function attachWorkspaceSocket(httpServer) {
       });
     }
 
+    // Прогресс сборки — отдельно от workspace отправок
+    try {
+      const host = hostname === "0.0.0.0" ? "127.0.0.1" : hostname;
+      const res = await fetch(`http://${host}:${port}/api/assembly/progress`, {
+        headers: { "Cache-Control": "no-store" },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.progress) socket.emit("assembly:sync", data.progress);
+      }
+    } catch {
+      // сборка опциональна при старте
+    }
+
     socket.on("disconnect", (reason) => {
       void logSync("socket.disconnect", {
         socketId: socket.id,
