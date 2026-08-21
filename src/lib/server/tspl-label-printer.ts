@@ -54,6 +54,10 @@ export async function renderPdfToPbm(
       `-g${widthPx}x${heightPx}`,
       "-dPDFFitPage",
       "-dFIXEDMEDIA",
+      // без сглаживания — иначе термопечать «мылит» тонкие линии
+      "-dTextAlphaBits=1",
+      "-dGraphicsAlphaBits=1",
+      "-dAlignToPixels=1",
       `-dDEVICEWIDTHPOINTS=${widthPt}`,
       `-dDEVICEHEIGHTPOINTS=${heightPt}`,
       "-dFirstPage=1",

@@ -364,11 +364,14 @@ async function embedQrPng(pdf: PDFDocument, payload: string, px = 240): Promise<
 
 async function embedCasherStroke(pdf: PDFDocument): Promise<PDFImage> {
   const raw = await readFile(resolveLabelAsset("casher-track-stroke.png"));
-  // апскейл под 300 dpi этикетки — макет мелкий (251×150)
+  // Ближайший сосед + жёсткий порог → чёткие пиксели под термопечать (без мыла)
   const png = await sharp(raw)
-    .resize({ width: 1800, height: 1200, fit: "fill" })
+    .ensureAlpha()
     .flatten({ background: { r: 255, g: 255, b: 255 } })
-    .png()
+    .resize(1800, 1200, { kernel: "nearest", fit: "fill" })
+    .grayscale()
+    .threshold(160)
+    .png({ compressionLevel: 9, palette: true, colors: 2 })
     .toBuffer();
   return pdf.embedPng(png);
 }
@@ -384,8 +387,48 @@ async function buildCasherTrackLabelPdf(
   page.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: WHITE });
 
   const stroke = await embedCasherStroke(pdf);
-  // на весь лист 150×100
   page.drawImage(stroke, { x: 0, y: 0, width: PAGE_W, height: PAGE_H });
+
+  // Затираем мыльные буквы макета — рисуем векторным шрифтом
+  const titleBandTop = PAGE_H * (1 - 6 / 150);
+  const titleBandBottom = PAGE_H * (1 - 22 / 150);
+  page.drawRectangle({
+    x: PAGE_W * 0.22,
+    y: titleBandBottom,
+    width: PAGE_W * 0.56,
+    height: titleBandTop - titleBandBottom,
+    color: WHITE,
+  });
+  const title = "CASHER";
+  const titleSize = 42;
+  const titleW = bold.widthOfTextAtSize(title, titleSize);
+  page.drawText(title, {
+    x: (PAGE_W - titleW) / 2,
+    y: titleBandBottom + (titleBandTop - titleBandBottom - titleSize) / 2 + 2,
+    size: titleSize,
+    font: bold,
+    color: BLACK,
+  });
+
+  const footBandTop = PAGE_H * (1 - 130 / 150);
+  const footBandBottom = PAGE_H * (1 - 145 / 150);
+  page.drawRectangle({
+    x: PAGE_W * 0.12,
+    y: footBandBottom,
+    width: PAGE_W * 0.76,
+    height: footBandTop - footBandBottom,
+    color: WHITE,
+  });
+  const footer = "YOU HAVE BECOME RICHER";
+  const footSize = 13;
+  const footW = bold.widthOfTextAtSize(footer, footSize);
+  page.drawText(footer, {
+    x: (PAGE_W - footW) / 2,
+    y: footBandBottom + (footBandTop - footBandBottom - footSize) / 2 + 1,
+    size: footSize,
+    font: bold,
+    color: BLACK,
+  });
 
   const holeX = PAGE_W * CASHER_STROKE_HOLE.x0;
   const holeW = PAGE_W * (CASHER_STROKE_HOLE.x1 - CASHER_STROKE_HOLE.x0);
@@ -401,12 +444,12 @@ async function buildCasherTrackLabelPdf(
     color: WHITE,
   });
 
-  const padX = 6;
-  const padY = 5;
-  const orderSize = orderNo.length > 16 ? 12 : 14;
-  const trackSize = track.length > 14 ? 14 : 16;
-  const textBlock = trackSize + 4 + orderSize + 4;
-  const barcodeH = Math.max(36, holeH - textBlock - padY * 2);
+  const padX = 8;
+  const padY = 6;
+  const orderSize = orderNo.length > 16 ? 13 : 15;
+  const trackSize = track.length > 14 ? 15 : 17;
+  const textBlock = trackSize + 5 + orderSize + 5;
+  const barcodeH = Math.max(40, holeH - textBlock - padY * 2);
   const barcodeY = holeTop - padY - barcodeH;
 
   try {
@@ -419,13 +462,13 @@ async function buildCasherTrackLabelPdf(
       width: holeW - padX * 2,
       height: barcodeH,
       borderColor: BLACK,
-      borderWidth: 1,
+      borderWidth: 1.2,
     });
   }
 
-  const trackY = barcodeY - trackSize - 3;
+  const trackY = barcodeY - trackSize - 4;
   drawCenteredIn(page, bold, track, trackSize, trackY, holeX, holeW);
-  drawCenteredIn(page, bold, orderNo, orderSize, trackY - orderSize - 4, holeX, holeW);
+  drawCenteredIn(page, bold, orderNo, orderSize, trackY - orderSize - 5, holeX, holeW);
 }
 
 function drawZoneFrame(page: PDFPage, x: number, y: number, w: number, h: number) {

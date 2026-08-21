@@ -178,7 +178,7 @@ async function printPdfViaCups(
   return false;
 }
 
-/** Макеты AMMO/Кураж: 4×6 landscape. */
+/** Макеты 4×6 landscape. TSPL первым — чёткий 1-bit на TSC без мыла CUPS. */
 export async function printPdfLabel4x6(
   printer: string,
   pdf: Buffer,
@@ -189,11 +189,16 @@ export async function printPdfLabel4x6(
   const pdfPath = path.join(workDir, `label-${stamp}.pdf`);
   await writeFile(pdfPath, pdf);
 
-  if (await printPdfViaCups(printer, pdfPath, LABEL_LP_4X6_LANDSCAPE)) return "pdf";
+  try {
+    await printTsplLabel(printer, pdfPath, workDir, stamp);
+    await sleep(POST_SPOOL_MS);
+    return "tspl";
+  } catch {
+    // fallback CUPS
+  }
 
-  await printTsplLabel(printer, pdfPath, workDir, stamp);
-  await sleep(POST_SPOOL_MS);
-  return "tspl";
+  if (await printPdfViaCups(printer, pdfPath, LABEL_LP_4X6_LANDSCAPE)) return "pdf";
+  throw new Error("Не удалось напечатать этикетку 4×6");
 }
 
 /** Этикетка трека: портрет 100×150, без landscape. */
