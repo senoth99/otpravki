@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { AuthHeaderStats } from "@/components/auth/AuthHeaderStats";
 import { AssemblyExtrasEditor } from "@/components/admin/AssemblyExtrasEditor";
+import { BoxLabelEditor } from "@/components/admin/BoxLabelEditor";
 import { PinNumpad } from "@/components/chestnye-znaki/PinNumpad";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { mutatingApiHeaders } from "@/lib/api-headers";
 
-type AdminView = "loading" | "pin" | "menu" | "extras";
+type AdminView = "loading" | "pin" | "menu" | "extras" | "box-labels";
 
 export function AdminPanel() {
   useOtpravkiNoSwipe();
@@ -114,7 +115,7 @@ export function AdminPanel() {
       <header className="safe-top shrink-0 border-b border-gray-200 bg-white px-3 py-3 sm:px-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            {view === "extras" ? (
+            {view === "extras" || view === "box-labels" ? (
               <button
                 type="button"
                 onClick={() => setView("menu")}
@@ -134,7 +135,11 @@ export function AdminPanel() {
             <div className="min-w-0">
               <h1 className="truncate text-lg font-bold text-gray-900">Админка</h1>
               <p className="text-xs text-gray-500">
-                {view === "extras" ? "Допы сборки" : "Честные знаки, допы и тест печати"}
+                {view === "extras"
+                  ? "Допы сборки"
+                  : view === "box-labels"
+                    ? "Надписи на коробки"
+                    : "Честные знаки, допы и тест печати"}
               </p>
             </div>
           </div>
@@ -188,6 +193,21 @@ export function AdminPanel() {
                 </span>
                 <span className="mt-0.5 block text-sm text-gray-500">
                   Что класть в заказ по брендам
+                </span>
+              </span>
+              <span className="text-gray-400">→</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("box-labels")}
+              className="flex min-h-20 items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 text-left shadow-sm active:scale-[0.99]"
+            >
+              <span>
+                <span className="block text-base font-semibold text-gray-900">
+                  Надписи на коробки
+                </span>
+                <span className="mt-0.5 block text-sm text-gray-500">
+                  Категория, название, цвет, размер
                 </span>
               </span>
               <span className="text-gray-400">→</span>
@@ -287,6 +307,7 @@ export function AdminPanel() {
         )}
 
         {view === "extras" && <AssemblyExtrasEditor />}
+        {view === "box-labels" && <BoxLabelEditor />}
       </main>
     </div>
   );
