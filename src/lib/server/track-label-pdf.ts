@@ -59,12 +59,12 @@ function resolveLabelAsset(file: string): string {
   throw new Error(`Нет файла labels/${file}`);
 }
 
-/** Вырез в макете Casher под штрихкод / трек / заказ (доли от ширины/высоты) */
+/** Вырез в макете Casher (123.pdf) под штрихкод / трек / заказ */
 const CASHER_STROKE_HOLE = {
-  x0: 0.295,
-  x1: 0.685,
-  y0: 0.33,
-  y1: 0.64,
+  x0: 0.312,
+  x1: 0.686,
+  y0: 0.22,
+  y1: 0.76,
 } as const;
 
 export function brandDisplayName(brand?: string): string {
@@ -366,16 +366,19 @@ async function embedCasherStrokePage(pdf: PDFDocument): Promise<{
   draw: (page: PDFPage) => void;
 }> {
   const pdfPath = (() => {
-    try {
-      return resolveLabelAsset("casher-track-stroke.pdf");
-    } catch {
-      return null;
+    for (const name of ["casher-track-stroke.pdf", "casher-track-template.pdf"]) {
+      try {
+        return resolveLabelAsset(name);
+      } catch {
+        // next
+      }
     }
+    return null;
   })();
 
   if (pdfPath) {
-    const template = await PDFDocument.load(await readFile(pdfPath));
-    const [embedded] = await pdf.embedPdf(template, [0]);
+    const bytes = await readFile(pdfPath);
+    const [embedded] = await pdf.embedPdf(bytes, [0]);
     return {
       draw: (page: PDFPage) => {
         page.drawPage(embedded, { x: 0, y: 0, width: PAGE_W, height: PAGE_H });
