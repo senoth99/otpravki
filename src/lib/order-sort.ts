@@ -1,27 +1,16 @@
 import type { OrderDisplayStatus } from "@/lib/order-status";
-import { resolveOrderUrgency, URGENCY_WEIGHT } from "@/lib/urgency";
 import type { ShippingOrder } from "@/types/shipping";
 
-/** Меньше = левее в списке */
-const STATUS_PRIORITY: Record<OrderDisplayStatus, number> = {
-  assembled: 0,
-  "ready-to-ship": 1,
-  "awaiting-assembly": 2,
-  shipped: 3,
-};
+/** Сравнение номеров заказа: 1, 2, 3… а не 1, 10, 2. */
+export function compareOrderNumbers(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+}
 
 export function compareOrdersForPicker(
   a: { order: ShippingOrder; status: OrderDisplayStatus },
   b: { order: ShippingOrder; status: OrderDisplayStatus },
 ): number {
-  const statusDiff = STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status];
-  if (statusDiff !== 0) return statusDiff;
-
-  const urgencyDiff =
-    URGENCY_WEIGHT[resolveOrderUrgency(a.order)] - URGENCY_WEIGHT[resolveOrderUrgency(b.order)];
-  if (urgencyDiff !== 0) return urgencyDiff;
-
-  return a.order.orderNumber.localeCompare(b.order.orderNumber);
+  return compareOrderNumbers(a.order.orderNumber, b.order.orderNumber);
 }
 
 export function getSortedOrderIndices(
@@ -34,7 +23,63 @@ export function getSortedOrderIndices(
     .map(({ index }) => index);
 }
 
-/** Первый заказ, готовый к отправке (сборка есть, ещё не отправлен) */
+function getOrderStoreBrand(order: ShippingOrder): string {
+  return order.storeBrand?.trim() || "CASHER";
+}
+
+/**
+ * Следующий неотправленный заказ в очереди пикера (по номеру).
+ * Если `fromId` уже выпал из списка (после печати уходит из filteredOrders),
+ * продолжаем с места после `afterOrderNumber`.
+ */
+export function findNextActiveOrderId(
+  orders: ShippingOrder[],
+  statuses: OrderDisplayStatus[],
+  fromId: string | null,
+  brand: string,
+  options?: { afterOrderNumber?: string | null },
+): string | null {
+  const brandIndices = orders
+    .map((_, index) => index)
+    .filter((index) => getOrderStoreBrand(orders[index]) === brand);
+
+  if (brandIndices.length === 0) return null;
+
+  const sortedIndices = getSortedOrderIndices(
+    brandIndices.map((index) => orders[index]),
+    brandIndices.map((index) => statuses[index]),
+  ).map((localPos) => brandIndices[localPos]);
+
+  let fromPos = fromId
+    ? sortedIndices.findIndex((index) => orders[index].id === fromId)
+    : -1;
+
+  if (fromPos < 0 && options?.afterOrderNumber) {
+    // Заказа уже нет в списке — встаём после последнего с номером ≤ отправленного
+    fromPos = -1;
+    for (let i = 0; i < sortedIndices.length; i++) {
+      const number = orders[sortedIndices[i]].orderNumber;
+      if (compareOrderNumbers(number, options.afterOrderNumber) <= 0) {
+        fromPos = i;
+      } else {
+        break;
+      }
+    }
+  }
+
+  const start = fromPos >= 0 ? fromPos + 1 : 0;
+  for (let step = 0; step < sortedIndices.length; step++) {
+    const pos = (start + step) % sortedIndices.length;
+    if (fromPos >= 0 && pos === fromPos) continue;
+    const index = sortedIndices[pos];
+    if (!orders[index].barcodePrinted) {
+      return orders[index].id;
+    }
+  }
+  return null;
+}
+
+/** Первый заказ, готовый к отправке (сборка есть, ещё не отправлен) — по номеру */
 export function findFirstAutoOrderIndex(
   orders: ShippingOrder[],
   statuses: OrderDisplayStatus[],

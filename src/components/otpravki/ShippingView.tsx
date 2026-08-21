@@ -6,8 +6,12 @@ import { useHardwareScanner } from "@/hooks/useHardwareScanner";
 import { buildAssemblyAllocation } from "@/lib/assembly-status";
 import { resolveScanFromBarcode } from "@/lib/barcode-product";
 import { formatMoscowDate } from "@/lib/format";
-import { getOrderDisplayStatus, type OrderDisplayStatus } from "@/lib/order-status";
-import { findFirstAutoOrderIndex, getSortedOrderIndices } from "@/lib/order-sort";
+import { getOrderDisplayStatus } from "@/lib/order-status";
+import {
+  findFirstAutoOrderIndex,
+  findNextActiveOrderId,
+  getSortedOrderIndices,
+} from "@/lib/order-sort";
 import { isBloggerOrder, orderIsBlogger } from "@/lib/blogger-order";
 import { printOrderBarcode } from "@/lib/print-barcode";
 import { brandNeedsSecondBarcode } from "@/lib/brand-second-label";
@@ -92,40 +96,6 @@ function getOrderStoreBrand(order: ShippingOrder): string {
   return order.storeBrand?.trim() || "CASHER";
 }
 
-function findNextActiveOrderId(
-  orders: ShippingOrder[],
-  statuses: OrderDisplayStatus[],
-  fromId: string | null,
-  brand: string,
-): string | null {
-  const brandIndices = orders
-    .map((_, index) => index)
-    .filter((index) => getOrderStoreBrand(orders[index]) === brand);
-
-  if (brandIndices.length === 0) return null;
-
-  // Та же очередь, что в OrderPicker: статус → срочность → номер
-  const sortedIndices = getSortedOrderIndices(
-    brandIndices.map((index) => orders[index]),
-    brandIndices.map((index) => statuses[index]),
-  ).map((localPos) => brandIndices[localPos]);
-
-  const fromPos = fromId
-    ? sortedIndices.findIndex((index) => orders[index].id === fromId)
-    : -1;
-
-  const start = fromPos >= 0 ? fromPos + 1 : 0;
-  for (let step = 0; step < sortedIndices.length; step++) {
-    const pos = (start + step) % sortedIndices.length;
-    if (fromPos >= 0 && pos === fromPos) continue;
-    const index = sortedIndices[pos];
-    if (!orders[index].barcodePrinted) {
-      return orders[index].id;
-    }
-  }
-  return null;
-}
-
 export function ShippingView({
   orders,
   assemblyItems,
@@ -159,6 +129,8 @@ export function ShippingView({
   const printBusyRef = useRef(false);
   const packingRef = useRef(false);
   const lastSelectionResetKeyRef = useRef(selectionResetKey);
+  /** Курсор очереди: после печати заказ пропадает из filteredOrders — ищем следующий по номеру */
+  const queueCursorRef = useRef<{ id: string; orderNumber: string } | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -444,18 +416,35 @@ export function ShippingView({
   );
 
   const goToNextOrder = useCallback(
-    (updatedOrders: ShippingOrder[], fromOrderId?: string | null) => {
+    (
+      updatedOrders: ShippingOrder[],
+      fromOrderId?: string | null,
+      afterOrderNumber?: string | null,
+    ) => {
       const allocation = buildAssemblyAllocation(updatedOrders, assemblyItems);
       const nextStatuses = updatedOrders.map((order) =>
         getOrderDisplayStatus(order, assemblyItems, allocation),
       );
+      const fromId = fromOrderId ?? currentOrderId;
+      const afterNumber =
+        afterOrderNumber ??
+        queueCursorRef.current?.orderNumber ??
+        (fromId ? updatedOrders.find((order) => order.id === fromId)?.orderNumber : null) ??
+        null;
       const nextId = findNextActiveOrderId(
         updatedOrders,
         nextStatuses,
-        fromOrderId ?? currentOrderId,
+        fromId,
         selectedBrand,
+        { afterOrderNumber: afterNumber },
       );
-      if (nextId) setCurrentOrderId(nextId);
+      if (nextId) {
+        const nextOrder = updatedOrders.find((order) => order.id === nextId);
+        if (nextOrder) {
+          queueCursorRef.current = { id: nextOrder.id, orderNumber: nextOrder.orderNumber };
+        }
+        setCurrentOrderId(nextId);
+      }
     },
     [assemblyItems, currentOrderId, selectedBrand],
   );
@@ -491,6 +480,10 @@ export function ShippingView({
         shippedByEmoji: user?.emoji,
       };
       const shippedId = shippedOrder.id;
+      queueCursorRef.current = {
+        id: shippedId,
+        orderNumber: shippedOrder.orderNumber,
+      };
 
       onOrdersChange((prev) => {
         const updated = prev.map((order) =>
@@ -645,8 +638,13 @@ export function ShippingView({
 
   const handleNextOrder = () => {
     const fromId = manualConfirmOrder?.id ?? currentOrderId;
+    const afterNumber =
+      manualConfirmOrder?.orderNumber ??
+      queueCursorRef.current?.orderNumber ??
+      currentOrder?.orderNumber ??
+      null;
     setManualConfirmOrder(null);
-    goToNextOrder(orders, fromId);
+    goToNextOrder(orders, fromId, afterNumber);
   };
 
   useEffect(() => {
@@ -657,13 +655,28 @@ export function ShippingView({
       return;
     }
 
-    const filteredOrders = activeIndices.map((index) => orders[index]);
-    const filteredStatuses = activeIndices.map((index) => orderStatuses[index]);
-    const next = findFirstAutoOrderIndex(filteredOrders, filteredStatuses);
-    if (next !== null && filteredOrders[next].id !== currentOrderId) {
-      setCurrentOrderId(filteredOrders[next].id);
+    const afterNumber =
+      currentOrder?.orderNumber ?? queueCursorRef.current?.orderNumber ?? null;
+    const nextId = findNextActiveOrderId(
+      orders,
+      orderStatuses,
+      currentOrderId,
+      selectedBrand,
+      { afterOrderNumber: afterNumber },
+    );
+    if (nextId && nextId !== currentOrderId) {
+      setCurrentOrderId(nextId);
     }
-  }, [activeIndices, autoMode, countdown, currentOrder, currentIndex, currentOrderId, orderStatuses, orders]);
+  }, [
+    autoMode,
+    countdown,
+    currentOrder,
+    currentIndex,
+    currentOrderId,
+    orderStatuses,
+    orders,
+    selectedBrand,
+  ]);
 
   useEffect(() => {
     if (!autoMode || !allScanned || !canScan || countdown || !currentOrder) return;
@@ -729,27 +742,27 @@ export function ShippingView({
       return;
     }
 
+    // phase "next" — следующий после отправленного, не с начала очереди
     setCountdown(null);
     setManualConfirmOrder(null);
     autoHandledRef.current = null;
-    const filteredOrders = activeIndices.map((index) => orders[index]);
-    const filteredStatuses = activeIndices.map((index) => orderStatuses[index]);
-    const next = findFirstAutoOrderIndex(filteredOrders, filteredStatuses);
-    if (next !== null) setCurrentOrderId(filteredOrders[next].id);
-  }, [activeIndices, countdown, orderStatuses, orders, printTrackAndFinish]);
+    goToNextOrder(orders, countdown.order.id, countdown.order.orderNumber);
+  }, [countdown, goToNextOrder, orders, printTrackAndFinish]);
 
   useEffect(() => {
     if (manualConfirmOrder) return;
     if (countdown) return;
-    if (currentOrder?.barcodePrinted) {
-      const nextId = findNextActiveOrderId(
-        orders,
-        orderStatuses,
-        currentOrderId,
-        selectedBrand,
-      );
-      if (nextId) setCurrentOrderId(nextId);
-    }
+    if (!currentOrder?.barcodePrinted) return;
+    const afterNumber =
+      currentOrder.orderNumber ?? queueCursorRef.current?.orderNumber ?? null;
+    const nextId = findNextActiveOrderId(
+      orders,
+      orderStatuses,
+      currentOrderId,
+      selectedBrand,
+      { afterOrderNumber: afterNumber },
+    );
+    if (nextId) setCurrentOrderId(nextId);
   }, [
     orders,
     orderStatuses,
@@ -771,15 +784,34 @@ export function ShippingView({
 
   useEffect(() => {
     if (manualConfirmOrder) return;
+    if (countdown) return;
     if (activeIndices.length === 0) return;
     if (activeIndices.includes(currentIndex)) return;
-    const sortedLocal = getSortedOrderIndices(
-      activeIndices.map((index) => orders[index]),
-      activeIndices.map((index) => orderStatuses[index]),
+    // Заказ ушёл из списка (печать / фильтр) — продолжаем с курсора, не с первого
+    const afterNumber =
+      queueCursorRef.current?.orderNumber ??
+      (currentOrderId
+        ? orders.find((order) => order.id === currentOrderId)?.orderNumber
+        : null) ??
+      null;
+    const nextId = findNextActiveOrderId(
+      orders,
+      orderStatuses,
+      currentOrderId,
+      selectedBrand,
+      { afterOrderNumber: afterNumber },
     );
-    const firstIndex = activeIndices[sortedLocal[0] ?? 0];
-    setCurrentOrderId(orders[firstIndex].id);
-  }, [currentIndex, orders, orderStatuses, activeIndices, manualConfirmOrder]);
+    if (nextId) setCurrentOrderId(nextId);
+  }, [
+    currentIndex,
+    orders,
+    orderStatuses,
+    activeIndices,
+    manualConfirmOrder,
+    countdown,
+    currentOrderId,
+    selectedBrand,
+  ]);
 
   useEffect(() => {
     if (selectionResetKey === lastSelectionResetKeyRef.current) return;
@@ -792,7 +824,13 @@ export function ShippingView({
     );
     const firstIndex = activeIndices[sortedLocal[0] ?? 0];
     const firstId = orders[firstIndex]?.id;
-    if (firstId) setCurrentOrderId(firstId);
+    if (firstId) {
+      queueCursorRef.current = {
+        id: firstId,
+        orderNumber: orders[firstIndex].orderNumber,
+      };
+      setCurrentOrderId(firstId);
+    }
   }, [selectionResetKey, activeIndices, orders, orderStatuses, manualConfirmOrder]);
 
   const hasActiveOrders = activeIndices.length > 0;
@@ -820,11 +858,23 @@ export function ShippingView({
 
   const handleSelectActive = (index: number) => {
     setManualConfirmOrder(null);
+    const order = orders[index];
+    if (order) {
+      queueCursorRef.current = { id: order.id, orderNumber: order.orderNumber };
+    }
     setCurrentOrderId(orders[index].id);
   };
 
-  const pickerPosition = Math.max(1, activeIndices.indexOf(currentIndex) + 1);
-  const pickerTotal = activeIndices.length || 1;
+  const sortedActiveIndices = useMemo(
+    () =>
+      getSortedOrderIndices(
+        activeIndices.map((index) => orders[index]),
+        activeIndices.map((index) => orderStatuses[index]),
+      ).map((localPos) => activeIndices[localPos]),
+    [activeIndices, orders, orderStatuses],
+  );
+  const pickerPosition = Math.max(1, sortedActiveIndices.indexOf(currentIndex) + 1);
+  const pickerTotal = sortedActiveIndices.length || 1;
 
   return (
     <div
