@@ -17,23 +17,25 @@ export function buildLabelZpl(orderNumber: string, barcodeData: string): string 
   const code = sanitizeBarcodeData(barcodeData);
   return `^XA
 ^CI28
-^FO30,20^A0N,28,28^FD${orderNumber}^FS
-^FO30,60^BY2,3,70^BCN,70,Y,N,N^FD${code}^FS
-^FO30,150^A0N,18,18^FDCasher Collection^FS
+^PW799
+^LL1199
+^FO40,40^A0N,56,56^FD${orderNumber}^FS
+^FO40,140^BY3,3,720^BCN,720,Y,N,N^FD${code}^FS
+^FO40,920^A0N,32,32^FDCasher Collection^FS
 ^XZ
 `;
 }
 
-/** TSPL — TSC, Xprinter и похожие */
+/** TSPL — TSC, Xprinter и похожие. Этикетка 100×150 мм (150×100). */
 export function buildLabelTspl(orderNumber: string, barcodeData: string): string {
   const code = sanitizeBarcodeData(barcodeData);
-  return `SIZE 58 mm,40 mm
+  return `SIZE 100 mm,150 mm
 GAP 2 mm,0 mm
 DIRECTION 1
 CLS
-TEXT 30,20,"3",0,1,1,"${orderNumber}"
-BARCODE 30,55,"128",70,1,0,2,2,"${code}"
-TEXT 30,140,"2",0,1,1,"Casher Collection"
+TEXT 40,40,"4",0,2,2,"${orderNumber}"
+BARCODE 40,140,"128",720,1,0,3,6,"${code}"
+TEXT 40,900,"3",0,1,1,"Casher Collection"
 PRINT 1,1
 `;
 }

@@ -4,6 +4,10 @@ import path from "path";
 import { promisify } from "util";
 import { buildLabelHtml } from "@/lib/label-html";
 import { buildLabelText, buildLabelTspl, buildLabelZpl } from "@/lib/label-formats";
+import {
+  brandBarcodeKindFromStore,
+  printBrandBarcodeLabel,
+} from "@/lib/server/brand-barcode-label";
 import { downloadBarcodePdf, resolveBarcodeUrl } from "@/lib/server/orders-api";
 import { printPdfLabel } from "@/lib/server/pdf-label-printer";
 
@@ -68,6 +72,10 @@ async function logPrint(message: string) {
   } catch {
     // ignore log errors
   }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function pickBestPrinter(printers: string[], defaultName: string | null): string | null {
@@ -187,6 +195,20 @@ export async function printToBarcodePrinter(
   if (!printer) {
     await logPrint(`FAIL no_printer order=${orderNumber}`);
     return { ok: false, printer: null, error: NO_PRINTER_MESSAGE };
+  }
+
+  const brandKind = brandBarcodeKindFromStore(options.brand);
+  if (brandKind) {
+    try {
+      await printBrandBarcodeLabel(printer, brandKind, orderNumber);
+      await sleep(400);
+      await logPrint(`OK brand-label=${brandKind} printer=${printer} order=${orderNumber}`);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Не удалось напечатать баркод бренда";
+      await logPrint(`FAIL brand-label=${brandKind} printer=${printer} ${message}`);
+      return { ok: false, printer, error: message };
+    }
   }
 
   const remoteOrderId =

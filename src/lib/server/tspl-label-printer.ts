@@ -2,30 +2,22 @@ import { execFile } from "child_process";
 import { access, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { promisify } from "util";
+import {
+  labelDpi,
+  labelHeightMm,
+  labelHeightPoints,
+  labelHeightPx,
+  labelWidthMm,
+  labelWidthPoints,
+  labelWidthPx,
+  pdfNeedsQuarterTurn,
+} from "@/lib/label-media";
 
 const execFileAsync = promisify(execFile);
 
-const RENDER_DPI = Number(process.env.BARCODE_LABEL_DPI ?? 203);
-const LABEL_WIDTH_MM = Number(process.env.BARCODE_LABEL_WIDTH_MM ?? 100);
-const LABEL_HEIGHT_MM = Number(process.env.BARCODE_LABEL_HEIGHT_MM ?? 150);
 const LABEL_SCALE = Number(process.env.BARCODE_LABEL_SCALE ?? 1);
 const LABEL_ROTATION = Number(process.env.BARCODE_LABEL_ROTATION ?? 180);
-
-function labelWidthPoints(): number {
-  return Math.round((LABEL_WIDTH_MM / 25.4) * 72);
-}
-
-function labelHeightPoints(): number {
-  return Math.round((LABEL_HEIGHT_MM / 25.4) * 72);
-}
-
-function labelWidthPx(): number {
-  return Math.round((LABEL_WIDTH_MM / 25.4) * RENDER_DPI);
-}
-
-function labelHeightPx(): number {
-  return Math.round((LABEL_HEIGHT_MM / 25.4) * RENDER_DPI);
-}
+const RENDER_DPI = labelDpi();
 
 async function commandExists(cmd: string): Promise<boolean> {
   try {
@@ -37,10 +29,19 @@ async function commandExists(cmd: string): Promise<boolean> {
 }
 
 /** PDF → монохром PBM (1 бит на пиксель) под размер этикетки */
-export async function renderPdfToPbm(pdfPath: string, pbmPath: string): Promise<void> {
+export async function renderPdfToPbm(
+  pdfPath: string,
+  pbmPath: string,
+  size?: { widthPx: number; heightPx: number; widthPt: number; heightPt: number },
+): Promise<void> {
   if (!(await commandExists("gs"))) {
     throw new Error("Нужен ghostscript: apt install ghostscript");
   }
+
+  const widthPx = size?.widthPx ?? labelWidthPx();
+  const heightPx = size?.heightPx ?? labelHeightPx();
+  const widthPt = size?.widthPt ?? labelWidthPoints();
+  const heightPt = size?.heightPt ?? labelHeightPoints();
 
   await execFileAsync(
     "gs",
@@ -50,11 +51,11 @@ export async function renderPdfToPbm(pdfPath: string, pbmPath: string): Promise<
       "-dNOPAUSE",
       "-sDEVICE=pbmraw",
       `-r${RENDER_DPI}`,
-      `-g${labelWidthPx()}x${labelHeightPx()}`,
+      `-g${widthPx}x${heightPx}`,
       "-dPDFFitPage",
       "-dFIXEDMEDIA",
-      `-dDEVICEWIDTHPOINTS=${labelWidthPoints()}`,
-      `-dDEVICEHEIGHTPOINTS=${labelHeightPoints()}`,
+      `-dDEVICEWIDTHPOINTS=${widthPt}`,
+      `-dDEVICEHEIGHTPOINTS=${heightPt}`,
       "-dFirstPage=1",
       "-dLastPage=1",
       `-sOutputFile=${pbmPath}`,
@@ -227,7 +228,7 @@ export function buildTsplLabel(
   bitmap: Buffer,
 ): Buffer {
   const header = [
-    `SIZE ${LABEL_WIDTH_MM} mm,${LABEL_HEIGHT_MM} mm`,
+    `SIZE ${labelWidthMm()} mm,${labelHeightMm()} mm`,
     "GAP 2 mm,0",
     "DIRECTION 1",
     "REFERENCE 0,0",
@@ -272,6 +273,21 @@ async function resolveUsbDevice(): Promise<string | null> {
   return null;
 }
 
+/** TSPL raw: сначала USB, иначе CUPS lp -o raw */
+export async function sendRawTspl(printer: string, filePath: string, data?: Buffer): Promise<void> {
+  const payload = data ?? (await readFile(filePath));
+  const usb = await resolveUsbDevice();
+  if (usb) {
+    try {
+      await sendRawDevice(usb, payload);
+      return;
+    } catch {
+      // fallback to lp raw
+    }
+  }
+  await sendRawLp(printer, filePath);
+}
+
 /** TSPL: растр этикетки напрямую на термопринтер */
 export async function printTsplLabel(
   printer: string,
@@ -281,10 +297,25 @@ export async function printTsplLabel(
 ): Promise<void> {
   const pbmPath = path.join(workDir, `label-${stamp}.pbm`);
   const tsplPath = path.join(workDir, `label-${stamp}.tspl`);
+  const pdf = await readFile(pdfPath);
+  const quarterTurn = pdfNeedsQuarterTurn(pdf);
 
-  await renderPdfToPbm(pdfPath, pbmPath);
+  if (quarterTurn) {
+    await renderPdfToPbm(pdfPath, pbmPath, {
+      widthPx: labelHeightPx(),
+      heightPx: labelWidthPx(),
+      widthPt: labelHeightPoints(),
+      heightPt: labelWidthPoints(),
+    });
+  } else {
+    await renderPdfToPbm(pdfPath, pbmPath);
+  }
+
   const pbm = await readFile(pbmPath);
-  const parsed = parsePbmP4(pbm);
+  let parsed = parsePbmP4(pbm);
+  if (quarterTurn) {
+    parsed = rotateBitmap(parsed, 90);
+  }
   const shouldInvert = process.env.BARCODE_INVERT_BITMAP !== "false";
   const raster = prepareRaster(parsed, shouldInvert);
 
@@ -296,16 +327,5 @@ export async function printTsplLabel(
     raster.bitmap,
   );
   await writeFile(tsplPath, tspl);
-
-  const usb = await resolveUsbDevice();
-  if (usb) {
-    try {
-      await sendRawDevice(usb, tspl);
-      return;
-    } catch {
-      // fallback to lp raw
-    }
-  }
-
-  await sendRawLp(printer, tsplPath);
+  await sendRawTspl(printer, tsplPath, tspl);
 }

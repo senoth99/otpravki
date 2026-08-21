@@ -2,34 +2,20 @@ import { execFile } from "child_process";
 import { rename, stat, writeFile } from "fs/promises";
 import path from "path";
 import { promisify } from "util";
+import {
+  labelDpi,
+  labelHeightPoints,
+  labelHeightPx,
+  labelMediaOption,
+  labelWidthPoints,
+  labelWidthPx,
+} from "@/lib/label-media";
 import { printTsplLabel } from "@/lib/server/tspl-label-printer";
 
 const execFileAsync = promisify(execFile);
 
-const RENDER_DPI = Number(process.env.BARCODE_LABEL_DPI ?? 203);
-const LABEL_WIDTH_MM = Number(process.env.BARCODE_LABEL_WIDTH_MM ?? 100);
-const LABEL_HEIGHT_MM = Number(process.env.BARCODE_LABEL_HEIGHT_MM ?? 150);
+const RENDER_DPI = labelDpi();
 const POST_SPOOL_MS = 300;
-
-function labelWidthPoints(): number {
-  return Math.round((LABEL_WIDTH_MM / 25.4) * 72);
-}
-
-function labelHeightPoints(): number {
-  return Math.round((LABEL_HEIGHT_MM / 25.4) * 72);
-}
-
-function labelWidthPx(): number {
-  return Math.round((LABEL_WIDTH_MM / 25.4) * RENDER_DPI);
-}
-
-function labelHeightPx(): number {
-  return Math.round((LABEL_HEIGHT_MM / 25.4) * RENDER_DPI);
-}
-
-function labelMediaOption(): string {
-  return `Custom.${LABEL_WIDTH_MM}x${LABEL_HEIGHT_MM}mm`;
-}
 
 export function assertPdfBuffer(data: Buffer): void {
   if (data.length < 5 || data.subarray(0, 5).toString("ascii") !== "%PDF-") {
@@ -141,7 +127,7 @@ const LABEL_LP_OPTS = [
 
 export type LabelPrintFormat = "tspl" | "pdf" | "png";
 
-/** Печать этикетки 100×150: TSPL raw → PDF → PNG */
+/** Печать этикетки 150×100: TSPL raw → PDF → PNG */
 export async function printPdfLabel(
   printer: string,
   pdf: Buffer,
