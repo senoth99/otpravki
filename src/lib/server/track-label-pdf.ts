@@ -51,6 +51,22 @@ function resolveFont(file: string): string {
   throw new Error(`Нет шрифта labels/fonts/${file}`);
 }
 
+function resolveLabelAsset(file: string): string {
+  for (const dir of labelsDirCandidates()) {
+    const full = path.join(dir, file);
+    if (existsSync(full)) return full;
+  }
+  throw new Error(`Нет файла labels/${file}`);
+}
+
+/** Вырез в casher-track-stroke.png под штрихкод / трек / заказ */
+const CASHER_STROKE_HOLE = {
+  x0: 76 / 251,
+  x1: 175 / 251,
+  y0: 41 / 150,
+  y1: 109 / 150,
+} as const;
+
 export function brandDisplayName(brand?: string): string {
   const value = (brand ?? "").trim();
   if (!value) return "CA$HER";
@@ -346,6 +362,74 @@ async function embedQrPng(pdf: PDFDocument, payload: string, px = 240): Promise<
   return pdf.embedPng(buf);
 }
 
+async function embedCasherStroke(pdf: PDFDocument): Promise<PDFImage> {
+  const raw = await readFile(resolveLabelAsset("casher-track-stroke.png"));
+  const png = await sharp(raw)
+    .flatten({ background: { r: 255, g: 255, b: 255 } })
+    .png()
+    .toBuffer();
+  return pdf.embedPng(png);
+}
+
+/** Casher: чёрный штрих-макет, в центре — barcode + трек + заказ */
+function drawCasherTrackStroke(
+  page: PDFPage,
+  stroke: PDFImage,
+  bold: PDFFont,
+  track: string,
+  orderNo: string,
+  x: number,
+  top: number,
+  width: number,
+): number {
+  const aspect = stroke.height / stroke.width;
+  const strokeW = width;
+  const strokeH = strokeW * aspect;
+  const strokeY = top - strokeH;
+  page.drawImage(stroke, { x, y: strokeY, width: strokeW, height: strokeH });
+
+  const holeX = x + strokeW * CASHER_STROKE_HOLE.x0;
+  const holeW = strokeW * (CASHER_STROKE_HOLE.x1 - CASHER_STROKE_HOLE.x0);
+  const holeTop = strokeY + strokeH * (1 - CASHER_STROKE_HOLE.y0);
+  const holeBottom = strokeY + strokeH * (1 - CASHER_STROKE_HOLE.y1);
+  const holeH = Math.max(8, holeTop - holeBottom);
+
+  page.drawRectangle({
+    x: holeX,
+    y: holeBottom,
+    width: holeW,
+    height: holeH,
+    color: WHITE,
+  });
+
+  const padY = 2;
+  const orderSize = orderNo.length > 16 ? 7 : 8;
+  const trackSize = track.length > 14 ? 8 : 9;
+  const textBlock = trackSize + 2 + orderSize + 2;
+  const barcodeH = Math.max(14, holeH - textBlock - padY * 2);
+  const barcodeY = holeTop - padY - barcodeH;
+
+  try {
+    void code128ModuleCount(track);
+    drawCode128(page, track, holeX + 2, barcodeY, holeW - 4, barcodeH);
+  } catch {
+    page.drawRectangle({
+      x: holeX + 2,
+      y: barcodeY,
+      width: holeW - 4,
+      height: barcodeH,
+      borderColor: BLACK,
+      borderWidth: 0.8,
+    });
+  }
+
+  const trackY = barcodeY - trackSize - 1;
+  drawCenteredIn(page, bold, track, trackSize, trackY, holeX, holeW);
+  drawCenteredIn(page, bold, orderNo, orderSize, trackY - orderSize - 2, holeX, holeW);
+
+  return strokeY;
+}
+
 function drawZoneFrame(page: PDFPage, x: number, y: number, w: number, h: number) {
   page.drawRectangle({
     x,
@@ -489,33 +573,44 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
 
   // ── Левая колонка: трек (+ заказ у Casher) + QR/ЧЗ ──
   drawZoneFrame(page, leftX, contentBottom, leftW, contentH);
-  drawZoneTitle(page, bold, "Трек", leftX, contentTop);
+  drawZoneTitle(page, bold, casher ? "Casher" : "Трек", leftX, contentTop);
 
   const pad = 8;
-  const barcodeH = casher ? 46 : 42;
-  const barcodeY = contentTop - 14 - barcodeH;
-  try {
-    void code128ModuleCount(track);
-    drawCode128(page, track, leftX + pad, barcodeY, leftW - pad * 2, barcodeH);
-  } catch {
-    page.drawRectangle({
-      x: leftX + pad,
-      y: barcodeY,
-      width: leftW - pad * 2,
-      height: barcodeH,
-      borderColor: BLACK,
-      borderWidth: 1,
-    });
-  }
+  let belowY: number;
 
-  const trackSize = track.length > 14 ? 11 : 13;
-  drawCenteredIn(page, bold, track, trackSize, barcodeY - 15, leftX, leftW);
-
-  let belowY = barcodeY - 18;
   if (casher) {
-    const orderSize = orderNo.length > 16 ? 10 : 12;
-    drawCenteredIn(page, bold, orderNo, orderSize, barcodeY - 30, leftX, leftW);
-    belowY = barcodeY - 36;
+    const stroke = await embedCasherStroke(pdf);
+    const strokeBottom = drawCasherTrackStroke(
+      page,
+      stroke,
+      bold,
+      track,
+      orderNo,
+      leftX + pad,
+      contentTop - 10,
+      leftW - pad * 2,
+    );
+    belowY = strokeBottom - 4;
+  } else {
+    const barcodeH = 42;
+    const barcodeY = contentTop - 14 - barcodeH;
+    try {
+      void code128ModuleCount(track);
+      drawCode128(page, track, leftX + pad, barcodeY, leftW - pad * 2, barcodeH);
+    } catch {
+      page.drawRectangle({
+        x: leftX + pad,
+        y: barcodeY,
+        width: leftW - pad * 2,
+        height: barcodeH,
+        borderColor: BLACK,
+        borderWidth: 1,
+      });
+    }
+
+    const trackSize = track.length > 14 ? 11 : 13;
+    drawCenteredIn(page, bold, track, trackSize, barcodeY - 15, leftX, leftW);
+    belowY = barcodeY - 18;
   }
 
   const qrTop = belowY - 4;
