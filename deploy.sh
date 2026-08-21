@@ -77,9 +77,16 @@ as_root systemctl enable cups 2>/dev/null || true
 as_root systemctl start cups 2>/dev/null || true
 
 setup_printer() {
-  local printer_name="${BARCODE_PRINTER:-OtpravkiLabel}"
+  local printer_name="${BARCODE_PRINTER:-TSC_TE300}"
 
   if lpstat -p 2>/dev/null | grep -q '^printer '; then
+    local tsc_dest
+    tsc_dest="$(lpstat -p 2>/dev/null | awk '/^printer / {print $2}' | grep -Ei 'tsc[_-]?te?300|^te?300$' | head -1 || true)"
+    if [[ -n "$tsc_dest" ]]; then
+      as_root lpoptions -d "$tsc_dest" 2>/dev/null || true
+      echo "==> Принтер по умолчанию: $tsc_dest"
+      return
+    fi
     local default_dest
     default_dest="$(lpstat -d 2>/dev/null | sed -n 's/.*default destination: //p' | head -1 | tr -d '[:space:]')"
     if [[ -z "$default_dest" || "$default_dest" == "none" || "$default_dest" == *"нет"* ]]; then
@@ -188,6 +195,7 @@ Environment=USE_MOCK_ORDERS=${USE_MOCK_ORDERS_VALUE}
 Environment=ORDERS_API_URL=${ORDERS_API_URL_VALUE}
 Environment=PRODUCTS_API_URL=${PRODUCTS_API_URL:-https://api.cashercollection.com}
 Environment=CASHER_API_KEY=${CASHER_API_KEY_VALUE}
+Environment=BARCODE_PRINTER=${BARCODE_PRINTER:-TSC_TE300}
 Environment=BARCODE_LABEL_WIDTH_MM=${BARCODE_LABEL_WIDTH_MM:-100}
 Environment=BARCODE_LABEL_HEIGHT_MM=${BARCODE_LABEL_HEIGHT_MM:-150}
 Environment=BARCODE_LABEL_DPI=${BARCODE_LABEL_DPI:-203}

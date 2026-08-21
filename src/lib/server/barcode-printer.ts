@@ -82,6 +82,9 @@ function pickBestPrinter(printers: string[], defaultName: string | null): string
   const physical = printers.filter((p) => !isVirtualPrinter(p));
   if (physical.length === 0) return null;
 
+  const preferredTsc = physical.find((name) => /tsc[_-]?te?300|^te?300$/i.test(name));
+  if (preferredTsc) return preferredTsc;
+
   const labelPrinters = physical.filter(isLabelPrinter);
   if (labelPrinters.length === 1) return labelPrinters[0];
   if (labelPrinters.length > 1 && defaultName && labelPrinters.includes(defaultName)) {
