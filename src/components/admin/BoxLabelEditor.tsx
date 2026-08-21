@@ -155,13 +155,13 @@ export function BoxLabelEditor() {
               <p className="text-xl uppercase tracking-wide text-gray-900">{previewCategory}</p>
             ) : null}
             {previewName ? (
-              <p className="text-lg font-bold uppercase tracking-wide text-gray-900">{previewName}</p>
+              <p className="text-4xl font-bold uppercase tracking-wide text-gray-900">{previewName}</p>
             ) : null}
             {previewColor ? (
               <p className="text-sm font-bold uppercase tracking-wide text-gray-900">{previewColor}</p>
             ) : null}
             {previewSize ? (
-              <p className="text-4xl font-bold uppercase tracking-wide text-gray-900">{previewSize}</p>
+              <p className="text-2xl font-bold uppercase tracking-wide text-gray-900">{previewSize}</p>
             ) : null}
           </div>
           <p className="pt-8 text-base font-bold uppercase tracking-[0.2em] text-gray-900">
