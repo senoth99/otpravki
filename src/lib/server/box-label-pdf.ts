@@ -144,7 +144,7 @@ export async function buildBoxLabelPdf(input: BoxLabelInput): Promise<Buffer> {
   }
 
   if (name) {
-    const sz = fitFontSize(bold, name, contentW, 17, 11);
+    const sz = fitFontSize(bold, name, contentW, 36, 18);
     drawCentered(page, bold, name, sz, y, contentW);
     y -= sz + 8;
   }
@@ -152,11 +152,11 @@ export async function buildBoxLabelPdf(input: BoxLabelInput): Promise<Buffer> {
   if (color) {
     const sz = fitFontSize(bold, color, contentW, 12, 9);
     drawCentered(page, bold, color, sz, y, contentW);
-    y -= sz + 10;
+    y -= sz + 8;
   }
 
   if (size) {
-    const sz = fitFontSize(bold, size, contentW, 28, 14);
+    const sz = fitFontSize(bold, size, contentW, 22, 12);
     drawCentered(page, bold, size, sz, y, contentW);
   }
 
