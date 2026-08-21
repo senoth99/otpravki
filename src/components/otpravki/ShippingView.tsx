@@ -17,7 +17,6 @@ import { toGtin14 } from "@/lib/chestny-znak-gtin";
 import type { ApiProduct, AssemblyItem, ShippingOrder, ShippingOrderItem } from "@/types/shipping";
 import { AutoModeButton } from "./AutoModeButton";
 import { AutoModeCountdown } from "./AutoModeCountdown";
-import { BarcodePrintModal } from "./BarcodePrintModal";
 import { OrderComments } from "./OrderComments";
 import { OrderExtrasHint } from "./OrderExtrasHint";
 import { OrderItemRow } from "./OrderItemRow";
@@ -27,6 +26,8 @@ import { ScanErrorPopup } from "./ScanErrorPopup";
 import { ShippedOrderCard } from "./ShippedOrderCard";
 
 const PACK_UNIT_WAIT_MS = 2000;
+const PRINT_COUNTDOWN_SEC = 10;
+const NEXT_ORDER_COUNTDOWN_SEC = 3;
 
 /** ЧЗ только для обычных заказов; блогерские (номер на «б») — без ЧЗ. */
 function orderUsesChestnyZnak(order: { orderNumber: string }): boolean {
@@ -64,7 +65,11 @@ async function requestPackUnit(input: {
 interface CountdownState {
   orderNumber: string;
   secondsLeft: number;
+  totalSeconds: number;
   hasNext: boolean;
+  phase: "print" | "next";
+  /** Снимок заказа на момент старта таймера печати */
+  order: ShippingOrder;
 }
 
 interface ShippingViewProps {
@@ -127,7 +132,6 @@ export function ShippingView({
   const [reprinting, setReprinting] = useState(false);
   const [manualMode, setManualMode] = useState(false);
   const [autoMode, setAutoMode] = useState(false);
-  const [printModalOpen, setPrintModalOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
   const [autoPrintRetry, setAutoPrintRetry] = useState(0);
@@ -139,6 +143,7 @@ export function ShippingView({
   const [czEnabled, setCzEnabled] = useState(true);
   const [remainingByGtin, setRemainingByGtin] = useState<Record<string, number> | null>(null);
   const autoHandledRef = useRef<string | null>(null);
+  const printBusyRef = useRef(false);
   const packingRef = useRef(false);
   const lastSelectionResetKeyRef = useRef(selectionResetKey);
 
@@ -425,11 +430,6 @@ export function ShippingView({
     [autoMode, canScan, currentOrderId, czEnabled, onOrdersChange, orders, packOneUnit],
   );
 
-  const handlePrint = () => {
-    if (!canScan || !allScanned || autoMode) return;
-    setPrintModalOpen(true);
-  };
-
   const goToNextOrder = useCallback(
     (updatedOrders: ShippingOrder[], fromOrderId?: string | null) => {
       const nextId = findNextActiveOrderId(
@@ -443,36 +443,101 @@ export function ShippingView({
     [currentOrderId, readyOrderIds, selectedBrand],
   );
 
-  const handlePrinted = () => {
-    if (!currentOrder) return;
-    setPrintModalOpen(false);
-    const shippedAt = Date.now();
-    const snapshot: ShippingOrder = {
-      ...currentOrder,
-      barcodePrinted: true,
-      barcodePrintedAt: shippedAt,
-      shippedByUserId: user?.id,
-      shippedByEmoji: user?.emoji,
-    };
-    const shippedId = currentOrder.id;
-    onOrdersChange((prev) => {
-      const updated = prev.map((order) =>
-        order.id === shippedId
-          ? {
-              ...order,
-              barcodePrinted: true,
-              barcodePrintedAt: shippedAt,
-              shippedByUserId: user?.id,
-              shippedByEmoji: user?.emoji,
-            }
-          : order,
-      );
-      goToNextOrder(updated, shippedId);
-      return updated;
+  const startPrintCountdown = useCallback((order: ShippingOrder, hasNext: boolean) => {
+    setPrintError(null);
+    setCountdown({
+      orderNumber: order.orderNumber,
+      secondsLeft: PRINT_COUNTDOWN_SEC,
+      totalSeconds: PRINT_COUNTDOWN_SEC,
+      hasNext,
+      phase: "print",
+      order: { ...order, items: order.items.map((item) => ({ ...item })) },
     });
-    onOrderShipped?.();
-    // Ручной режим: оставляем экран «трек напечатан» с перепечаткой
-    setManualConfirmOrder(snapshot);
+  }, []);
+
+  const applyShippedState = useCallback(
+    (shippedOrder: ShippingOrder, options: { auto: boolean; hasNext: boolean }) => {
+      const shippedAt = Date.now();
+      const snapshot: ShippingOrder = {
+        ...shippedOrder,
+        barcodePrinted: true,
+        barcodePrintedAt: shippedAt,
+        shippedByUserId: user?.id,
+        shippedByEmoji: user?.emoji,
+      };
+      const shippedId = shippedOrder.id;
+
+      onOrdersChange((prev) => {
+        const updated = prev.map((order) =>
+          order.id === shippedId
+            ? {
+                ...order,
+                barcodePrinted: true,
+                barcodePrintedAt: shippedAt,
+                shippedByUserId: user?.id,
+                shippedByEmoji: user?.emoji,
+              }
+            : order,
+        );
+        if (!options.auto) {
+          goToNextOrder(updated, shippedId);
+        }
+        return updated;
+      });
+      onOrderShipped?.();
+
+      if (options.auto) {
+        setManualConfirmOrder(null);
+        setCountdown({
+          orderNumber: snapshot.orderNumber,
+          secondsLeft: NEXT_ORDER_COUNTDOWN_SEC,
+          totalSeconds: NEXT_ORDER_COUNTDOWN_SEC,
+          hasNext: options.hasNext,
+          phase: "next",
+          order: snapshot,
+        });
+      } else {
+        setCountdown(null);
+        setManualConfirmOrder(snapshot);
+      }
+    },
+    [goToNextOrder, onOrderShipped, onOrdersChange, user],
+  );
+
+  const runDelayedPrint = useCallback(
+    async (order: ShippingOrder, options: { auto: boolean; hasNext: boolean }) => {
+      if (printBusyRef.current) return;
+      printBusyRef.current = true;
+      setPrintError(null);
+
+      const result = await printOrderBarcode(order.orderNumber, {
+        orderId: order.id,
+        barcodeUrl: order.barcodeUrl,
+        order,
+      });
+
+      printBusyRef.current = false;
+
+      if (!result.ok) {
+        setCountdown(null);
+        autoHandledRef.current = null;
+        setPrintError(result.message ?? "Не удалось напечатать баркод");
+        return;
+      }
+
+      applyShippedState(order, options);
+    },
+    [applyShippedState],
+  );
+
+  const handlePrint = () => {
+    if (!canScan || !allScanned || autoMode || !currentOrder || countdown) return;
+    const hasNext = activeIndices.some((index) => {
+      const order = orders[index];
+      return order && order.id !== currentOrder.id && !order.barcodePrinted;
+    });
+    autoHandledRef.current = currentOrder.id;
+    startPrintCountdown(currentOrder, hasNext);
   };
 
   const handleDismissManualConfirm = () => {
@@ -520,51 +585,24 @@ export function ShippingView({
     if (autoHandledRef.current === currentOrder.id) return;
 
     autoHandledRef.current = currentOrder.id;
-    const shippedNumber = currentOrder.orderNumber;
     const shippedId = currentOrder.id;
+    const updatedOrders = orders.map((order) =>
+      order.id === shippedId ? { ...order, barcodePrinted: true } : order,
+    );
+    const nextAllocation = buildAssemblyAllocation(updatedOrders, assemblyItems);
+    const nextStatuses = updatedOrders.map((order) =>
+      getOrderDisplayStatus(order, assemblyItems, nextAllocation),
+    );
+    const nextVisibleOrders = updatedOrders.filter(
+      (order) => !order.barcodePrinted && getOrderStoreBrand(order) === selectedBrand,
+    );
+    const nextVisibleStatuses = nextVisibleOrders.map((order) => {
+      const sourceIndex = updatedOrders.findIndex((entry) => entry.id === order.id);
+      return nextStatuses[sourceIndex];
+    });
+    const hasNext = findFirstAutoOrderIndex(nextVisibleOrders, nextVisibleStatuses) !== null;
 
-    void (async () => {
-      const result = await printOrderBarcode(shippedNumber, {
-        orderId: currentOrder.id,
-        barcodeUrl: currentOrder.barcodeUrl,
-        order: currentOrder,
-      });
-      if (!result.ok) {
-        autoHandledRef.current = null;
-        setPrintError(result.message ?? "Не удалось напечатать баркод");
-        return;
-      }
-
-      const shippedAt = Date.now();
-      const updatedOrders = orders.map((order) =>
-        order.id === shippedId
-          ? {
-              ...order,
-              barcodePrinted: true,
-              barcodePrintedAt: shippedAt,
-              shippedByUserId: user?.id,
-              shippedByEmoji: user?.emoji,
-            }
-          : order,
-      );
-      const nextAllocation = buildAssemblyAllocation(updatedOrders, assemblyItems);
-      const nextStatuses = updatedOrders.map((order) =>
-        getOrderDisplayStatus(order, assemblyItems, nextAllocation),
-      );
-      const nextVisibleOrders = updatedOrders.filter(
-        (order) => !order.barcodePrinted && getOrderStoreBrand(order) === selectedBrand,
-      );
-      const nextVisibleStatuses = nextVisibleOrders.map((order) => {
-        const sourceIndex = updatedOrders.findIndex((entry) => entry.id === order.id);
-        return nextStatuses[sourceIndex];
-      });
-      const hasNext = findFirstAutoOrderIndex(nextVisibleOrders, nextVisibleStatuses) !== null;
-
-      onOrdersChange(updatedOrders);
-      onOrderShipped?.();
-      setManualConfirmOrder(null);
-      setCountdown({ orderNumber: shippedNumber, secondsLeft: 5, hasNext });
-    })();
+    startPrintCountdown(currentOrder, hasNext);
   }, [
     allScanned,
     assemblyItems,
@@ -573,48 +611,54 @@ export function ShippingView({
     canScan,
     countdown,
     currentOrder,
-    currentOrderId,
     onOrdersChange,
     orders,
     selectedBrand,
-    user,
-    onOrderShipped,
+    startPrintCountdown,
   ]);
 
   const retryAutoPrint = useCallback(() => {
     setPrintError(null);
     autoHandledRef.current = null;
+    printBusyRef.current = false;
     setAutoPrintRetry((value) => value + 1);
   }, []);
 
   useEffect(() => {
     if (!countdown) return;
 
-    if (countdown.secondsLeft <= 0) {
-      setCountdown(null);
-      setManualConfirmOrder(null);
-      autoHandledRef.current = null;
-      const filteredOrders = activeIndices.map((index) => orders[index]);
-      const filteredStatuses = activeIndices.map((index) => orderStatuses[index]);
-      const next = findFirstAutoOrderIndex(filteredOrders, filteredStatuses);
-      if (next !== null) setCurrentOrderId(filteredOrders[next].id);
+    if (countdown.secondsLeft > 0) {
+      const timer = window.setTimeout(() => {
+        setCountdown((prev) => (prev ? { ...prev, secondsLeft: prev.secondsLeft - 1 } : null));
+      }, 1000);
+      return () => window.clearTimeout(timer);
+    }
+
+    if (countdown.phase === "print") {
+      void runDelayedPrint(countdown.order, {
+        auto: autoMode,
+        hasNext: countdown.hasNext,
+      });
       return;
     }
 
-    const timer = window.setTimeout(() => {
-      setCountdown((prev) => (prev ? { ...prev, secondsLeft: prev.secondsLeft - 1 } : null));
-    }, 1000);
-
-    return () => window.clearTimeout(timer);
-  }, [activeIndices, countdown, orderStatuses, orders]);
+    setCountdown(null);
+    setManualConfirmOrder(null);
+    autoHandledRef.current = null;
+    const filteredOrders = activeIndices.map((index) => orders[index]);
+    const filteredStatuses = activeIndices.map((index) => orderStatuses[index]);
+    const next = findFirstAutoOrderIndex(filteredOrders, filteredStatuses);
+    if (next !== null) setCurrentOrderId(filteredOrders[next].id);
+  }, [activeIndices, autoMode, countdown, orderStatuses, orders, runDelayedPrint]);
 
   useEffect(() => {
     if (manualConfirmOrder) return;
+    if (countdown) return;
     if (currentOrder?.barcodePrinted) {
       const nextId = findNextActiveOrderId(orders, currentOrderId, selectedBrand);
       if (nextId) setCurrentOrderId(nextId);
     }
-  }, [orders, currentOrderId, currentOrder, manualConfirmOrder, selectedBrand]);
+  }, [orders, currentOrderId, currentOrder, manualConfirmOrder, selectedBrand, countdown]);
 
   useEffect(() => {
     if (brandOptions.length === 0) {
@@ -848,14 +892,6 @@ export function ShippingView({
         />
       )}
 
-      {printModalOpen && currentOrder && (
-        <BarcodePrintModal
-          order={currentOrder}
-          onClose={() => setPrintModalOpen(false)}
-          onPrinted={handlePrinted}
-        />
-      )}
-
       {packingOverlay && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white px-6 py-5 text-center shadow-xl">
@@ -869,7 +905,10 @@ export function ShippingView({
         <AutoModeCountdown
           orderNumber={countdown.orderNumber}
           secondsLeft={countdown.secondsLeft}
+          totalSeconds={countdown.totalSeconds}
           hasNext={countdown.hasNext}
+          phase={countdown.phase}
+          showExitAuto={autoMode}
           onExitAutoMode={exitAutoMode}
         />
       )}
