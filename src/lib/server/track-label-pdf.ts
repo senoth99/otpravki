@@ -594,16 +594,15 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
 
   const brand = brandDisplayName(input.brand);
   const brandId = boxLabelBrandIdFromStoreBrand(input.brand);
-  // Фиксированная шапка: логотип по центру полосы, с воздухом сверху/снизу.
+  // Фиксированная шапка с запасом от края этикетки (термопринтер часто «съедает» 1–2 мм).
   const contentW = PAGE_W - MARGIN * 2;
-  const headerH = 42;
-  const headerTop = PAGE_H - MARGIN;
+  const topMargin = 10;
+  const headerH = 44;
+  const headerTop = PAGE_H - topMargin;
   const headerBottom = headerTop - headerH;
-  const logoPadX = 8;
-  const logoPadY = 5;
-  const logoMaxH = headerH - logoPadY * 2;
-  const logoMaxW = contentW - logoPadX * 2;
-  let brandBottomY = headerBottom + logoPadY;
+  const logoMaxH = headerH * 0.7;
+  const logoMaxW = contentW * 0.5;
+  let brandBottomY = headerBottom;
 
   let logoDrawn = false;
   if (brandId && brandId !== "casher") {
