@@ -125,7 +125,7 @@ echo "==> Устанавливаю зависимости..."
 npm ci
 
 mkdir -p "$DATA_DIR/cache"
-API_URL="${PRODUCTS_API_URL:-https://api.cashercollection.com}"
+API_URL="${PRODUCTS_API_URL:-https://api.amarix.ru}"
 echo "==> Кэширую товары (если есть интернет)..."
 PRODUCTS_TMP="$(mktemp)"
 if curl -fsS --max-time 30 "${API_URL}/products" -o "$PRODUCTS_TMP" 2>/dev/null; then
@@ -171,7 +171,7 @@ UNIT_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 echo "==> Настраиваю systemd ($SERVICE_NAME)..."
 
 CASHER_API_KEY_VALUE="${CASHER_API_KEY:-${api:-}}"
-ORDERS_API_URL_VALUE="${ORDERS_API_URL:-https://api.cashercollection.com}"
+ORDERS_API_URL_VALUE="${ORDERS_API_URL:-https://api.amarix.ru}"
 USE_MOCK_ORDERS_VALUE="${USE_MOCK_ORDERS:-false}"
 
 if [[ "${USE_MOCK_ORDERS_VALUE}" == "false" && -z "${CASHER_API_KEY_VALUE}" ]]; then
@@ -196,7 +196,7 @@ Environment=BUILD_ID=${BUILD_ID}
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=USE_MOCK_ORDERS=${USE_MOCK_ORDERS_VALUE}
 Environment=ORDERS_API_URL=${ORDERS_API_URL_VALUE}
-Environment=PRODUCTS_API_URL=${PRODUCTS_API_URL:-https://api.cashercollection.com}
+Environment=PRODUCTS_API_URL=${PRODUCTS_API_URL:-https://api.amarix.ru}
 Environment=CASHER_API_KEY=${CASHER_API_KEY_VALUE}
 Environment=BARCODE_PRINTER=${BARCODE_PRINTER:-TSC_TE300}
 Environment=BARCODE_LABEL_WIDTH_MM=${BARCODE_LABEL_WIDTH_MM:-100}
@@ -285,7 +285,7 @@ if command -v curl &>/dev/null; then
     echo "  Casher API с сервера: OK"
   elif [[ -n "$CASHER_CHECK" ]]; then
     echo "  ⚠️  Casher API с сервера недоступен — «Обновить» не сработает"
-    echo "      На Debian: curl -I https://api.cashercollection.com/products"
+    echo "      На Debian: curl -I https://api.amarix.ru/products"
     echo "      Нужен интернет/DNS на сервере, не только на телефоне"
   fi
 fi

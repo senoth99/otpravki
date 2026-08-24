@@ -283,7 +283,7 @@ function remoteCandidates(imageUrl?: string): string[] {
     if (uploadsMatch) {
       addYandex(`products/products/${uploadsMatch[1]}`);
     }
-    const base = (process.env.PRODUCTS_API_URL ?? "https://api.cashercollection.com").replace(
+    const base = (process.env.PRODUCTS_API_URL ?? "https://api.amarix.ru").replace(
       /\/$/,
       "",
     );

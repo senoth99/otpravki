@@ -1,9 +1,9 @@
 function resolveHost(url?: string): string {
-  if (!url) return "api.cashercollection.com";
+  if (!url) return "api.amarix.ru";
   try {
     return new URL(url).hostname;
   } catch {
-    return "api.cashercollection.com";
+    return "api.amarix.ru";
   }
 }
 

@@ -1,8 +1,6 @@
 import { mapUnshippedOrdersToWorkspace } from "@/lib/orders-mapper";
-import { formatApiFetchError } from "@/lib/server/api-fetch-error";
 import { fetchUnshippedOrders, fetchUnshippedOrdersForBrand } from "@/lib/server/orders-api";
-import { productsAuthHeaders } from "@/lib/server/casher-api";
-import { externalFetch } from "@/lib/server/external-fetch";
+import { fetchAllBrandProducts } from "@/lib/server/production-api";
 import { logSync } from "@/lib/server/sync-log";
 import { ingestGtinCatalogFromOrders } from "@/lib/server/chestny-znak-gtin-catalog";
 import {
@@ -13,9 +11,6 @@ import {
 import type { ApiProduct } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
 
-const PRODUCTS_API = process.env.PRODUCTS_API_URL ?? "https://api.amarix.ru";
-const PRODUCTS_URL = `${PRODUCTS_API}/products`;
-
 export interface WorkspaceApiSyncResult {
   workspace: SharedWorkspaceState;
   ordersCount: number;
@@ -24,25 +19,12 @@ export interface WorkspaceApiSyncResult {
 }
 
 async function fetchProductsLive(): Promise<ApiProduct[]> {
-  let res: Response;
-  try {
-    res = await externalFetch(PRODUCTS_URL, {
-      headers: { ...productsAuthHeaders(), Accept: "application/json" },
-      cache: "no-store",
-      timeoutMs: 20_000,
-    });
-  } catch (error) {
-    throw new Error(formatApiFetchError(error, PRODUCTS_URL));
+  // Один токен = один бренд: склеиваем каталоги всех ORDERS/PRODUCTION ключей.
+  const products = await fetchAllBrandProducts();
+  if (products.length === 0) {
+    throw new Error("Товары недоступны: пустой каталог по всем брендам (api.amarix.ru)");
   }
-
-  if (!res.ok) {
-    throw new Error(`Товары недоступны: HTTP ${res.status}. Нужен интернет до api.amarix.ru`);
-  }
-
-  const data: ApiProduct[] = await res.json();
-  // Не отбрасываем продукты без картинок: для UI важнее наличие размерностей/ID,
-  // а `ProductImage` умеет рисовать заглушку при пустом src.
-  return data;
+  return products;
 }
 
 export async function fetchAndSyncWorkspaceFromApi(): Promise<WorkspaceApiSyncResult> {

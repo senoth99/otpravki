@@ -25,7 +25,7 @@ export async function externalFetch(
 }
 
 export async function probeExternalApi(
-  url = "https://api.cashercollection.com/products",
+  url = "https://api.amarix.ru/products",
   headers?: HeadersInit,
 ): Promise<{ ok: boolean; status?: number; error?: string; ms: number }> {
   const started = Date.now();

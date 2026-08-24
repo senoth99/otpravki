@@ -235,6 +235,18 @@ export function AdminPanel() {
               <span className="text-gray-400">→</span>
             </a>
             <a
+              href="/proizvodstvo"
+              className="flex min-h-20 items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 text-left shadow-sm active:scale-[0.99]"
+            >
+              <span>
+                <span className="block text-base font-semibold text-gray-900">Производство</span>
+                <span className="mt-0.5 block text-sm text-gray-500">
+                  Очередь пошива и приход на склад Amarix
+                </span>
+              </span>
+              <span className="text-gray-400">→</span>
+            </a>
+            <a
               href="/sborka"
               className="flex min-h-20 items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 text-left shadow-sm active:scale-[0.99]"
             >

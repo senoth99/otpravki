@@ -1,11 +1,9 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
-import { externalFetch } from "@/lib/server/external-fetch";
-import { productsAuthHeaders } from "@/lib/server/casher-api";
+import { fetchAllBrandProducts } from "@/lib/server/production-api";
 import type { ApiProduct } from "@/types/shipping";
 import { getMockProducts } from "@/lib/mock-products";
 
-const API_BASE = process.env.PRODUCTS_API_URL ?? "https://api.cashercollection.com";
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
 const CACHE_DIR = path.join(DATA_DIR, "cache");
 const CACHE_FILE = path.join(CACHE_DIR, "products.json");
@@ -31,24 +29,10 @@ async function writeCache(data: ApiProduct[]) {
   await writeFile(CACHE_FILE, JSON.stringify(entry), "utf-8");
 }
 
-function filterProducts(products: ApiProduct[]) {
-  // Важно для dev/embedded UX:
-  // раньше выкидывали продукты без картинок (`images.length > 0`), из‑за чего
-  // при пустых/неверно отдаваемых изображениях получался пустой каталог → пустые заказы.
-  // Изображения при этом могут быть пустыми — `ProductImage` умеет показывать заглушку.
-  return products;
-}
-
 async function fetchRemote(): Promise<ApiProduct[]> {
-  const res = await externalFetch(`${API_BASE}/products`, {
-    headers: { ...productsAuthHeaders(), Accept: "application/json" },
-    timeoutMs: 20_000,
-  });
-  if (!res.ok) throw new Error(`Products API ${res.status}`);
-  const data: ApiProduct[] = await res.json();
-  const filtered = filterProducts(data);
-  // Если API вернул пусто — для локального embedded UI используем mock-каталог,
-  // чтобы заказы/сборка не превращались в пустые “карточки без товаров”.
+  // По доке Amarix: один ключ = один бренд. Тянем /products (или production-api/products)
+  // по каждому ORDERS_API_TOKEN_* / PRODUCTION_API_TOKEN_* и склеиваем.
+  const filtered = await fetchAllBrandProducts();
   return filtered.length > 0 ? filtered : getMockProducts();
 }
 
@@ -69,7 +53,6 @@ export async function getProductsWithCache(): Promise<{
   source: "network" | "cache" | "stale-cache" | "empty";
 }> {
   const cached = await readCache();
-  // Не используем “пустой” кэш, иначе навсегда закрепляем проблему с фильтрацией/поставщиком.
   const cacheFresh = cached && cached.data.length > 0 && Date.now() - cached.fetchedAt < TTL_MS;
 
   if (cacheFresh) {

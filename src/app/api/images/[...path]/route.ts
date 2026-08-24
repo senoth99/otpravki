@@ -4,7 +4,7 @@ import { getImageContentType } from "@/lib/server/image-cache";
 
 export const dynamic = "force-dynamic";
 
-const API_BASE = process.env.PRODUCTS_API_URL ?? "https://api.cashercollection.com";
+const API_BASE = process.env.PRODUCTS_API_URL ?? "https://api.amarix.ru";
 const YANDEX_MEDIA = "https://amarix-media.storage.yandexcloud.net";
 const STOREFRONT_IMAGE =
   process.env.PRODUCT_IMAGE_PROXY_ORIGIN ?? "https://cashercollection.com";
