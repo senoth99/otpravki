@@ -1,13 +1,11 @@
-import { AssemblyPanel } from "@/components/otpravki/AssemblyPanel";
+import { SborkaBootstrap } from "@/components/otpravki/SborkaBootstrap";
 import { USE_MOCK_ORDERS } from "@/lib/app-config";
 import { describeCasherLoadError } from "@/lib/casher-error";
 import { buildInitialWorkspace } from "@/lib/build-workspace";
 import { getMockResetToken } from "@/lib/server/mock-reset";
 import { loadWorkspaceFromLiveApi } from "@/lib/server/workspace-api-sync";
-import { getWarehouseMap } from "@/lib/server/warehouse-map-store";
 import { getSharedWorkspace, initSharedWorkspace } from "@/lib/server/workspace-store";
-import type { WarehouseMapConfig } from "@/types/stock";
-import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
+import { AssemblyPanel } from "@/components/otpravki/AssemblyPanel";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -27,84 +25,30 @@ function EmptyState({ title, hint }: { title: string; hint: string }) {
   );
 }
 
-function SborkaShell({
-  assemblyItems,
-  orders,
-  apiOrderIds,
-  shippedArchive,
-  initialRevision,
-  warehouseMap,
-}: {
-  assemblyItems: AssemblyItem[];
-  orders: ShippingOrder[];
-  apiOrderIds?: string[];
-  shippedArchive?: ShippingOrder[];
-  initialRevision?: number;
-  warehouseMap?: WarehouseMapConfig;
-}) {
-  return (
-    <AssemblyPanel
-      assemblyItems={assemblyItems}
-      orders={orders}
-      apiOrderIds={apiOrderIds}
-      shippedArchive={shippedArchive}
-      initialRevision={initialRevision}
-      warehouseMap={warehouseMap}
-    />
-  );
-}
-
 export default async function SborkaPage() {
-  const [resetToken, warehouseMap] = await Promise.all([
-    getMockResetToken(),
-    getWarehouseMap().catch(() => ({ furniture: [], updatedAt: 0 })),
-  ]);
-
   if (!USE_MOCK_ORDERS) {
+    // Прогреваем кэш заказов на сервере, UI грузим с клиента — без тяжёлого SSR.
     try {
-      const workspace = await loadWorkspaceFromLiveApi();
-      return (
-        <SborkaShell
-          assemblyItems={workspace.assemblyItems}
-          orders={workspace.orders}
-          apiOrderIds={workspace.apiOrderIds}
-          shippedArchive={workspace.shippedArchive}
-          initialRevision={workspace.revision}
-          warehouseMap={warehouseMap}
-        />
-      );
-    } catch (error) {
-      const existing = await getSharedWorkspace();
-      if (existing) {
-        return (
-          <SborkaShell
-            assemblyItems={existing.assemblyItems}
-            orders={existing.orders}
-            apiOrderIds={existing.apiOrderIds}
-            shippedArchive={existing.shippedArchive}
-            initialRevision={existing.revision}
-            warehouseMap={warehouseMap}
-          />
-        );
-      }
-      const { title, hint } = describeCasherLoadError(error);
-      return <EmptyState title={title} hint={hint} />;
+      await loadWorkspaceFromLiveApi();
+    } catch {
+      // Клиент попробует /api/workspace; при ошибке покажет подсказку.
     }
+    return <SborkaBootstrap />;
   }
 
+  const resetToken = await getMockResetToken();
   const existing = await getSharedWorkspace();
   const mockStale =
     resetToken !== null && existing !== null && existing.resetToken !== resetToken;
 
   if (existing && !mockStale) {
     return (
-      <SborkaShell
+      <AssemblyPanel
         assemblyItems={existing.assemblyItems}
         orders={existing.orders}
         apiOrderIds={existing.apiOrderIds}
         shippedArchive={existing.shippedArchive}
         initialRevision={existing.revision}
-        warehouseMap={warehouseMap}
       />
     );
   }
@@ -130,13 +74,12 @@ export default async function SborkaPage() {
   );
 
   return (
-    <SborkaShell
+    <AssemblyPanel
       assemblyItems={shared.assemblyItems}
       orders={shared.orders}
       apiOrderIds={shared.apiOrderIds}
       shippedArchive={shared.shippedArchive}
       initialRevision={shared.revision}
-      warehouseMap={warehouseMap}
     />
   );
 }
