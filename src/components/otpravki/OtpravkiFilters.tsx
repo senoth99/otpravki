@@ -603,6 +603,11 @@ export function OtpravkiMobileFilters({
   onBrandChange,
   brandDisabled,
   brandOnly = false,
+  /** Показывать на всех ширинах (сборка на планшете) */
+  alwaysVisible = false,
+  /** Свернуть доп.фильтры по умолчанию, бренд остаётся сверху */
+  collapsible = false,
+  defaultExpanded = true,
 }: {
   filters: OtpravkiFiltersState;
   onChange: (next: OtpravkiFiltersState) => void;
@@ -614,8 +619,12 @@ export function OtpravkiMobileFilters({
   brandDisabled?: boolean;
   /** Только выбор бренда (архив) */
   brandOnly?: boolean;
+  alwaysVisible?: boolean;
+  collapsible?: boolean;
+  defaultExpanded?: boolean;
 }) {
   const [productsOpen, setProductsOpen] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const set = <K extends keyof OtpravkiFiltersState>(key: K, value: OtpravkiFiltersState[K]) => {
     onChange({ ...filters, [key]: value });
   };
@@ -626,8 +635,101 @@ export function OtpravkiMobileFilters({
       ? selectedBrand
       : brandOptions[0] ?? "";
 
+  const filtersBody = brandOnly ? (
+    <FilterSection title="Поиск">
+      <KeyboardField
+        value={filters.query}
+        onChange={(next) => set("query", next)}
+        debounceMs={250}
+        placeholder="Поиск в архиве…"
+        title="Поиск в архиве"
+        className="h-12 w-full rounded-xl border border-gray-200 bg-white px-3 text-base text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+      />
+    </FilterSection>
+  ) : (
+    <>
+      <FilterSection title="Наличие">
+        <InStockToggle value={filters.inStock} onChange={(next) => set("inStock", next)} />
+      </FilterSection>
+
+      <FilterSection title="Поиск">
+        <KeyboardField
+          value={filters.query}
+          onChange={(next) => set("query", next)}
+          applyOnCloseOnly
+          placeholder="Поиск заказа…"
+          title="Поиск заказа"
+          className="h-12 w-full rounded-xl border border-gray-200 bg-white px-3 text-base text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+        />
+      </FilterSection>
+
+      <FilterSection title="Срочность">
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+          <Chip active={filters.urgency === "all"} onClick={() => set("urgency", "all")}>
+            Все
+          </Chip>
+          {URGENCY_KEYS.map((key) => (
+            <Chip
+              key={key}
+              active={filters.urgency === key}
+              onClick={() => set("urgency", key)}
+            >
+              <span className="truncate">{URGENCY_LABELS[key].label}</span>
+            </Chip>
+          ))}
+        </div>
+      </FilterSection>
+
+      <FilterSection title="Тип">
+        <div className="grid grid-cols-3 gap-2">
+          <Chip active={filters.kind === "all"} onClick={() => set("kind", "all")}>
+            Все
+          </Chip>
+          <Chip
+            active={filters.kind === "blogger"}
+            onClick={() => set("kind", "blogger")}
+          >
+            Блогеры
+          </Chip>
+          <Chip
+            active={filters.kind === "regular"}
+            onClick={() => set("kind", "regular")}
+          >
+            Обычные
+          </Chip>
+        </div>
+      </FilterSection>
+
+      {products.length > 0 && (
+        <FilterSection
+          title="Вещи"
+          hint={selectedCount > 0 ? `${selectedCount} выбрано` : undefined}
+        >
+          <Chip active={selectedCount > 0} onClick={() => setProductsOpen(true)}>
+            {selectedCount > 0 ? `Выбрано · ${selectedCount}` : "Выбрать вещи"}
+          </Chip>
+        </FilterSection>
+      )}
+
+      <ProductFilterModal
+        open={productsOpen}
+        onClose={() => setProductsOpen(false)}
+        products={products}
+        selectedIds={filters.productIds}
+        onConfirm={(productIds) => onChange({ ...filters, productIds })}
+      />
+    </>
+  );
+
+  const activeFilterHints =
+    filters.urgency !== "all" ||
+    filters.kind !== "all" ||
+    filters.inStock ||
+    filters.productIds.length > 0 ||
+    filters.query.trim().length > 0;
+
   return (
-    <div className="space-y-3 lg:hidden">
+    <div className={`space-y-3 ${alwaysVisible ? "" : "lg:hidden"}`}>
       {brandOptions.length > 0 && onBrandChange && brand && (
         <BrandFilter
           brands={brandOptions}
@@ -637,93 +739,25 @@ export function OtpravkiMobileFilters({
         />
       )}
 
-      {brandOnly ? (
-        <FilterSection title="Поиск">
-          <KeyboardField
-            value={filters.query}
-            onChange={(next) => set("query", next)}
-            debounceMs={250}
-            placeholder="Поиск в архиве…"
-            title="Поиск в архиве"
-            className="h-12 w-full rounded-xl border border-gray-200 bg-white px-3 text-base text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
-          />
-        </FilterSection>
-      ) : (
+      {collapsible && !brandOnly ? (
         <>
-          <FilterSection title="Наличие">
-            <InStockToggle value={filters.inStock} onChange={(next) => set("inStock", next)} />
-          </FilterSection>
-
-          <FilterSection title="Поиск">
-            <KeyboardField
-              value={filters.query}
-              onChange={(next) => set("query", next)}
-              applyOnCloseOnly
-              placeholder="Поиск заказа…"
-              title="Поиск заказа"
-              className="h-12 w-full rounded-xl border border-gray-200 bg-white px-3 text-base text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
-            />
-          </FilterSection>
-
-          <FilterSection title="Срочность">
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-              <Chip active={filters.urgency === "all"} onClick={() => set("urgency", "all")}>
-                Все
-              </Chip>
-              {URGENCY_KEYS.map((key) => (
-                <Chip
-                  key={key}
-                  active={filters.urgency === key}
-                  onClick={() => set("urgency", key)}
-                >
-                  <span className="truncate">{URGENCY_LABELS[key].label}</span>
-                </Chip>
-              ))}
-            </div>
-          </FilterSection>
-
-          <FilterSection title="Тип">
-            <div className="grid grid-cols-3 gap-2">
-              <Chip active={filters.kind === "all"} onClick={() => set("kind", "all")}>
-                Все
-              </Chip>
-              <Chip
-                active={filters.kind === "blogger"}
-                onClick={() => set("kind", "blogger")}
-              >
-                Блогеры
-              </Chip>
-              <Chip
-                active={filters.kind === "regular"}
-                onClick={() => set("kind", "regular")}
-              >
-                Обычные
-              </Chip>
-            </div>
-          </FilterSection>
-
-          {products.length > 0 && (
-            <FilterSection
-              title="Вещи"
-              hint={selectedCount > 0 ? `${selectedCount} выбрано` : undefined}
-            >
-              <Chip
-                active={selectedCount > 0}
-                onClick={() => setProductsOpen(true)}
-              >
-                {selectedCount > 0 ? `Выбрано · ${selectedCount}` : "Выбрать вещи"}
-              </Chip>
-            </FilterSection>
-          )}
-
-          <ProductFilterModal
-            open={productsOpen}
-            onClose={() => setProductsOpen(false)}
-            products={products}
-            selectedIds={filters.productIds}
-            onConfirm={(productIds) => onChange({ ...filters, productIds })}
-          />
+          <button
+            type="button"
+            onClick={() => setExpanded((open) => !open)}
+            className="inline-flex min-h-12 w-full items-center justify-between rounded-2xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-900 active:bg-gray-50"
+          >
+            <span>
+              Фильтры
+              {activeFilterHints ? (
+                <span className="ml-2 text-xs font-medium text-violet-600">есть</span>
+              ) : null}
+            </span>
+            <span className="text-gray-400">{expanded ? "▲" : "▼"}</span>
+          </button>
+          {expanded ? filtersBody : null}
         </>
+      ) : (
+        filtersBody
       )}
     </div>
   );

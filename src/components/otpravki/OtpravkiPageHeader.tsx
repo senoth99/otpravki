@@ -100,6 +100,8 @@ export interface OtpravkiPageHeaderProps {
   /** Вкладки Отправка/Архив на странице /otpravki */
   shippingTab?: ShippingTab;
   onShippingTabChange?: (tab: ShippingTab) => void;
+  /** Сборка: без навигации Инструкция/Отправка/Архив/Админка */
+  hideNav?: boolean;
 }
 
 export function OtpravkiPageHeader({
@@ -112,6 +114,7 @@ export function OtpravkiPageHeader({
   children,
   shippingTab,
   onShippingTabChange,
+  hideNav = false,
 }: OtpravkiPageHeaderProps) {
   const pathname = usePathname();
   const isEmbedded = useIsEmbedded();
@@ -141,36 +144,38 @@ export function OtpravkiPageHeader({
             <RefreshButton busy={refreshing} onClick={onRefresh} />
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <HeaderButton href="/instrukciya" active={guideActive}>
-              Инструкция
-            </HeaderButton>
-            {onShippingTabChange ? (
-              <>
-                <HeaderButton
-                  active={shippingActive}
-                  onClick={() => onShippingTabChange("shipping")}
-                >
-                  Отправка
-                </HeaderButton>
-                <HeaderButton
-                  active={archiveActive}
-                  onClick={() => onShippingTabChange("archive")}
-                >
-                  Архив
-                </HeaderButton>
-              </>
-            ) : (
-              <>
-                <HeaderButton href="/otpravki">Отправка</HeaderButton>
-                <HeaderButton href="/otpravki?tab=archive">Архив</HeaderButton>
-              </>
-            )}
-            <HeaderButton href="/admin" active={adminActive}>
-              Админка
-            </HeaderButton>
-            <AuthHeaderStats />
-          </div>
+          {!hideNav ? (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <HeaderButton href="/instrukciya" active={guideActive}>
+                Инструкция
+              </HeaderButton>
+              {onShippingTabChange ? (
+                <>
+                  <HeaderButton
+                    active={shippingActive}
+                    onClick={() => onShippingTabChange("shipping")}
+                  >
+                    Отправка
+                  </HeaderButton>
+                  <HeaderButton
+                    active={archiveActive}
+                    onClick={() => onShippingTabChange("archive")}
+                  >
+                    Архив
+                  </HeaderButton>
+                </>
+              ) : (
+                <>
+                  <HeaderButton href="/otpravki">Отправка</HeaderButton>
+                  <HeaderButton href="/otpravki?tab=archive">Архив</HeaderButton>
+                </>
+              )}
+              <HeaderButton href="/admin" active={adminActive}>
+                Админка
+              </HeaderButton>
+              <AuthHeaderStats />
+            </div>
+          ) : null}
         </div>
 
         {offline && (

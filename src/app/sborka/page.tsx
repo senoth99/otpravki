@@ -3,7 +3,7 @@ import { USE_MOCK_ORDERS } from "@/lib/app-config";
 import { describeCasherLoadError } from "@/lib/casher-error";
 import { buildInitialWorkspace } from "@/lib/build-workspace";
 import { getMockResetToken } from "@/lib/server/mock-reset";
-import { loadWorkspaceFromLiveApi } from "@/lib/server/workspace-api-sync";
+import { fetchAndSyncWorkspaceFromApi } from "@/lib/server/workspace-api-sync";
 import { getWarehouseMap } from "@/lib/server/warehouse-map-store";
 import { getSharedWorkspace, initSharedWorkspace } from "@/lib/server/workspace-store";
 import type { WarehouseMapConfig } from "@/types/stock";
@@ -62,7 +62,8 @@ export default async function SborkaPage() {
 
   if (!USE_MOCK_ORDERS) {
     try {
-      const workspace = await loadWorkspaceFromLiveApi();
+      // Ждём полный pull Casher (все бренды) — не отдаём устаревший кэш из памяти.
+      const { workspace } = await fetchAndSyncWorkspaceFromApi();
       return (
         <SborkaShell
           assemblyItems={workspace.assemblyItems}
@@ -74,6 +75,19 @@ export default async function SborkaPage() {
         />
       );
     } catch (error) {
+      const existing = await getSharedWorkspace();
+      if (existing) {
+        return (
+          <SborkaShell
+            assemblyItems={existing.assemblyItems}
+            orders={existing.orders}
+            apiOrderIds={existing.apiOrderIds}
+            shippedArchive={existing.shippedArchive}
+            initialRevision={existing.revision}
+            warehouseMap={warehouseMap}
+          />
+        );
+      }
       const { title, hint } = describeCasherLoadError(error);
       return <EmptyState title={title} hint={hint} />;
     }

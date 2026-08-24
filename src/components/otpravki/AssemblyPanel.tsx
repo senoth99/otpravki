@@ -6,6 +6,7 @@ import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { noteClientAction } from "@/lib/client-diag";
+import { ORDERS_API_POLL_MS } from "@/lib/orders-sync";
 import {
   applyProgressToAssemblyItems,
   fetchAssemblyProgress,
@@ -15,16 +16,13 @@ import {
 } from "@/lib/assembly-progress";
 import { getAssemblyViewSections } from "@/lib/assembly-demand";
 import { orderIsBlogger } from "@/lib/blogger-order";
-import { isRushUrgency, resolveOrderUrgency } from "@/lib/urgency";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { WarehouseMapConfig } from "@/types/stock";
 import { AssemblyView } from "./AssemblyView";
 import {
   applyOrderFilters,
-  collectFilterCities,
   collectFilterProducts,
   DEFAULT_FILTERS,
-  OtpravkiFiltersPanel,
   OtpravkiMobileFilters,
   type OtpravkiFiltersState,
 } from "./OtpravkiFilters";
@@ -74,10 +72,30 @@ export function AssemblyPanel({
     initialApiOrderIds,
     initialShippedArchive,
     initialRevision,
-    pollBrand: selectedBrand,
   });
 
   useOtpravkiNoSwipe();
+
+  // Полный pull Casher (все бренды), как в отправках — не застреваем на старом кэше.
+  useEffect(() => {
+    let cancelled = false;
+    const run = () => {
+      if (cancelled || document.visibilityState !== "visible" || !navigator.onLine) return;
+      noteClientAction("sborka:sync");
+      void refreshFromApi(undefined, { silent: true });
+    };
+    run();
+    const timer = window.setInterval(run, ORDERS_API_POLL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") run();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refreshFromApi]);
 
   useEffect(() => {
     let cancelled = false;
@@ -202,25 +220,7 @@ export function AssemblyPanel({
     [orders],
   );
 
-  const cities = useMemo(() => collectFilterCities(brandOrders), [brandOrders]);
   const products = useMemo(() => collectFilterProducts(brandOrders), [brandOrders]);
-
-  const counts = useMemo(() => {
-    let critical = 0;
-    let rush = 0;
-    let blogger = 0;
-    let ready = 0;
-    for (const order of brandOrders) {
-      const urgency = resolveOrderUrgency(order);
-      if (urgency === "critical") critical += 1;
-      if (isRushUrgency(urgency)) rush += 1;
-      if (orderIsBlogger(order)) blogger += 1;
-      const total = order.items.reduce((sum, item) => sum + item.quantity, 0);
-      const scanned = order.items.reduce((sum, item) => sum + item.scannedCount, 0);
-      if (total > 0 && scanned >= total) ready += 1;
-    }
-    return { total: brandOrders.length, critical, rush, blogger, ready };
-  }, [brandOrders]);
 
   const offline = !isInternetOnline || !isServerReachable;
 
@@ -247,10 +247,12 @@ export function AssemblyPanel({
       <OtpravkiPageHeader
         title="Сборка"
         subtitle={`${filteredAssemblyItems.length} поз. · ${filteredOrders.length} зак. · ${selectedBrand}`}
+        hideNav
         onRefresh={() => {
           setReloading(true);
           noteClientAction(`refresh:${selectedBrand}`);
-          void refreshFromApi(selectedBrand).finally(() => setReloading(false));
+          // Полный sync всех брендов — не только выбранного
+          void refreshFromApi(undefined).finally(() => setReloading(false));
         }}
         refreshing={reloading || isSyncing}
         offline={offline}
@@ -259,27 +261,18 @@ export function AssemblyPanel({
         <OtpravkiMobileFilters
           filters={filters}
           onChange={handleFiltersChange}
-          cities={cities}
           products={products}
           brandOptions={brandOptions}
           selectedBrand={selectedBrand}
           onBrandChange={handleBrandChange}
           brandDisabled={reloading || isSyncing}
+          alwaysVisible
+          collapsible
+          defaultExpanded={false}
         />
       </OtpravkiPageHeader>
 
-      <div className="flex min-h-0 flex-1 gap-3 overflow-hidden p-3 sm:p-4">
-        <OtpravkiFiltersPanel
-          filters={filters}
-          onChange={handleFiltersChange}
-          counts={counts}
-          products={products}
-          brandOptions={brandOptions}
-          selectedBrand={selectedBrand}
-          onBrandChange={handleBrandChange}
-          brandDisabled={reloading || isSyncing}
-        />
-
+      <div className="flex min-h-0 flex-1 overflow-hidden p-3 sm:p-4">
         <main className="min-h-0 min-w-0 flex-1 touch-scroll-y overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-5">
           <AssemblyView
             sections={assemblySections}
