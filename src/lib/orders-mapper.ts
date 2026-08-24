@@ -41,27 +41,74 @@ function resolveSizeId(product: ApiProduct | undefined, size: string): number | 
   return match?.id ?? null;
 }
 
-function buildProductIndex(products: ApiProduct[]): Map<string, ApiProduct> {
-  const index = new Map<string, ApiProduct>();
-  for (const product of products) {
-    if (product.slug) {
-      index.set(product.slug, product);
-      index.set(product.slug.toLowerCase(), product);
-    }
-    // В заказах иногда приходит пустой slug → fallback `product-{id}` (см. orders-api).
-    if (product.id != null && String(product.id).trim()) {
-      const id = String(product.id).trim();
-      index.set(id, product);
-      index.set(`product-${id}`, product);
-      index.set(`product-${id}`.toLowerCase(), product);
-    }
-  }
-  return index;
+function normalizeBrandKey(brand: string | undefined | null): string {
+  return (brand ?? "").trim().toLowerCase() || "unknown";
 }
 
-function findProduct(index: Map<string, ApiProduct>, slug: string): ApiProduct | undefined {
+type ProductIndex = {
+  /** brand -> lookup key -> product */
+  byBrand: Map<string, Map<string, ApiProduct>>;
+  /** fallback when brand unknown — slug-only (не numeric id, чтобы не путать бренды) */
+  bySlugGlobal: Map<string, ApiProduct>;
+};
+
+function addProductKeys(bucket: Map<string, ApiProduct>, product: ApiProduct) {
+  if (product.slug) {
+    bucket.set(product.slug, product);
+    bucket.set(product.slug.toLowerCase(), product);
+  }
+  // В заказах иногда приходит пустой slug → fallback `product-{id}` (см. orders-api).
+  if (product.id != null && String(product.id).trim()) {
+    const id = String(product.id).trim();
+    bucket.set(id, product);
+    bucket.set(`product-${id}`, product);
+    bucket.set(`product-${id}`.toLowerCase(), product);
+  }
+}
+
+function buildProductIndex(products: ApiProduct[]): ProductIndex {
+  const byBrand = new Map<string, Map<string, ApiProduct>>();
+  const bySlugGlobal = new Map<string, ApiProduct>();
+
+  for (const product of products) {
+    const brandKey = normalizeBrandKey(product.brand);
+    let bucket = byBrand.get(brandKey);
+    if (!bucket) {
+      bucket = new Map();
+      byBrand.set(brandKey, bucket);
+    }
+    addProductKeys(bucket, product);
+
+    // Глобально только по slug, и только если slug не чисто числовой
+    // (иначе kurazh slug "1" пересекается с casher id "1" = кольцо).
+    if (product.slug && !/^\d+$/.test(product.slug)) {
+      bySlugGlobal.set(product.slug, product);
+      bySlugGlobal.set(product.slug.toLowerCase(), product);
+    }
+  }
+
+  return { byBrand, bySlugGlobal };
+}
+
+function findProduct(
+  index: ProductIndex,
+  slug: string,
+  storeBrand?: string,
+): ApiProduct | undefined {
   if (!slug) return undefined;
-  return index.get(slug) ?? index.get(slug.toLowerCase());
+  const brandKey = normalizeBrandKey(storeBrand);
+  const brandBucket = index.byBrand.get(brandKey);
+  if (brandBucket) {
+    const hit = brandBucket.get(slug) ?? brandBucket.get(slug.toLowerCase());
+    if (hit) return hit;
+  }
+
+  // Числовой slug/id без бренда — не ищем глобально (межбрендовый коллизии: "1").
+  if (/^\d+$/.test(slug) || /^product-\d+$/i.test(slug)) {
+    return undefined;
+  }
+
+  return index.bySlugGlobal.get(slug) ?? index.bySlugGlobal.get(slug.toLowerCase());
 }
 
 function resolveWarehouseCap(line: {
@@ -131,12 +178,15 @@ export function mapUnshippedOrdersToWorkspace(
     for (const line of order.items) {
       if (isStockGatedLine(line) && !line.inStockAtWarehouse && ready) continue;
 
-      const product = findProduct(productIndex, line.productSlug);
+      const product = findProduct(productIndex, line.productSlug, order.storeBrand);
       const productId = line.productSlug;
       const sizeId = resolveLineSizeId(product, line) ?? fallbackSizeId(productId, line.size);
 
       const key = assemblyKey(productId, line.size, isBlogger, order.storeBrand);
+      // Картинку берём только из товара того же бренда (или из строки заказа).
+      // Иначе slug "1" у носков Куража цеплял id "1" = кольцо Casher.
       const imagePath = product?.images[0] ?? line.imagePath ?? "";
+      const itemBrand = order.storeBrand ?? product?.brand ?? "CASHER";
 
       const cap = resolveWarehouseCap(line);
       if (cap !== undefined) {
@@ -153,7 +203,7 @@ export function mapUnshippedOrdersToWorkspace(
           productName: line.productName,
           size: formatSize(line.size),
           sizeId,
-          brand: order.storeBrand ?? product?.brand ?? "CASHER",
+          brand: itemBrand,
           imageUrl: imagePath ? getImageUrl(imagePath) : "",
           barcodeId: String(sizeId),
           quantity: line.quantity,
@@ -168,7 +218,7 @@ export function mapUnshippedOrdersToWorkspace(
         productName: line.productName,
         size: formatSize(line.size),
         sizeId,
-        brand: order.storeBrand ?? product?.brand ?? "CASHER",
+        brand: itemBrand,
         imageUrl: imagePath ? getImageUrl(imagePath) : "",
         barcodeId: String(sizeId),
         quantity: line.quantity,
