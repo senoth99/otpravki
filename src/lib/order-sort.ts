@@ -3,7 +3,9 @@ import type { ShippingOrder } from "@/types/shipping";
 
 /** Сравнение номеров заказа: 1, 2, 3… а не 1, 10, 2. */
 export function compareOrderNumbers(a: string, b: string): number {
-  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+  const left = a ?? "";
+  const right = b ?? "";
+  return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
 }
 
 export function compareOrdersForPicker(

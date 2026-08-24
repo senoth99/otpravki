@@ -880,6 +880,15 @@ export function ShippingView({
     }
   }, [selectionResetKey, activeIndices, orders, orderStatuses, manualConfirmOrder]);
 
+  const sortedActiveIndices = useMemo(
+    () =>
+      getSortedOrderIndices(
+        activeIndices.map((index) => orders[index]),
+        activeIndices.map((index) => orderStatuses[index]),
+      ).map((localPos) => activeIndices[localPos]),
+    [activeIndices, orders, orderStatuses],
+  );
+
   const hasActiveOrders = activeIndices.length > 0;
   const hasShippableOrders = shippableIndices.length > 0;
   const hasShippedOrders = shippedOrders.length > 0 || isManualConfirm;
@@ -906,20 +915,11 @@ export function ShippingView({
   const handleSelectActive = (index: number) => {
     setManualConfirmOrder(null);
     const order = orders[index];
-    if (order) {
-      queueCursorRef.current = { id: order.id, orderNumber: order.orderNumber };
-    }
-    setCurrentOrderId(orders[index].id);
+    if (!order) return;
+    queueCursorRef.current = { id: order.id, orderNumber: order.orderNumber };
+    setCurrentOrderId(order.id);
   };
 
-  const sortedActiveIndices = useMemo(
-    () =>
-      getSortedOrderIndices(
-        activeIndices.map((index) => orders[index]),
-        activeIndices.map((index) => orderStatuses[index]),
-      ).map((localPos) => activeIndices[localPos]),
-    [activeIndices, orders, orderStatuses],
-  );
   const pickerPosition = Math.max(1, sortedActiveIndices.indexOf(currentIndex) + 1);
   const pickerTotal = sortedActiveIndices.length || 1;
 
