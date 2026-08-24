@@ -48,7 +48,9 @@ export function resolveLabelTemplate(kind: BrandBarcodeKind): string {
 }
 
 export function parseTestBrand(value: unknown): TestTrackBrand | null {
-  if (value === "casher" || value === "ammo" || value === "kurazh") return value;
+  if (value === "casher" || value === "ammo" || value === "kurazh" || value === "shecash") {
+    return value;
+  }
   return null;
 }
 
@@ -64,8 +66,8 @@ export async function printTestLabel(
     return printPdfLabel4x6(printer, pdf, PRINT_DIR, `track-${brand}-${Date.now()}`);
   }
 
-  if (brand === "casher") {
-    throw new Error("У Casher нет отдельной бренд-этикетки — только трек");
+  if (brand === "casher" || brand === "shecash") {
+    throw new Error("У этого бренда нет отдельной бренд-этикетки — только трек");
   }
 
   const templatePath = resolveLabelTemplate(brand);

@@ -9,6 +9,19 @@ import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { mutatingApiHeaders } from "@/lib/api-headers";
 
+type TestBrand = "casher" | "ammo" | "kurazh" | "shecash";
+
+const TEST_BRAND_LABEL: Record<TestBrand, string> = {
+  casher: "Casher",
+  ammo: "AMMO",
+  kurazh: "Кураж",
+  shecash: "SHECASH",
+};
+
+function hasBrandBarcodeTemplate(brand: TestBrand): brand is "ammo" | "kurazh" {
+  return brand === "ammo" || brand === "kurazh";
+}
+
 type AdminView = "loading" | "pin" | "menu" | "extras" | "box-labels";
 
 export function AdminPanel() {
@@ -18,7 +31,7 @@ export function AdminPanel() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [printMessage, setPrintMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  const [testBrand, setTestBrand] = useState<"casher" | "ammo" | "kurazh">("casher");
+  const [testBrand, setTestBrand] = useState<TestBrand>("casher");
 
   useEffect(() => {
     let cancelled = false;
@@ -51,10 +64,10 @@ export function AdminPanel() {
 
   const printTestLabel = async (kind: "brand" | "track") => {
     if (busy) return;
-    if (kind === "brand" && testBrand === "casher") {
+    if (kind === "brand" && !hasBrandBarcodeTemplate(testBrand)) {
       setPrintMessage({
         ok: false,
-        text: "У Casher нет бренд-этикетки — выбери AMMO или Кураж",
+        text: "Бренд-этикетка только у AMMO и Куража — у Casher / SHECASH печатай трек",
       });
       return;
     }
@@ -253,19 +266,18 @@ export function AdminPanel() {
                 <select
                   value={testBrand}
                   disabled={busy}
-                  onChange={(e) =>
-                    setTestBrand(e.target.value as "casher" | "ammo" | "kurazh")
-                  }
+                  onChange={(e) => setTestBrand(e.target.value as TestBrand)}
                   className="min-h-12 w-full rounded-2xl border border-gray-200 bg-white px-4 text-base font-semibold text-gray-900 shadow-sm disabled:opacity-50"
                 >
                   <option value="casher">Casher</option>
                   <option value="ammo">AMMO</option>
                   <option value="kurazh">Кураж</option>
+                  <option value="shecash">SHECASH</option>
                 </select>
               </label>
               <button
                 type="button"
-                disabled={busy || testBrand === "casher"}
+                disabled={busy || !hasBrandBarcodeTemplate(testBrand)}
                 onClick={() => void printTestLabel("brand")}
                 className="flex min-h-16 w-full items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 text-left shadow-sm active:scale-[0.99] disabled:opacity-50"
               >
@@ -274,11 +286,9 @@ export function AdminPanel() {
                     Тест бренд-этикетки
                   </span>
                   <span className="mt-0.5 block text-sm text-gray-500">
-                    {testBrand === "casher"
-                      ? "Только AMMO / Кураж"
-                      : testBrand === "ammo"
-                        ? "Макет AMMO"
-                        : "Макет Кураж"}
+                    {hasBrandBarcodeTemplate(testBrand)
+                      ? `Макет ${TEST_BRAND_LABEL[testBrand]}`
+                      : "Только AMMO / Кураж"}
                   </span>
                 </span>
                 <span className="text-sm text-gray-400">Печать</span>
@@ -294,12 +304,7 @@ export function AdminPanel() {
                     Тест этикетки трека
                   </span>
                   <span className="mt-0.5 block text-sm text-gray-500">
-                    Образец для{" "}
-                    {testBrand === "casher"
-                      ? "Casher"
-                      : testBrand === "ammo"
-                        ? "AMMO"
-                        : "Кураж"}
+                    Образец для {TEST_BRAND_LABEL[testBrand]}
                   </span>
                 </span>
                 <span className="text-sm text-gray-400">Печать</span>

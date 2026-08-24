@@ -524,7 +524,7 @@ export function trackLabelFromOrder(
   };
 }
 
-export type TestTrackBrand = "casher" | "ammo" | "kurazh";
+export type TestTrackBrand = "casher" | "ammo" | "kurazh" | "shecash";
 
 export function sampleTrackLabelInput(brand: TestTrackBrand = "casher"): TrackLabelInput {
   const byBrand: Record<
@@ -545,6 +545,11 @@ export function sampleTrackLabelInput(brand: TestTrackBrand = "casher"): TrackLa
       brand: "KURAZHDVIZH",
       orderNumber: "т301",
       productName: 'ДЖЕРСИ "ЖИТЬ В КАЙФ" YELLOW',
+    },
+    shecash: {
+      brand: "SHECASH",
+      orderNumber: "sh07",
+      productName: "ТОП SILK",
     },
   };
   const meta = byBrand[brand] ?? byBrand.casher;

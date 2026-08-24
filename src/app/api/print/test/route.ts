@@ -77,7 +77,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ok: false,
-        message: "Укажи kind: brand|track и brand: casher|ammo|kurazh",
+        message: "Укажи kind: brand|track и brand: casher|ammo|kurazh|shecash",
       },
       { status: 400 },
     );
