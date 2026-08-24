@@ -11,6 +11,8 @@ interface AutoModeCountdownProps {
   phase: "between" | "next";
   showExitAuto?: boolean;
   onExitAutoMode?: () => void;
+  /** Пропустить паузу и сразу печатать трек (только phase=between) */
+  onPrintNow?: () => void;
 }
 
 export function AutoModeCountdown({
@@ -21,6 +23,7 @@ export function AutoModeCountdown({
   phase,
   showExitAuto = false,
   onExitAutoMode,
+  onPrintNow,
 }: AutoModeCountdownProps) {
   const progress = ((totalSeconds - secondsLeft) / totalSeconds) * 100;
 
@@ -64,11 +67,23 @@ export function AutoModeCountdown({
               : "Все заказы обработаны"}
         </p>
 
+        {phase === "between" && onPrintNow && (
+          <button
+            type="button"
+            onClick={onPrintNow}
+            className="mt-6 w-full rounded-xl bg-white px-6 py-3.5 text-sm font-semibold text-gray-900 transition-colors active:scale-[0.98] active:bg-gray-100"
+          >
+            Напечатать сейчас
+          </button>
+        )}
+
         {showExitAuto && onExitAutoMode && (
           <button
             type="button"
             onClick={onExitAutoMode}
-            className="mt-8 w-full rounded-xl border border-gray-600 bg-gray-800 px-6 py-3 text-sm font-medium text-white transition-colors active:bg-gray-700"
+            className={`w-full rounded-xl border border-gray-600 bg-gray-800 px-6 py-3 text-sm font-medium text-white transition-colors active:bg-gray-700 ${
+              phase === "between" && onPrintNow ? "mt-3" : "mt-8"
+            }`}
           >
             Выключить AUTO MODE
           </button>

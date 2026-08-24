@@ -1065,6 +1065,19 @@ export function ShippingView({
           phase={countdown.phase}
           showExitAuto={autoMode}
           onExitAutoMode={exitAutoMode}
+          onPrintNow={
+            countdown.phase === "between"
+              ? () => {
+                  if (printBusyRef.current) return;
+                  printBusyRef.current = true;
+                  void printTrackAndFinish(countdown.order, {
+                    auto: Boolean(countdown.auto),
+                    hasNext: countdown.hasNext,
+                    reprint: countdown.reprint,
+                  });
+                }
+              : undefined
+          }
         />
       )}
     </div>
