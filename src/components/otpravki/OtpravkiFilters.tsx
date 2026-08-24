@@ -743,8 +743,9 @@ export function OtpravkiMobileFilters({
         <>
           <button
             type="button"
+            data-no-drag-scroll
             onClick={() => setExpanded((open) => !open)}
-            className="inline-flex min-h-12 w-full items-center justify-between rounded-2xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-900 active:bg-gray-50"
+            className="inline-flex min-h-12 w-full touch-manipulation items-center justify-between rounded-2xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-900 active:bg-gray-50"
           >
             <span>
               Фильтры

@@ -129,7 +129,7 @@ export function OtpravkiPageHeader({
   if (isEmbedded) return null;
 
   return (
-    <header className="safe-top shrink-0 border-b border-gray-200 bg-white">
+    <header className="safe-top shrink-0 border-b border-gray-200 bg-white" data-no-drag-scroll>
       <div className="space-y-3 px-3 py-3 sm:px-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-2">

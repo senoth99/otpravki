@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { FilterBusyOverlay } from "@/components/ui/FilterBusyOverlay";
 import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
@@ -243,7 +242,6 @@ export function AssemblyPanel({
   return (
     <div className="otpravki-shell relative flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-gray-50 touch-pan-y overscroll-none">
       {reloading ? <StageLoadingScreen variant="overlay" /> : null}
-      {!reloading && filterPending ? <FilterBusyOverlay /> : null}
       <OtpravkiPageHeader
         title="Сборка"
         subtitle={`${filteredAssemblyItems.length} поз. · ${filteredOrders.length} зак. · ${selectedBrand}`}
@@ -258,18 +256,20 @@ export function AssemblyPanel({
         offline={offline}
         offlineMessage={!isInternetOnline ? "Нет интернета" : "Сервер недоступен"}
       >
-        <OtpravkiMobileFilters
-          filters={filters}
-          onChange={handleFiltersChange}
-          products={products}
-          brandOptions={brandOptions}
-          selectedBrand={selectedBrand}
-          onBrandChange={handleBrandChange}
-          brandDisabled={reloading || isSyncing}
-          alwaysVisible
-          collapsible
-          defaultExpanded={false}
-        />
+        <div data-no-drag-scroll className={filterPending ? "opacity-60" : undefined}>
+          <OtpravkiMobileFilters
+            filters={filters}
+            onChange={handleFiltersChange}
+            products={products}
+            brandOptions={brandOptions}
+            selectedBrand={selectedBrand}
+            onBrandChange={handleBrandChange}
+            brandDisabled={reloading || isSyncing}
+            alwaysVisible
+            collapsible
+            defaultExpanded={false}
+          />
+        </div>
       </OtpravkiPageHeader>
 
       <div className="flex min-h-0 flex-1 overflow-hidden p-3 sm:p-4">

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-const MOVE_THRESHOLD_PX = 8;
+const MOVE_THRESHOLD_PX = 16;
 
 function isScrollableY(el: HTMLElement): boolean {
   const { overflowY } = getComputedStyle(el);
@@ -23,9 +23,11 @@ function findScrollParent(start: Element | null): HTMLElement | null {
 
 function shouldSkipTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return true;
+  // Кнопки/ссылки нельзя тащить в drag-scroll: на складских планшетах
+  // pointerType=mouse, лёгкий джиттер пальца > порога → click глушится и UI «мёртвый».
   return Boolean(
     target.closest(
-      'input, textarea, select, [contenteditable="true"], [data-no-drag-scroll]',
+      'button, a, input, textarea, select, label, summary, [role="button"], [contenteditable="true"], [data-no-drag-scroll]',
     ),
   );
 }
@@ -44,7 +46,7 @@ export function usePointerDragScroll() {
       moved: boolean;
     } | null = null;
 
-    const endSession = (moved: boolean) => {
+    const endSession = (moved: boolean, scrolledPx = 0) => {
       if (!session) return;
       session.el.classList.remove("is-drag-scrolling");
       try {
@@ -52,7 +54,8 @@ export function usePointerDragScroll() {
       } catch {
         /* ignore */
       }
-      if (moved) {
+      // Глушим click только после реального скролла, не после дрожи пальца.
+      if (moved && Math.abs(scrolledPx) >= 4) {
         const suppressClick = (event: Event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -113,7 +116,8 @@ export function usePointerDragScroll() {
 
     const onPointerUp = (event: PointerEvent) => {
       if (!session || event.pointerId !== session.pointerId) return;
-      endSession(session.moved);
+      const scrolledPx = session.el.scrollTop - session.startScrollTop;
+      endSession(session.moved, scrolledPx);
     };
 
     document.addEventListener("pointerdown", onPointerDown, { passive: false });
