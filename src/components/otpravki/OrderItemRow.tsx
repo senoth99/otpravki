@@ -24,6 +24,8 @@ interface OrderItemRowProps {
   remainingByGtin?: Record<string, number> | null;
   onIncrement?: () => void;
   onDecrement?: () => void;
+  /** Мгновенная загрузка фото (отправки при листании заказов) */
+  imagePriority?: boolean;
 }
 
 export function OrderItemRow({
@@ -35,6 +37,7 @@ export function OrderItemRow({
   remainingByGtin = null,
   onIncrement,
   onDecrement,
+  imagePriority = false,
 }: OrderItemRowProps) {
   const isComplete = item.scannedCount >= item.quantity;
   const isPartial = item.scannedCount > 0 && !isComplete;
@@ -76,6 +79,7 @@ export function OrderItemRow({
               productName={item.productName}
               className="object-cover"
               sizes="56px"
+              priority={imagePriority}
             />
             {isMulti && (
               <div className="absolute left-0.5 top-0.5 rounded-md bg-gray-900 px-1 text-[9px] font-bold text-white">

@@ -68,3 +68,19 @@ export function toLocalImageUrl(path: string): string {
 export function getImageUrl(path: string): string {
   return toLocalImageUrl(path);
 }
+
+const warmedImageUrls = new Set<string>();
+
+/** Прогреть кэш браузера — соседние заказы в отправках открываются без паузы. */
+export function preloadProductImages(paths: Iterable<string | undefined | null>): void {
+  if (typeof window === "undefined") return;
+  for (const path of paths) {
+    if (!path?.trim()) continue;
+    const src = toLocalImageUrl(path);
+    if (!src || src === PRODUCT_PLACEHOLDER_SRC || warmedImageUrls.has(src)) continue;
+    warmedImageUrls.add(src);
+    const img = new Image();
+    img.decoding = "async";
+    img.src = src;
+  }
+}

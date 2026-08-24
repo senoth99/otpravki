@@ -14,6 +14,8 @@ interface ProductImageProps {
   productName?: string;
   /** Открывать крупный просмотр по нажатию (по умолчанию true) */
   previewable?: boolean;
+  /** Сразу грузить (отправки / видимая карточка) — без lazy-задержки */
+  priority?: boolean;
 }
 
 export function ProductImage({
@@ -23,6 +25,7 @@ export function ProductImage({
   sizes: _sizes,
   productName,
   previewable = true,
+  priority = false,
 }: ProductImageProps) {
   const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState(false);
@@ -32,6 +35,9 @@ export function ProductImage({
   const imageSrc = toLocalImageUrl(src);
   const techImages = previewable ? findTechSpecImages(productName || alt) : null;
   const hasSpecs = Boolean(techImages?.length);
+  const loading = priority ? "eager" : "lazy";
+  const decoding = priority ? "sync" : "async";
+  const fetchPriority = priority ? "high" : undefined;
 
   useEffect(() => {
     setFailed(false);
@@ -61,8 +67,8 @@ export function ProductImage({
           src={PRODUCT_PLACEHOLDER_SRC}
           alt=""
           draggable={false}
-          loading="lazy"
-          decoding="async"
+          loading={loading}
+          decoding={decoding}
           className={`h-full w-full object-cover ${className ?? ""}`}
         />
       </div>
@@ -101,8 +107,9 @@ export function ProductImage({
           src={imageSrc}
           alt={alt}
           draggable={false}
-          loading="lazy"
-          decoding="async"
+          loading={loading}
+          decoding={decoding}
+          fetchPriority={fetchPriority}
           className={`absolute inset-0 h-full w-full select-none [-webkit-user-drag:none] ${className ?? ""}`}
           onError={() => setFailed(true)}
           onDragStart={(event) => event.preventDefault()}

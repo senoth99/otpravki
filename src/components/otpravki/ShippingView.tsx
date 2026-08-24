@@ -15,6 +15,7 @@ import {
 import { isBloggerOrder, orderIsBlogger } from "@/lib/blogger-order";
 import { printOrderBarcode } from "@/lib/print-barcode";
 import { brandNeedsSecondBarcode } from "@/lib/brand-second-label";
+import { preloadProductImages } from "@/lib/image-url";
 import { resolveOrderUrgency, URGENCY_LABELS } from "@/lib/urgency";
 import { BloggerBadge } from "./BloggerBadge";
 import type { AssemblyExtra } from "@/lib/assembly-extras";
@@ -906,6 +907,32 @@ export function ShippingView({
     [activeIndices, orders, orderStatuses],
   );
 
+  // Прогрев фото текущего + соседних заказов — листание ← → без секундной паузы.
+  useEffect(() => {
+    if (sortedActiveIndices.length === 0) return;
+    const pos = currentIndex >= 0 ? sortedActiveIndices.indexOf(currentIndex) : 0;
+    const center = pos >= 0 ? pos : 0;
+    const neighborIndices: number[] = [];
+    for (let offset = -3; offset <= 5; offset++) {
+      const at = center + offset;
+      if (at < 0 || at >= sortedActiveIndices.length) continue;
+      neighborIndices.push(sortedActiveIndices[at]);
+    }
+    // Первый заход в очередь — прогреть ещё ближние заказы вперёд.
+    for (let i = 0; i < Math.min(12, sortedActiveIndices.length); i++) {
+      neighborIndices.push(sortedActiveIndices[i]);
+    }
+    const urls: string[] = [];
+    for (const index of neighborIndices) {
+      const order = orders[index];
+      if (!order) continue;
+      for (const item of order.items) {
+        if (item.imageUrl) urls.push(item.imageUrl);
+      }
+    }
+    preloadProductImages(urls);
+  }, [sortedActiveIndices, currentIndex, orders]);
+
   const hasActiveOrders = activeIndices.length > 0;
   const hasShippableOrders = shippableIndices.length > 0;
   const hasShippedOrders = shippedOrders.length > 0 || isManualConfirm;
@@ -1035,6 +1062,7 @@ export function ShippingView({
                       chestnyZnakActive={czEnabled && orderUsesChestnyZnak(displayOrder)}
                       hideChestnyZnak={!orderUsesChestnyZnak(displayOrder)}
                       remainingByGtin={remainingByGtin}
+                      imagePriority
                       onIncrement={() => updateItemCount(item.id, 1)}
                       onDecrement={() => updateItemCount(item.id, -1)}
                     />
