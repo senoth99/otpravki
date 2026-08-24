@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHardwareScanner } from "@/hooks/useHardwareScanner";
 import type { AssemblyViewSections } from "@/lib/assembly-demand";
-import { resolveAssemblyItemUrgency } from "@/lib/assembly-sort";
+import {
+  buildAssemblyUrgencyMap,
+  resolveAssemblyItemUrgencyFromMap,
+} from "@/lib/assembly-sort";
 import { planAssemblyRoute } from "@/lib/assembly-route";
 import { URGENCY_LABELS } from "@/lib/urgency";
 import { resolveAssemblyScan } from "@/lib/barcode-product";
@@ -65,9 +68,14 @@ export function AssemblyView({
 }: AssemblyViewProps) {
   const visibleItems = [...sections.pending, ...sections.completed];
   const urgencySource = urgencyOrders ?? orders;
-  const getItemUrgency = useCallback(
-    (item: AssemblyItem) => URGENCY_LABELS[resolveAssemblyItemUrgency(item, urgencySource)],
+  const urgencyMap = useMemo(
+    () => buildAssemblyUrgencyMap(urgencySource),
     [urgencySource],
+  );
+  const getItemUrgency = useCallback(
+    (item: AssemblyItem) =>
+      URGENCY_LABELS[resolveAssemblyItemUrgencyFromMap(item, urgencyMap)],
+    [urgencyMap],
   );
   const [autoMode, setAutoMode] = useState(false);
   const [navOpen, setNavOpen] = useState(false);

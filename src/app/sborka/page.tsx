@@ -1,11 +1,11 @@
-import { SborkaBootstrap } from "@/components/otpravki/SborkaBootstrap";
+import { AssemblyPanel } from "@/components/otpravki/AssemblyPanel";
 import { USE_MOCK_ORDERS } from "@/lib/app-config";
 import { describeCasherLoadError } from "@/lib/casher-error";
 import { buildInitialWorkspace } from "@/lib/build-workspace";
 import { getMockResetToken } from "@/lib/server/mock-reset";
 import { loadWorkspaceFromLiveApi } from "@/lib/server/workspace-api-sync";
 import { getSharedWorkspace, initSharedWorkspace } from "@/lib/server/workspace-store";
-import { AssemblyPanel } from "@/components/otpravki/AssemblyPanel";
+import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -25,25 +25,70 @@ function EmptyState({ title, hint }: { title: string; hint: string }) {
   );
 }
 
+function SborkaShell({
+  assemblyItems,
+  orders,
+  apiOrderIds,
+  shippedArchive,
+  initialRevision,
+}: {
+  assemblyItems: AssemblyItem[];
+  orders: ShippingOrder[];
+  apiOrderIds?: string[];
+  shippedArchive?: ShippingOrder[];
+  initialRevision?: number;
+}) {
+  return (
+    <AssemblyPanel
+      assemblyItems={assemblyItems}
+      orders={orders}
+      apiOrderIds={apiOrderIds}
+      shippedArchive={shippedArchive}
+      initialRevision={initialRevision}
+    />
+  );
+}
+
 export default async function SborkaPage() {
+  const resetToken = await getMockResetToken();
+
   if (!USE_MOCK_ORDERS) {
-    // Прогреваем кэш заказов на сервере, UI грузим с клиента — без тяжёлого SSR.
     try {
-      await loadWorkspaceFromLiveApi();
-    } catch {
-      // Клиент попробует /api/workspace; при ошибке покажет подсказку.
+      const workspace = await loadWorkspaceFromLiveApi();
+      return (
+        <SborkaShell
+          assemblyItems={workspace.assemblyItems}
+          orders={workspace.orders}
+          apiOrderIds={workspace.apiOrderIds}
+          shippedArchive={workspace.shippedArchive}
+          initialRevision={workspace.revision}
+        />
+      );
+    } catch (error) {
+      const existing = await getSharedWorkspace();
+      if (existing) {
+        return (
+          <SborkaShell
+            assemblyItems={existing.assemblyItems}
+            orders={existing.orders}
+            apiOrderIds={existing.apiOrderIds}
+            shippedArchive={existing.shippedArchive}
+            initialRevision={existing.revision}
+          />
+        );
+      }
+      const { title, hint } = describeCasherLoadError(error);
+      return <EmptyState title={title} hint={hint} />;
     }
-    return <SborkaBootstrap />;
   }
 
-  const resetToken = await getMockResetToken();
   const existing = await getSharedWorkspace();
   const mockStale =
     resetToken !== null && existing !== null && existing.resetToken !== resetToken;
 
   if (existing && !mockStale) {
     return (
-      <AssemblyPanel
+      <SborkaShell
         assemblyItems={existing.assemblyItems}
         orders={existing.orders}
         apiOrderIds={existing.apiOrderIds}
@@ -74,7 +119,7 @@ export default async function SborkaPage() {
   );
 
   return (
-    <AssemblyPanel
+    <SborkaShell
       assemblyItems={shared.assemblyItems}
       orders={shared.orders}
       apiOrderIds={shared.apiOrderIds}

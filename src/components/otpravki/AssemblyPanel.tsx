@@ -57,7 +57,7 @@ export function AssemblyPanel({
   apiOrderIds: initialApiOrderIds = [],
   shippedArchive: initialShippedArchive = [],
   initialRevision = 0,
-  warehouseMap,
+  warehouseMap: warehouseMapProp,
 }: AssemblyPanelProps) {
   const [selectedBrand, setSelectedBrand] = useState<string>(ALL_BRANDS);
   const [filters, setFilters] = useState<OtpravkiFiltersState>(DEFAULT_FILTERS);
@@ -65,8 +65,29 @@ export function AssemblyPanel({
   const [filterPending, startFilterTransition] = useTransition();
   const [progress, setProgress] = useState<AssemblyProgressState | null>(null);
   const [resetCollectedBusy, setResetCollectedBusy] = useState(false);
+  const [warehouseMap, setWarehouseMap] = useState<WarehouseMapConfig | undefined>(warehouseMapProp);
   const progressRef = useRef(progress);
   progressRef.current = progress;
+
+  useEffect(() => {
+    if (warehouseMapProp) {
+      setWarehouseMap(warehouseMapProp);
+      return;
+    }
+    let cancelled = false;
+    void fetch("/api/warehouse-map", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { data?: WarehouseMapConfig } | null) => {
+        if (cancelled) return;
+        setWarehouseMap(data?.data ?? { furniture: [], updatedAt: 0 });
+      })
+      .catch(() => {
+        if (!cancelled) setWarehouseMap({ furniture: [], updatedAt: 0 });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [warehouseMapProp]);
 
   const {
     assemblyItems,
