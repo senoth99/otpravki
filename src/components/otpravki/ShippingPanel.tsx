@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, startTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useAuth } from "@/components/auth/AuthGate";
+import { FilterBusyOverlay } from "@/components/ui/FilterBusyOverlay";
 import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
@@ -48,6 +49,7 @@ export function ShippingPanel({
   const [selectedBrand, setSelectedBrand] = useState<string>(KNOWN_BRANDS[0]);
   const [filters, setFilters] = useState<OtpravkiFiltersState>(DEFAULT_FILTERS);
   const [reloading, setReloading] = useState(false);
+  const [filterPending, startFilterTransition] = useTransition();
   const {
     assemblyItems,
     orders,
@@ -187,17 +189,22 @@ export function ShippingPanel({
     const next = brand.trim();
     if (!next || next === selectedBrand) return;
     noteClientAction(`brand-filter:${next}`);
-    startTransition(() => {
+    startFilterTransition(() => {
       setSelectedBrand(next);
       setFilters(DEFAULT_FILTERS);
     });
   }, [selectedBrand]);
 
-  const showLoadOverlay = reloading;
+  const handleFiltersChange = useCallback((next: OtpravkiFiltersState) => {
+    startFilterTransition(() => {
+      setFilters(next);
+    });
+  }, []);
 
   return (
     <div className="otpravki-shell relative flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-gray-50 touch-pan-y overscroll-none">
-      {showLoadOverlay ? <StageLoadingScreen variant="overlay" /> : null}
+      {reloading ? <StageLoadingScreen variant="overlay" /> : null}
+      {!reloading && filterPending ? <FilterBusyOverlay /> : null}
       <OtpravkiPageHeader
         title="Отправки"
         subtitle={
@@ -218,7 +225,7 @@ export function ShippingPanel({
       >
         <OtpravkiMobileFilters
           filters={filters}
-          onChange={setFilters}
+          onChange={handleFiltersChange}
           cities={cities}
           products={products}
           brandOptions={brandOptions}
@@ -232,7 +239,7 @@ export function ShippingPanel({
       <div className="flex min-h-0 flex-1 gap-3 overflow-hidden p-3 sm:p-4">
         <OtpravkiFiltersPanel
           filters={filters}
-          onChange={setFilters}
+          onChange={handleFiltersChange}
           counts={counts}
           products={tab === "archive" ? [] : products}
           brandOptions={brandOptions}

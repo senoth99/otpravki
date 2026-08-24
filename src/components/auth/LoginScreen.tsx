@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { PinNumpad } from "@/components/chestnye-znaki/PinNumpad";
+import { FilterBusyOverlay } from "@/components/ui/FilterBusyOverlay";
 import type { AuthLiveStats, AuthUserPublic } from "@/components/auth/AuthProvider";
-import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
 
 interface LoginScreenProps {
   onSuccess: (user: AuthUserPublic, stats: AuthLiveStats) => void;
@@ -71,10 +71,9 @@ export function LoginScreen({ onSuccess, onGoRegister, canRegister }: LoginScree
       </div>
 
       {loadingUsers ? (
-        <StageLoadingScreen
-          variant="overlay"
-          labels={["собираем аккаунты", "заливаемся энергетиками", "анализируем клиентов"]}
-        />
+        <div className="relative min-h-40">
+          <FilterBusyOverlay />
+        </div>
       ) : users.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-6 text-center text-sm text-gray-600">
           Пока нет аккаунтов — зарегистрируйте первый

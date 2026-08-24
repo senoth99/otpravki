@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, startTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { FilterBusyOverlay } from "@/components/ui/FilterBusyOverlay";
 import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
@@ -55,6 +56,7 @@ export function AssemblyPanel({
   const [selectedBrand, setSelectedBrand] = useState<string>(KNOWN_BRANDS[0]);
   const [filters, setFilters] = useState<OtpravkiFiltersState>(DEFAULT_FILTERS);
   const [reloading, setReloading] = useState(false);
+  const [filterPending, startFilterTransition] = useTransition();
   const [progress, setProgress] = useState<AssemblyProgressState | null>(null);
   const progressRef = useRef(progress);
   progressRef.current = progress;
@@ -226,15 +228,22 @@ export function AssemblyPanel({
     const next = brand.trim();
     if (!next || next === selectedBrand) return;
     noteClientAction(`brand-filter:${next}`);
-    startTransition(() => {
+    startFilterTransition(() => {
       setSelectedBrand(next);
       setFilters(DEFAULT_FILTERS);
+    });
+  };
+
+  const handleFiltersChange = (next: OtpravkiFiltersState) => {
+    startFilterTransition(() => {
+      setFilters(next);
     });
   };
 
   return (
     <div className="otpravki-shell relative flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-gray-50 touch-pan-y overscroll-none">
       {reloading ? <StageLoadingScreen variant="overlay" /> : null}
+      {!reloading && filterPending ? <FilterBusyOverlay /> : null}
       <OtpravkiPageHeader
         title="Сборка"
         subtitle={`${filteredAssemblyItems.length} поз. · ${filteredOrders.length} зак. · ${selectedBrand}`}
@@ -249,7 +258,7 @@ export function AssemblyPanel({
       >
         <OtpravkiMobileFilters
           filters={filters}
-          onChange={setFilters}
+          onChange={handleFiltersChange}
           cities={cities}
           products={products}
           brandOptions={brandOptions}
@@ -262,7 +271,7 @@ export function AssemblyPanel({
       <div className="flex min-h-0 flex-1 gap-3 overflow-hidden p-3 sm:p-4">
         <OtpravkiFiltersPanel
           filters={filters}
-          onChange={setFilters}
+          onChange={handleFiltersChange}
           counts={counts}
           products={products}
           brandOptions={brandOptions}
