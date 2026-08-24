@@ -1,14 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { AllAccountsStats } from "@/components/auth/AllAccountsStats";
 
 export function AuthHeaderStats() {
+  const pathname = usePathname();
   const { user, stats, logout, refresh, openLogin } = useAuth();
   const [statsOpen, setStatsOpen] = useState(false);
+  const onSborka = pathname === "/sborka" || pathname.startsWith("/sborka/");
 
   if (!user || !stats) {
+    // Сборка работает без аккаунта — кнопку «Войти» не показываем.
+    if (onSborka) return null;
     return (
       <button
         type="button"

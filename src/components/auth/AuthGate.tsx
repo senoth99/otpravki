@@ -16,10 +16,12 @@ import { ShiftStartReminder } from "@/components/auth/ShiftStartReminder";
 import { usePointerDragScroll } from "@/hooks/usePointerDragScroll";
 import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
 
-/** Без логина: инструкция и скрытые гайды (только по ссылке). Остальное — после входа. */
+/** Без логина: сборка, обзор, инструкция и скрытые гайды. Остальное — после входа. */
 function isGuestPublicPath(pathname: string | null): boolean {
   if (!pathname) return false;
   return (
+    pathname === "/sborka" ||
+    pathname.startsWith("/sborka/") ||
     pathname === "/instrukciya" ||
     pathname.startsWith("/instrukciya/") ||
     pathname === "/gaidy" ||
