@@ -21,6 +21,20 @@ function formatUnknown(reason: unknown): string {
   }
 }
 
+/** SSR/клиент рассинхрон — React сам перерисовывает, UI ломать нельзя. */
+function isHydrationNoise(text: string): boolean {
+  const lower = text.toLowerCase();
+  return (
+    lower.includes("minified react error #418") ||
+    lower.includes("minified react error #423") ||
+    lower.includes("minified react error #425") ||
+    lower.includes("hydration failed") ||
+    lower.includes("hydration mismatch") ||
+    lower.includes("did not match") ||
+    lower.includes("text content does not match")
+  );
+}
+
 function buildReport(parts: string[]): string {
   return [
     ...parts.filter(Boolean),
@@ -79,6 +93,8 @@ class ReactCrashBoundary extends Component<
   state = { crash: null as string | null };
 
   static getDerivedStateFromError(error: Error) {
+    // #418 hydration — не сносим всё дерево, иначе /sborka «мёртвая»
+    if (isHydrationNoise(formatUnknown(error))) return null;
     return { crash: formatUnknown(error) };
   }
 
@@ -88,17 +104,24 @@ class ReactCrashBoundary extends Component<
       formatUnknown(error),
       info.componentStack ? `componentStack:${info.componentStack}` : "",
     ]);
+    if (isHydrationNoise(text)) {
+      logClientSync("client.hydration", { message: text });
+      return;
+    }
     this.props.onError(text);
   }
 
   render() {
     if (this.state.crash) {
       return (
-        <ErrorBanner
-          title="React упал — скопируй и пришли"
-          text={buildReport([this.state.crash])}
-          onClose={() => this.setState({ crash: null })}
-        />
+        <>
+          {this.props.children}
+          <ErrorBanner
+            title="React упал — скопируй и пришли"
+            text={buildReport([this.state.crash])}
+            onClose={() => this.setState({ crash: null })}
+          />
+        </>
       );
     }
     return this.props.children;
@@ -125,6 +148,10 @@ export function ClientErrorProbe({ children }: { children: ReactNode }) {
     }
 
     const show = (raw: string, meta?: Record<string, unknown>) => {
+      if (isHydrationNoise(raw)) {
+        logClientSync("client.hydration", { message: raw, meta });
+        return;
+      }
       const text = buildReport([raw]);
       setTitle("JS-ошибка — скопируй и пришли");
       setErrorText(text);
@@ -154,6 +181,7 @@ export function ClientErrorProbe({ children }: { children: ReactNode }) {
     const onReported = (event: Event) => {
       const detail = (event as CustomEvent<string>).detail;
       if (typeof detail === "string" && detail.trim()) {
+        if (isHydrationNoise(detail)) return;
         setTitle("Ошибка — скопируй и пришли");
         setErrorText(buildReport([detail]));
       }
@@ -173,6 +201,7 @@ export function ClientErrorProbe({ children }: { children: ReactNode }) {
   return (
     <ReactCrashBoundary
       onError={(text) => {
+        if (isHydrationNoise(text)) return;
         reportClientError(text);
         setTitle("React упал — скопируй и пришли");
         setErrorText(text);

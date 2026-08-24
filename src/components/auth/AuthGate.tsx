@@ -160,7 +160,9 @@ function AuthShell({ children }: { children: ReactNode }) {
   const showBlockingLogin = !user && !loading && !guestPublic && !isEmbedded;
   const showLoginOverlay = !user && !loading && guestPublic && loginOpen && !isEmbedded;
 
-  if (loading && !keepMounted.current && !showBlockingLogin) {
+  // Не подменяем страницу splash-ом: иначе при guest /sborka бывает React #418
+  // (сервер уже отдал children, клиент на мгновение рисует loading).
+  if (loading && !keepMounted.current && !showBlockingLogin && !guestPublic) {
     return <StageLoadingScreen variant="fullscreen" />;
   }
 
