@@ -12,6 +12,7 @@ import { AssemblyItemCard } from "./AssemblyItemCard";
 import { AutoModeButton } from "./AutoModeButton";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { BloggerBadge } from "./BloggerBadge";
+import { BrandMark } from "./BrandMark";
 import { ScanErrorPopup } from "./ScanErrorPopup";
 
 interface AssemblyViewProps {
@@ -24,6 +25,7 @@ interface AssemblyViewProps {
   canResetCollected?: boolean;
   resetCollectedBusy?: boolean;
   onResetCollected?: () => void;
+  showBrandMark?: boolean;
 }
 
 function totalUnits(sections: AssemblyViewSections) {
@@ -49,6 +51,7 @@ export function AssemblyView({
   canResetCollected = false,
   resetCollectedBusy = false,
   onResetCollected,
+  showBrandMark = false,
 }: AssemblyViewProps) {
   const visibleItems = [...sections.pending, ...sections.completed];
   const [autoMode, setAutoMode] = useState(false);
@@ -344,6 +347,7 @@ export function AssemblyView({
             </span>
           )}
           {currentItem.isBlogger && <BloggerBadge />}
+          {showBrandMark ? <BrandMark brand={currentItem.brand} size="md" /> : null}
           {currentLocation && (
             <span className="text-gray-600">→ {currentLocation.hint}</span>
           )}
@@ -372,6 +376,7 @@ export function AssemblyView({
               onAutoTake={handleTake}
               locationGroup={locationGroup.length > 1 ? locationGroup : undefined}
               locationGroupIndex={locationGroupIndex}
+              showBrandMark={showBrandMark}
             />
           )}
 
@@ -395,6 +400,7 @@ export function AssemblyView({
                       dimmed
                       locked
                       stepNumber={routeStepById.get(item.id)}
+                      showBrandMark={showBrandMark}
                     />
                   );
                 })}
@@ -419,6 +425,7 @@ export function AssemblyView({
                     warehouseMap={warehouseMap}
                     dimmed
                     locked
+                    showBrandMark={showBrandMark}
                   />
                 ))}
               </div>
@@ -437,6 +444,7 @@ export function AssemblyView({
                   onDecrement={handleDecrement}
                   cellLocation={warehouseMap ? findCellLocation(item, warehouseMap) : undefined}
                   warehouseMap={warehouseMap}
+                  showBrandMark={showBrandMark}
                 />
               ))}
             </div>
@@ -457,6 +465,7 @@ export function AssemblyView({
                     onDecrement={handleDecrement}
                     cellLocation={warehouseMap ? findCellLocation(item, warehouseMap) : undefined}
                     warehouseMap={warehouseMap}
+                    showBrandMark={showBrandMark}
                   />
                 ))}
               </div>

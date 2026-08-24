@@ -7,6 +7,7 @@ import type { WarehouseCellLocation } from "@/lib/warehouse-location";
 import type { AssemblyItem } from "@/types/shipping";
 import type { WarehouseMapConfig } from "@/types/stock";
 import { BloggerBadge } from "./BloggerBadge";
+import { BrandMark } from "./BrandMark";
 import { ProductImage } from "./ProductImage";
 import { QuantityTracker } from "./QuantityTracker";
 
@@ -34,6 +35,8 @@ interface AssemblyItemCardProps {
   onAutoTake?: () => void;
   locationGroup?: LocationGroupEntry[];
   locationGroupIndex?: number;
+  /** Показать логотип бренда (режим «Все бренды») */
+  showBrandMark?: boolean;
 }
 
 export function AssemblyItemCard({
@@ -51,6 +54,7 @@ export function AssemblyItemCard({
   onAutoTake,
   locationGroup,
   locationGroupIndex,
+  showBrandMark = false,
 }: AssemblyItemCardProps) {
   const [navOpenLocal, setNavOpenLocal] = useState(false);
   const navOpen = navOpenProp ?? navOpenLocal;
@@ -85,6 +89,11 @@ export function AssemblyItemCard({
             className={`object-cover transition-opacity ${isComplete ? "opacity-60" : ""}`}
             sizes="(max-width: 640px) 64px, 80px"
           />
+          {showBrandMark ? (
+            <div className="absolute bottom-1 right-1 z-[1]">
+              <BrandMark brand={item.brand} size="sm" />
+            </div>
+          ) : null}
           {item.quantity > 1 && (
             <div className="absolute left-1 top-1 rounded-md bg-gray-900 px-1.5 py-0.5 text-[10px] font-bold text-white">
               ×{item.quantity}
@@ -102,14 +111,26 @@ export function AssemblyItemCard({
         </div>
 
         <div className="min-w-0 flex-1 py-0.5 sm:py-1">
-          <p
-            className={`line-clamp-2 text-sm font-semibold leading-snug sm:truncate ${
-              isComplete ? "text-green-800" : "text-gray-900"
-            }`}
-          >
-            {item.productName}
-          </p>
+          <div className="flex min-w-0 items-start gap-2">
+            <p
+              className={`min-w-0 flex-1 line-clamp-2 text-sm font-semibold leading-snug sm:truncate ${
+                isComplete ? "text-green-800" : "text-gray-900"
+              }`}
+            >
+              {item.productName}
+            </p>
+            {showBrandMark ? (
+              <span className="mt-0.5 hidden shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-600 sm:inline-flex">
+                {item.brand?.trim() || "CASHER"}
+              </span>
+            ) : null}
+          </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5 sm:mt-2">
+            {showBrandMark ? (
+              <span className="rounded-lg bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-600 sm:hidden">
+                {item.brand?.trim() || "CASHER"}
+              </span>
+            ) : null}
             <span className="rounded-lg bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
               {formatSize(item.size)}
             </span>

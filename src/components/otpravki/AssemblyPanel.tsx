@@ -16,7 +16,13 @@ import {
 } from "@/lib/assembly-progress";
 import { getAssemblyViewSections } from "@/lib/assembly-demand";
 import { orderIsBlogger } from "@/lib/blogger-order";
-import { ALL_BRANDS, formatBrandLabel, getStoreBrand, matchesStoreBrand } from "@/lib/store-brand";
+import {
+  ALL_BRANDS,
+  formatBrandLabel,
+  getStoreBrand,
+  isAllBrands,
+  matchesStoreBrand,
+} from "@/lib/store-brand";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { WarehouseMapConfig } from "@/types/stock";
 import { AssemblyView } from "./AssemblyView";
@@ -350,6 +356,7 @@ export function AssemblyPanel({
             canResetCollected={canResetCollected}
             resetCollectedBusy={resetCollectedBusy}
             onResetCollected={handleResetCollected}
+            showBrandMark={isAllBrands(selectedBrand)}
           />
         </main>
       </div>
