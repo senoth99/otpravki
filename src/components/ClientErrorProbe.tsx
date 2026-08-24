@@ -1,69 +1,188 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { Component, useEffect, useState, type ErrorInfo, type ReactNode } from "react";
+import {
+  CLIENT_ERROR_EVENT,
+  markClientAlive,
+  noteClientAction,
+  readClientDiag,
+  reportClientError,
+} from "@/lib/client-diag";
 import { logClientSync } from "@/lib/workspace";
 
+function formatUnknown(reason: unknown): string {
+  if (reason instanceof Error) {
+    return [reason.name, reason.message, reason.stack].filter(Boolean).join("\n");
+  }
+  try {
+    return JSON.stringify(reason);
+  } catch {
+    return String(reason);
+  }
+}
+
+function buildReport(parts: string[]): string {
+  return [
+    ...parts.filter(Boolean),
+    `url: ${typeof window !== "undefined" ? window.location.href : ""}`,
+    `ua: ${typeof navigator !== "undefined" ? navigator.userAgent : ""}`,
+    `time: ${new Date().toISOString()}`,
+  ].join("\n");
+}
+
+function ErrorBanner({
+  text,
+  title,
+  onClose,
+}: {
+  text: string;
+  title: string;
+  onClose: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <div className="fixed inset-x-0 top-0 z-[9999] max-h-[45vh] overflow-auto border-b-4 border-red-600 bg-red-50 p-4 text-left shadow-2xl safe-top">
+      <p className="text-xs font-bold uppercase tracking-wide text-red-800">{title}</p>
+      <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs text-red-950">
+        {text}
+      </pre>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="rounded-lg bg-red-700 px-3 py-2 text-sm font-medium text-white"
+          onClick={() => {
+            void navigator.clipboard.writeText(text).then(
+              () => setCopied(true),
+              () => setCopied(false),
+            );
+          }}
+        >
+          {copied ? "Скопировано" : "Скопировать"}
+        </button>
+        <button
+          type="button"
+          className="rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-800"
+          onClick={onClose}
+        >
+          Закрыть
+        </button>
+      </div>
+    </div>
+  );
+}
+
+class ReactCrashBoundary extends Component<
+  { children: ReactNode; onError: (text: string) => void },
+  { crash: string | null }
+> {
+  state = { crash: null as string | null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { crash: formatUnknown(error) };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    const text = buildReport([
+      "React crash",
+      formatUnknown(error),
+      info.componentStack ? `componentStack:${info.componentStack}` : "",
+    ]);
+    this.props.onError(text);
+  }
+
+  render() {
+    if (this.state.crash) {
+      return (
+        <ErrorBanner
+          title="React упал — скопируй и пришли"
+          text={buildReport([this.state.crash])}
+          onClose={() => this.setState({ crash: null })}
+        />
+      );
+    }
+    return this.props.children;
+  }
+}
+
 /**
- * Ловит JS-ошибки и показывает их поверх UI + пишет в /api/sync/log.
- * Нужно, чтобы на складе было видно, почему Chrome «белеет».
+ * Ловит JS-ошибки, React-краши и «вкладка умерла» (Chrome this page couldn't load).
  */
 export function ClientErrorProbe({ children }: { children: ReactNode }) {
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [title, setTitle] = useState("JS-ошибка — скопируй и пришли");
 
   useEffect(() => {
-    const show = (text: string, meta?: Record<string, unknown>) => {
+    const diag = readClientDiag();
+    if (diag.crashedDuring) {
+      const text = buildReport([
+        "Вкладка умерла в прошлый раз (Chrome «this page couldn't load»).",
+        `Последнее действие: ${diag.crashedDuring}`,
+        diag.savedErrors.length ? `Прошлые ошибки:\n${diag.savedErrors.join("\n")}` : "",
+      ]);
+      setTitle("Вкладка умерла — скопируй и пришли");
       setErrorText(text);
-      logClientSync("client.error", { message: text, meta });
+    }
+
+    const show = (raw: string, meta?: Record<string, unknown>) => {
+      const text = buildReport([raw]);
+      setTitle("JS-ошибка — скопируй и пришли");
+      setErrorText(text);
+      reportClientError(raw);
+      logClientSync("client.error", { message: raw, meta });
     };
 
     const onError = (event: ErrorEvent) => {
       const text = [
         event.message || "Unknown error",
         event.filename ? ` @ ${event.filename}:${event.lineno}:${event.colno}` : "",
-      ].join("");
-      show(text, { source: "error", stack: event.error?.stack });
+        event.error instanceof Error ? event.error.stack : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+      show(text, { source: "error" });
     };
 
     const onRejection = (event: PromiseRejectionEvent) => {
-      const reason = event.reason;
-      const text =
-        reason instanceof Error
-          ? `${reason.name}: ${reason.message}`
-          : `Unhandled rejection: ${String(reason)}`;
-      show(text, {
+      show(`Unhandled rejection:\n${formatUnknown(event.reason)}`, {
         source: "unhandledrejection",
-        stack: reason instanceof Error ? reason.stack : undefined,
       });
     };
 
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onRejection);
+    const onReported = (event: Event) => {
+      const detail = (event as CustomEvent<string>).detail;
+      if (typeof detail === "string" && detail.trim()) {
+        setTitle("Ошибка — скопируй и пришли");
+        setErrorText(buildReport([detail]));
+      }
+    };
+    window.addEventListener(CLIENT_ERROR_EVENT, onReported);
+    noteClientAction("app-ready");
+    markClientAlive();
+    const aliveTimer = window.setInterval(markClientAlive, 2000);
     return () => {
       window.removeEventListener("error", onError);
       window.removeEventListener("unhandledrejection", onRejection);
+      window.removeEventListener(CLIENT_ERROR_EVENT, onReported);
+      window.clearInterval(aliveTimer);
     };
   }, []);
 
   return (
-    <>
+    <ReactCrashBoundary
+      onError={(text) => {
+        reportClientError(text);
+        setTitle("React упал — скопируй и пришли");
+        setErrorText(text);
+        logClientSync("client.error", { message: text, meta: { source: "react" } });
+      }}
+    >
       {children}
       {errorText ? (
-        <div className="fixed inset-x-0 bottom-0 z-[9999] max-h-[40vh] overflow-auto border-t-4 border-red-600 bg-red-50 p-4 text-left shadow-2xl safe-bottom">
-          <p className="text-xs font-bold uppercase tracking-wide text-red-800">
-            JS-ошибка (напиши SENOTH / сделай скрин)
-          </p>
-          <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs text-red-950">
-            {errorText}
-          </pre>
-          <button
-            type="button"
-            className="mt-3 rounded-lg bg-red-700 px-3 py-2 text-sm font-medium text-white"
-            onClick={() => setErrorText(null)}
-          >
-            Закрыть
-          </button>
-        </div>
+        <ErrorBanner text={errorText} title={title} onClose={() => setErrorText(null)} />
       ) : null}
-    </>
+    </ReactCrashBoundary>
   );
 }

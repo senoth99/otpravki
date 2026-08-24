@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { orderIsBlogger } from "@/lib/blogger-order";
+import { noteClientAction } from "@/lib/client-diag";
 import { isRushUrgency, resolveOrderUrgency, URGENCY_LABELS } from "@/lib/urgency";
 import type { OrderUrgency, ShippingOrder } from "@/types/shipping";
 import { AdminPinPopup } from "@/components/admin/AdminPinPopup";
@@ -413,6 +414,7 @@ function BrandFilter({
               disabled={disabled}
               onClick={() => {
                 if (brand === selected) return;
+                noteClientAction(`brand-chip:${brand}`);
                 onChange(brand);
               }}
               className={active ? "cursor-default" : ""}

@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, startTransition } from "react";
 import { useAuth } from "@/components/auth/AuthGate";
 import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { noteClientAction } from "@/lib/client-diag";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import { isRushUrgency, resolveOrderUrgency } from "@/lib/urgency";
 import type { AssemblyItem, ShippingOrder, ShippingTab } from "@/types/shipping";
@@ -86,11 +87,6 @@ export function ShippingPanel({
     if (tabParam === "archive" || tabParam === "shipping") return;
     if (user) setTab("shipping");
   }, [loading, user]);
-
-  useEffect(() => {
-    setReloading(true);
-    void refreshFromApi(selectedBrand).finally(() => setReloading(false));
-  }, [refreshFromApi, selectedBrand]);
 
   const brandOrders = useMemo(
     () => orders.filter((order) => getOrderStoreBrand(order) === selectedBrand),
@@ -190,8 +186,11 @@ export function ShippingPanel({
   const handleBrandChange = useCallback((brand: string) => {
     const next = brand.trim();
     if (!next || next === selectedBrand) return;
-    setSelectedBrand(next);
-    setFilters(DEFAULT_FILTERS);
+    noteClientAction(`brand-filter:${next}`);
+    startTransition(() => {
+      setSelectedBrand(next);
+      setFilters(DEFAULT_FILTERS);
+    });
   }, [selectedBrand]);
 
   const showLoadOverlay = reloading;
@@ -208,6 +207,7 @@ export function ShippingPanel({
         }
         onRefresh={() => {
           setReloading(true);
+          noteClientAction(`refresh:${selectedBrand}`);
           void refreshFromApi(selectedBrand).finally(() => setReloading(false));
         }}
         refreshing={reloading || isSyncing}

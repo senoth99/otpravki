@@ -12,6 +12,7 @@ import {
 } from "@/lib/orders-sync";
 import { checkServerReachable, subscribeServerReachability } from "@/lib/server-reachability";
 import { persistSessionProgress, persistShippedOrders } from "@/lib/archive-api";
+import { reportClientError } from "@/lib/client-diag";
 import {
   createWorkspace,
   logClientSync,
@@ -135,6 +136,9 @@ export function useWorkspace({
           return { ok: true as const };
         }
         setIsServerReachable(false);
+        if (!options?.silent && result.error) {
+          reportClientError(`refresh ${brand ?? "all"}: ${result.error}`);
+        }
         return { ok: false as const, error: result.error };
       } finally {
         if (requestId === refreshRequestIdRef.current && !options?.silent) {

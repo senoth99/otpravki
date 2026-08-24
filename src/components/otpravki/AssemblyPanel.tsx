@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, startTransition } from "react";
 import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { noteClientAction } from "@/lib/client-diag";
 import {
   applyProgressToAssemblyItems,
   fetchAssemblyProgress,
@@ -75,11 +76,6 @@ export function AssemblyPanel({
   });
 
   useOtpravkiNoSwipe();
-
-  useEffect(() => {
-    setReloading(true);
-    void refreshFromApi(selectedBrand).finally(() => setReloading(false));
-  }, [refreshFromApi, selectedBrand]);
 
   useEffect(() => {
     let cancelled = false;
@@ -229,8 +225,11 @@ export function AssemblyPanel({
   const handleBrandChange = (brand: string) => {
     const next = brand.trim();
     if (!next || next === selectedBrand) return;
-    setSelectedBrand(next);
-    setFilters(DEFAULT_FILTERS);
+    noteClientAction(`brand-filter:${next}`);
+    startTransition(() => {
+      setSelectedBrand(next);
+      setFilters(DEFAULT_FILTERS);
+    });
   };
 
   return (
@@ -241,6 +240,7 @@ export function AssemblyPanel({
         subtitle={`${filteredAssemblyItems.length} поз. · ${filteredOrders.length} зак. · ${selectedBrand}`}
         onRefresh={() => {
           setReloading(true);
+          noteClientAction(`refresh:${selectedBrand}`);
           void refreshFromApi(selectedBrand).finally(() => setReloading(false));
         }}
         refreshing={reloading || isSyncing}
