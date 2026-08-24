@@ -5,7 +5,9 @@ import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import QRCode from "qrcode";
 import sharp from "sharp";
+import { boxLabelBrandIdFromStoreBrand } from "@/lib/box-label-brands";
 import { code128ModuleCount, encodeCode128B } from "@/lib/server/code128";
+import { getBrandSiteLogo } from "@/lib/server/brand-site-logo";
 import { externalFetch } from "@/lib/server/external-fetch";
 import type { ShippingOrder, ShippingOrderItem } from "@/types/shipping";
 
@@ -584,11 +586,41 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
   page.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: WHITE });
 
   const brand = brandDisplayName(input.brand);
-  const brandSize = 18;
-  const brandY = PAGE_H - MARGIN - brandSize;
-  drawCenteredText(page, bold, brand, brandSize, brandY);
+  const brandId = boxLabelBrandIdFromStoreBrand(input.brand);
+  const logoMaxH = 26;
+  const logoMaxW = PAGE_W - MARGIN * 2;
+  let brandBottomY = PAGE_H - MARGIN - 18;
 
-  const ruleY = brandY - 4;
+  let logoDrawn = false;
+  if (brandId && brandId !== "casher") {
+    try {
+      const logo = await getBrandSiteLogo(brandId);
+      const logoImage = await pdf.embedPng(logo.png);
+      const scale = Math.min(logoMaxW / logoImage.width, logoMaxH / logoImage.height, 1);
+      const logoW = logoImage.width * scale;
+      const logoH = logoImage.height * scale;
+      const logoY = PAGE_H - MARGIN - logoH;
+      page.drawImage(logoImage, {
+        x: (PAGE_W - logoW) / 2,
+        y: logoY,
+        width: logoW,
+        height: logoH,
+      });
+      brandBottomY = logoY;
+      logoDrawn = true;
+    } catch {
+      logoDrawn = false;
+    }
+  }
+
+  if (!logoDrawn) {
+    const brandSize = 18;
+    const brandY = PAGE_H - MARGIN - brandSize;
+    drawCenteredText(page, bold, brand, brandSize, brandY);
+    brandBottomY = brandY;
+  }
+
+  const ruleY = brandBottomY - 4;
   page.drawRectangle({
     x: MARGIN,
     y: ruleY,
