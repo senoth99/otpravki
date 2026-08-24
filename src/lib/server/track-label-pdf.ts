@@ -594,14 +594,14 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
 
   const brand = brandDisplayName(input.brand);
   const brandId = boxLabelBrandIdFromStoreBrand(input.brand);
-  // Фиксированная шапка с запасом от края этикетки (термопринтер часто «съедает» 1–2 мм).
+  // Шапка с равными отступами: логотип по центру полосы, линия строго под ней.
   const contentW = PAGE_W - MARGIN * 2;
-  const topMargin = 10;
-  const headerH = 44;
-  const headerTop = PAGE_H - topMargin;
+  const outer = 7;
+  const headerH = 46;
+  const headerTop = PAGE_H - outer;
   const headerBottom = headerTop - headerH;
-  const logoMaxH = headerH * 0.7;
-  const logoMaxW = contentW * 0.5;
+  const logoMaxH = 32;
+  const logoMaxW = contentW * 0.55;
   let brandBottomY = headerBottom;
 
   let logoDrawn = false;
@@ -633,7 +633,7 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
     brandBottomY = headerBottom;
   }
 
-  const ruleY = brandBottomY - 1;
+  const ruleY = brandBottomY - 2;
   page.drawRectangle({
     x: MARGIN,
     y: ruleY,
