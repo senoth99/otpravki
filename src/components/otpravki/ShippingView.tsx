@@ -92,6 +92,8 @@ interface ShippingViewProps {
   selectionResetKey?: string;
   /** Поиск: прыжок к заказу, без пересборки списка orders */
   searchQuery?: string;
+  /** Подсказка, если список пуст из‑за фильтра «В наличии» */
+  emptyHint?: string | null;
 }
 
 function getOrderStoreBrand(order: ShippingOrder): string {
@@ -126,6 +128,7 @@ export function ShippingView({
   onOrderShipped,
   selectionResetKey = "",
   searchQuery = "",
+  emptyHint = null,
 }: ShippingViewProps) {
   const { user } = useAuth();
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(
@@ -899,8 +902,13 @@ export function ShippingView({
         <div className="border-b border-gray-100 px-1 py-1 sm:px-2">
           <AutoModeButton active={autoMode} onClick={handleAutoModeToggle} />
         </div>
-        <div className="p-8 text-center">
-          <p className="text-gray-500">Нет заказов на отправку</p>
+        <div className="space-y-2 p-8 text-center">
+          <p className="font-medium text-gray-900">
+            {emptyHint ? "Нет готовых к отправке" : "Нет заказов на отправку"}
+          </p>
+          {emptyHint ? (
+            <p className="mx-auto max-w-md text-sm text-gray-500">{emptyHint}</p>
+          ) : null}
         </div>
       </div>
     );

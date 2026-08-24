@@ -7,6 +7,7 @@ import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { noteClientAction } from "@/lib/client-diag";
+import { ORDERS_API_POLL_MS } from "@/lib/orders-sync";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import { isRushUrgency, resolveOrderUrgency } from "@/lib/urgency";
 import type { AssemblyItem, ShippingOrder, ShippingTab } from "@/types/shipping";
@@ -68,10 +69,29 @@ export function ShippingPanel({
     initialApiOrderIds,
     initialShippedArchive,
     initialRevision,
-    pollBrand: selectedBrand,
   });
 
   useOtpravkiNoSwipe();
+
+  // Полный pull всех брендов — не только выбранного (иначе AMMO/Кураж «пустые»).
+  useEffect(() => {
+    let cancelled = false;
+    const run = () => {
+      if (cancelled || document.visibilityState !== "visible" || !navigator.onLine) return;
+      void refreshFromApi(undefined, { silent: true });
+    };
+    run();
+    const timer = window.setInterval(run, ORDERS_API_POLL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") run();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refreshFromApi]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -100,6 +120,11 @@ export function ShippingPanel({
     [brandOrders],
   );
 
+  const notReadyCount = useMemo(
+    () => activeBrandOrders.filter((order) => order.ready === false).length,
+    [activeBrandOrders],
+  );
+
   const filteredOrders = useMemo(
     () =>
       applyOrderFilters(activeBrandOrders, {
@@ -119,6 +144,13 @@ export function ShippingPanel({
       filters.inStock,
     ],
   );
+
+  const emptyHint =
+    filteredOrders.length === 0 && filters.inStock && notReadyCount > 0
+      ? `У ${selectedBrand} ещё ${notReadyCount} зак. ждут наличия на складе. Фильтр «В наличии» их скрывает — выключи в фильтрах (нужен PIN админа), чтобы увидеть.`
+      : filteredOrders.length === 0 && activeBrandOrders.length > 0
+        ? "Все заказы скрыты другими фильтрами."
+        : null;
 
   const filteredAssemblyItems = useMemo(
     () =>
@@ -210,12 +242,13 @@ export function ShippingPanel({
         subtitle={
           tab === "archive"
             ? `${shippedArchive.filter((order) => getOrderStoreBrand(order) === selectedBrand).length} в архиве · ${selectedBrand}`
-            : `${filteredOrders.length} из ${activeBrandOrders.length} · ${selectedBrand}`
+            : `${filteredOrders.length} готовы · ${notReadyCount} ждут склад · ${selectedBrand}`
         }
         onRefresh={() => {
           setReloading(true);
-          noteClientAction(`refresh:${selectedBrand}`);
-          void refreshFromApi(selectedBrand).finally(() => setReloading(false));
+          noteClientAction("refresh:all-brands");
+          // Полный sync всех брендов — иначе AMMO/Кураж/SHECASH остаются пустыми
+          void refreshFromApi(undefined).finally(() => setReloading(false));
         }}
         refreshing={reloading || isSyncing}
         offline={offline}
@@ -258,9 +291,10 @@ export function ShippingPanel({
               brandOptions={brandOptions}
               onBrandChange={handleBrandChange}
               onOrdersChange={handleFilteredOrdersChange}
-              onOrderShipped={() => scheduleRefreshAfterShip(selectedBrand)}
+              onOrderShipped={() => scheduleRefreshAfterShip(undefined)}
               selectionResetKey={`${selectedBrand}:${filters.urgency}:${filters.kind}:${filters.inStock}:${filters.productIds.join(",")}`}
               searchQuery={filters.query}
+              emptyHint={emptyHint}
             />
           ) : (
             <ArchiveView
