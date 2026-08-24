@@ -143,7 +143,7 @@ export function AssemblyPanel({
 
   const filteredAssemblyItems = useMemo(() => {
     const brandAsm = syncedAssemblyItems.filter(
-      (item) => (item.brand?.trim() || "CASHER") === selectedBrand,
+      (item) => (item.brand?.trim() || "CASHER") === selectedBrand && item.quantity > 0,
     );
     if (filters.kind === "blogger") {
       return brandAsm.filter((item) => item.isBlogger === true);

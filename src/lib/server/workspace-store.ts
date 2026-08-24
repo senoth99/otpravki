@@ -1,6 +1,6 @@
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState } from "@/types/workspace";
-import { reconcileAssemblyChanges } from "@/lib/assembly-demand";
+import { newlyShippedOrders, reconcileAssemblyChanges, assemblyProgressPatchForShippedOrders } from "@/lib/assembly-demand";
 import { mergeShippedArchives, normalizeWorkspaceState } from "@/lib/shipped-archive";
 import { mergeWorkspaces } from "@/lib/workspace-merge";
 import type { WorkspaceData } from "@/lib/build-workspace";
@@ -13,6 +13,7 @@ import {
 import { mergeFreshOrdersData, mergeFreshOrdersDataForBrand } from "@/lib/workspace-api-merge";
 import { logSync } from "@/lib/server/sync-log";
 import { appendSyncEvent, forwardToRemote } from "@/lib/server/sync-store";
+import { applyAssemblyProgressPatch, getAssemblyProgress } from "@/lib/server/assembly-progress-store";
 
 type WorkspaceListener = (state: SharedWorkspaceState) => void;
 
@@ -33,6 +34,24 @@ function withoutAssemblyProgress(state: SharedWorkspaceState): SharedWorkspaceSt
     ...state,
     assemblyItems: stripAssemblyCollected(state.assemblyItems),
   };
+}
+
+async function consumeAssemblyProgressAfterShip(
+  prev: SharedWorkspaceState | null,
+  next: SharedWorkspaceState,
+): Promise<void> {
+  const shipped = newlyShippedOrders(
+    prev?.orders ?? [],
+    prev?.shippedArchive,
+    next.orders,
+    next.shippedArchive,
+  );
+  if (shipped.length === 0) return;
+
+  const current = await getAssemblyProgress();
+  const patch = assemblyProgressPatchForShippedOrders(current.items, shipped);
+  if (Object.keys(patch).length === 0) return;
+  await applyAssemblyProgressPatch(patch, "ship");
 }
 
 function broadcast(state: SharedWorkspaceState) {
@@ -163,7 +182,8 @@ export function resetSharedWorkspace(
 async function replaceSessionArchiveInner(shippedArchive: ShippingOrder[]): Promise<void> {
   if (!memoryState) return;
 
-  const prevOrders = memoryState.orders;
+  const prev = memoryState;
+  const prevOrders = prev.orders;
   const nextOrders = prevOrders.map((order) => {
     const archived = shippedArchive.find((entry) => entry.id === order.id && entry.barcodePrinted);
     if (!archived) return order;
@@ -176,19 +196,20 @@ async function replaceSessionArchiveInner(shippedArchive: ShippingOrder[]): Prom
     };
   });
 
-  const assemblyItems = reconcileAssemblyChanges(prevOrders, nextOrders, memoryState.assemblyItems);
+  const assemblyItems = reconcileAssemblyChanges(prevOrders, nextOrders, prev.assemblyItems);
 
   memoryState = withoutAssemblyProgress(
     normalizeWorkspaceState({
-      ...memoryState,
+      ...prev,
       orders: nextOrders,
       assemblyItems,
       shippedArchive,
-      revision: memoryState.revision + 1,
+      revision: prev.revision + 1,
       updatedAt: Date.now(),
       updatedBy: "archive-sync",
     }),
   );
+  await consumeAssemblyProgressAfterShip(prev, memoryState);
   await saveSessionProgress(memoryState);
   broadcast(memoryState);
 }
@@ -240,7 +261,9 @@ async function replaceWorkspaceFromApiInner(fresh: WorkspaceData): Promise<Share
   };
 
   await saveSessionProgress(next);
+  const prev = memoryState;
   memoryState = withoutAssemblyProgress(next);
+  await consumeAssemblyProgressAfterShip(prev, memoryState);
   broadcast(memoryState);
   return memoryState;
 }
@@ -284,7 +307,9 @@ async function replaceWorkspaceFromApiForBrandInner(
   };
 
   await saveSessionProgress(next);
+  const prev = memoryState;
   memoryState = withoutAssemblyProgress(next);
+  await consumeAssemblyProgressAfterShip(prev, memoryState);
   broadcast(memoryState);
   return memoryState;
 }
@@ -340,6 +365,7 @@ async function applyWorkspaceUpdateInner(
 
   await saveSessionProgress(next);
   memoryState = withoutAssemblyProgress(next);
+  await consumeAssemblyProgressAfterShip(current, memoryState);
   broadcast(memoryState);
 
   void logSync("workspace.update", {

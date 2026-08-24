@@ -49,7 +49,7 @@ export function staleAssemblyProgressPatch(
 
   for (const [id, entry] of Object.entries(progress.items)) {
     const item = live.get(id);
-    if (!item) {
+    if (!item || item.quantity <= 0) {
       if (entry.collectedCount > 0) patch.push({ id, collectedCount: 0 });
       continue;
     }

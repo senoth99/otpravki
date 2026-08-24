@@ -279,7 +279,10 @@ export function mapUnshippedOrdersToWorkspace(
     }
   }
 
-  const assemblyItems = sortAssemblyItemsByUrgency([...assemblyMap.values()], orders);
+  const assemblyItems = sortAssemblyItemsByUrgency(
+    [...assemblyMap.values()].filter((item) => item.quantity > 0),
+    orders,
+  );
 
   orders.sort((a, b) => {
     const urgencyDiff =
