@@ -29,6 +29,7 @@ import { AssemblyView } from "./AssemblyView";
 import {
   applyOrderFilters,
   collectFilterProducts,
+  collectFilterProductsFromAssembly,
   DEFAULT_FILTERS,
   OtpravkiMobileFilters,
   type OtpravkiFiltersState,
@@ -263,7 +264,13 @@ export function AssemblyPanel({
     [orders],
   );
 
-  const products = useMemo(() => collectFilterProducts(brandOrders), [brandOrders]);
+  const products = useMemo(() => {
+    const fromOrders = collectFilterProducts(brandOrders);
+    if (fromOrders.length > 0) return fromOrders;
+    return collectFilterProductsFromAssembly(
+      syncedAssemblyItems.filter((item) => matchesStoreBrand(item.brand, selectedBrand)),
+    );
+  }, [brandOrders, syncedAssemblyItems, selectedBrand]);
 
   const offline = !isInternetOnline || !isServerReachable;
 
@@ -357,7 +364,6 @@ export function AssemblyPanel({
             collapsible
             defaultExpanded={false}
             showFromAssembly={false}
-            pinProductSearch
           />
         </div>
       </OtpravkiPageHeader>

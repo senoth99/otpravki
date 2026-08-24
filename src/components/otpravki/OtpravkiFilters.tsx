@@ -136,6 +136,38 @@ export function collectFilterCities(orders: ShippingOrder[]): string[] {
   return [...cities].sort((a, b) => a.localeCompare(b, "ru"));
 }
 
+/** Уникальные товары из позиций сборки — для фильтра с выбором. */
+export function collectFilterProductsFromAssembly(
+  items: Array<{
+    productId: string;
+    productName: string;
+    imageUrl?: string;
+    quantity: number;
+  }>,
+): FilterProductOption[] {
+  const map = new Map<string, FilterProductOption>();
+  for (const item of items) {
+    const id = item.productId?.trim();
+    if (!id || item.quantity <= 0) continue;
+    const existing = map.get(id);
+    const imageUrl = item.imageUrl?.trim() || existing?.imageUrl || "";
+    if (!existing) {
+      map.set(id, {
+        productId: id,
+        productName: item.productName?.trim() || id,
+        imageUrl,
+        orderCount: 1,
+        quantity: item.quantity,
+      });
+      continue;
+    }
+    if (!existing.imageUrl && imageUrl) existing.imageUrl = imageUrl;
+    existing.quantity += item.quantity;
+    existing.orderCount += 1;
+  }
+  return [...map.values()].sort((a, b) => a.productName.localeCompare(b.productName, "ru"));
+}
+
 /** Уникальные товары из заказов к отправке — для фильтра с выбором. */
 export function collectFilterProducts(orders: ShippingOrder[]): FilterProductOption[] {
   const map = new Map<string, FilterProductOption>();
@@ -197,7 +229,7 @@ function ProductFilterModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
+      className="fixed inset-0 z-[100] flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div
@@ -632,7 +664,7 @@ export function OtpravkiFiltersPanel({
                   active={selectedCount > 0}
                   onClick={() => setProductsOpen(true)}
                 >
-                  {selectedCount > 0 ? `Выбрано · ${selectedCount}` : "Выбрать вещи"}
+                  {selectedCount > 0 ? `Фильтр по вещам · ${selectedCount}` : "Фильтр по вещам"}
                 </Chip>
               </FilterSection>
             )}
@@ -675,8 +707,6 @@ export function OtpravkiMobileFilters({
   collapsible = false,
   defaultExpanded = true,
   showFromAssembly = true,
-  /** Для сборки: поиск и «Вещи» всегда снаружи свёрнутого блока */
-  pinProductSearch = false,
 }: {
   filters: OtpravkiFiltersState;
   onChange: (next: OtpravkiFiltersState) => void;
@@ -692,7 +722,6 @@ export function OtpravkiMobileFilters({
   collapsible?: boolean;
   defaultExpanded?: boolean;
   showFromAssembly?: boolean;
-  pinProductSearch?: boolean;
 }) {
   const [productsOpen, setProductsOpen] = useState(false);
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -705,6 +734,21 @@ export function OtpravkiMobileFilters({
     selectedBrand && brandOptions.includes(selectedBrand)
       ? selectedBrand
       : brandOptions[0] ?? "";
+
+  const productFilterChip =
+    products.length > 0 ? (
+      <FilterSection
+        title="Вещи"
+        hint={selectedCount > 0 ? `${selectedCount} выбрано` : undefined}
+      >
+        <Chip
+          active={selectedCount > 0}
+          onClick={() => setProductsOpen(true)}
+        >
+          {selectedCount > 0 ? `Фильтр по вещам · ${selectedCount}` : "Фильтр по вещам"}
+        </Chip>
+      </FilterSection>
+    ) : null;
 
   const filtersBody = brandOnly ? (
     <FilterSection title="Поиск">
@@ -719,32 +763,28 @@ export function OtpravkiMobileFilters({
     </FilterSection>
   ) : (
     <>
-      {!pinProductSearch ? (
-        <FilterSection title="Наличие">
-          <div className="space-y-2">
-            <InStockToggle value={filters.inStock} onChange={(next) => set("inStock", next)} />
-            {showFromAssembly ? (
-              <FromAssemblyToggle
-                value={filters.fromAssembly}
-                onChange={(next) => set("fromAssembly", next)}
-              />
-            ) : null}
-          </div>
-        </FilterSection>
-      ) : null}
+      <FilterSection title="Наличие">
+        <div className="space-y-2">
+          <InStockToggle value={filters.inStock} onChange={(next) => set("inStock", next)} />
+          {showFromAssembly ? (
+            <FromAssemblyToggle
+              value={filters.fromAssembly}
+              onChange={(next) => set("fromAssembly", next)}
+            />
+          ) : null}
+        </div>
+      </FilterSection>
 
-      {!pinProductSearch ? (
-        <FilterSection title="Поиск">
-          <KeyboardField
-            value={filters.query}
-            onChange={(next) => set("query", next)}
-            applyOnCloseOnly
-            placeholder="Поиск заказа…"
-            title="Поиск заказа"
-            className="h-12 w-full rounded-xl border border-gray-200 bg-white px-3 text-base text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
-          />
-        </FilterSection>
-      ) : null}
+      <FilterSection title="Поиск">
+        <KeyboardField
+          value={filters.query}
+          onChange={(next) => set("query", next)}
+          applyOnCloseOnly
+          placeholder={showFromAssembly ? "Поиск заказа…" : "Название вещи, размер…"}
+          title={showFromAssembly ? "Поиск заказа" : "Поиск в сборке"}
+          className="h-12 w-full rounded-xl border border-gray-200 bg-white px-3 text-base text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+        />
+      </FilterSection>
 
       <FilterSection title="Срочность">
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
@@ -783,56 +823,14 @@ export function OtpravkiMobileFilters({
         </div>
       </FilterSection>
 
-      {!pinProductSearch && products.length > 0 ? (
-        <FilterSection
-          title="Вещи"
-          hint={selectedCount > 0 ? `${selectedCount} выбрано` : undefined}
-        >
-          <Chip active={selectedCount > 0} onClick={() => setProductsOpen(true)}>
-            {selectedCount > 0 ? `Выбрано · ${selectedCount}` : "Выбрать вещи"}
-          </Chip>
-        </FilterSection>
-      ) : null}
-
-      <ProductFilterModal
-        open={productsOpen}
-        onClose={() => setProductsOpen(false)}
-        products={products}
-        selectedIds={filters.productIds}
-        onConfirm={(productIds) => onChange({ ...filters, productIds })}
-      />
+      {productFilterChip}
     </>
   );
-
-  const pinnedSearch = pinProductSearch && !brandOnly ? (
-    <>
-      <FilterSection title="Поиск">
-        <KeyboardField
-          value={filters.query}
-          onChange={(next) => set("query", next)}
-          applyOnCloseOnly
-          placeholder="Название вещи, размер…"
-          title="Поиск в сборке"
-          className="h-12 w-full rounded-xl border border-gray-200 bg-white px-3 text-base text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
-        />
-      </FilterSection>
-      {products.length > 0 ? (
-        <FilterSection
-          title="Вещи"
-          hint={selectedCount > 0 ? `${selectedCount} выбрано · или тапни фото в списке` : "или тапни фото в списке"}
-        >
-          <Chip active={selectedCount > 0} onClick={() => setProductsOpen(true)}>
-            {selectedCount > 0 ? `Выбрано · ${selectedCount}` : "Выбрать по картинке"}
-          </Chip>
-        </FilterSection>
-      ) : null}
-    </>
-  ) : null;
 
   const activeFilterHints =
     filters.urgency !== "all" ||
     filters.kind !== "all" ||
-    (!pinProductSearch && filters.inStock) ||
+    filters.inStock ||
     filters.productIds.length > 0 ||
     filters.query.trim().length > 0;
 
@@ -846,8 +844,6 @@ export function OtpravkiMobileFilters({
           disabled={brandDisabled}
         />
       )}
-
-      {pinnedSearch}
 
       {collapsible && !brandOnly ? (
         <>
@@ -870,6 +866,15 @@ export function OtpravkiMobileFilters({
       ) : (
         filtersBody
       )}
+
+      {/* Модалка всегда в DOM — иначе при свёрнутых фильтрах клик ничего не открывал */}
+      <ProductFilterModal
+        open={productsOpen}
+        onClose={() => setProductsOpen(false)}
+        products={products}
+        selectedIds={filters.productIds}
+        onConfirm={(productIds) => onChange({ ...filters, productIds })}
+      />
     </div>
   );
 }
