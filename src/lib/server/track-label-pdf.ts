@@ -594,30 +594,33 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
 
   const brand = brandDisplayName(input.brand);
   const brandId = boxLabelBrandIdFromStoreBrand(input.brand);
-  // Шапка: средний логотип по центру, без «воздуха» по краям и без налоза на зоны ниже.
+  // Фиксированная шапка: логотип по центру полосы, с воздухом сверху/снизу.
   const contentW = PAGE_W - MARGIN * 2;
-  const logoMaxH = 34;
-  const logoMaxW = contentW * 0.58;
-  let brandBottomY = PAGE_H - MARGIN - 18;
+  const headerH = 42;
+  const headerTop = PAGE_H - MARGIN;
+  const headerBottom = headerTop - headerH;
+  const logoPadX = 8;
+  const logoPadY = 5;
+  const logoMaxH = headerH - logoPadY * 2;
+  const logoMaxW = contentW - logoPadX * 2;
+  let brandBottomY = headerBottom + logoPadY;
 
   let logoDrawn = false;
   if (brandId && brandId !== "casher") {
     try {
       const logo = await getBrandSiteLogo(brandId);
       const logoImage = await pdf.embedPng(logo.png);
-      // Разрешаем лёгкий апскейл мелких иконок, но жёстко держим в рамке шапки.
-      const scale = Math.min(logoMaxW / logoImage.width, logoMaxH / logoImage.height, 1.4);
+      const scale = Math.min(logoMaxW / logoImage.width, logoMaxH / logoImage.height, 1.35);
       const logoW = logoImage.width * scale;
       const logoH = logoImage.height * scale;
-      const logoTopGap = 2;
-      const logoY = PAGE_H - MARGIN - logoTopGap - logoH;
+      const logoY = headerBottom + (headerH - logoH) / 2;
       page.drawImage(logoImage, {
         x: (PAGE_W - logoW) / 2,
         y: logoY,
         width: logoW,
         height: logoH,
       });
-      brandBottomY = logoY;
+      brandBottomY = headerBottom;
       logoDrawn = true;
     } catch {
       logoDrawn = false;
@@ -625,13 +628,13 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
   }
 
   if (!logoDrawn) {
-    const brandSize = 16;
-    const brandY = PAGE_H - MARGIN - brandSize;
+    const brandSize = 15;
+    const brandY = headerBottom + (headerH - brandSize) / 2;
     drawCenteredText(page, bold, brand, brandSize, brandY);
-    brandBottomY = brandY;
+    brandBottomY = headerBottom;
   }
 
-  const ruleY = brandBottomY - 5;
+  const ruleY = brandBottomY - 1;
   page.drawRectangle({
     x: MARGIN,
     y: ruleY,
