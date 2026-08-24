@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { PinNumpad } from "@/components/chestnye-znaki/PinNumpad";
 import type { AuthLiveStats, AuthUserPublic } from "@/components/auth/AuthProvider";
+import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
 
 interface LoginScreenProps {
   onSuccess: (user: AuthUserPublic, stats: AuthLiveStats) => void;
@@ -63,14 +64,17 @@ export function LoginScreen({ onSuccess, onGoRegister, canRegister }: LoginScree
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center gap-5 p-4">
+    <div className="relative mx-auto flex w-full max-w-lg flex-1 flex-col justify-center gap-5 p-4">
       <div className="text-center">
         <h1 className="text-xl font-bold text-gray-900">Вход</h1>
         <p className="mt-1 text-sm text-gray-500">Выберите аккаунт</p>
       </div>
 
       {loadingUsers ? (
-        <p className="text-center text-sm text-gray-500">Загрузка аккаунтов…</p>
+        <StageLoadingScreen
+          variant="overlay"
+          labels={["собираем аккаунты", "заливаемся энергетиками", "анализируем клиентов"]}
+        />
       ) : users.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-6 text-center text-sm text-gray-600">
           Пока нет аккаунтов — зарегистрируйте первый

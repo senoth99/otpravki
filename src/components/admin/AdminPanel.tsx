@@ -5,6 +5,7 @@ import { AuthHeaderStats } from "@/components/auth/AuthHeaderStats";
 import { AssemblyExtrasEditor } from "@/components/admin/AssemblyExtrasEditor";
 import { BoxLabelEditor } from "@/components/admin/BoxLabelEditor";
 import { PinNumpad } from "@/components/chestnye-znaki/PinNumpad";
+import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { mutatingApiHeaders } from "@/lib/api-headers";
 
@@ -148,9 +149,7 @@ export function AdminPanel() {
       </header>
 
       <main className="min-h-0 flex-1 touch-scroll-y overflow-y-auto p-3 sm:p-4">
-        {view === "loading" && (
-          <p className="py-16 text-center text-sm text-gray-500">Загрузка…</p>
-        )}
+        {view === "loading" && <StageLoadingScreen variant="fullscreen" className="!min-h-[50dvh]" />}
 
         {view === "pin" && (
           <div className="mx-auto flex w-full max-w-md flex-col justify-center space-y-6 py-10 text-center">

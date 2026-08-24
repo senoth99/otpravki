@@ -14,12 +14,43 @@ function storefrontImageUrl(remoteUrl: string): string {
   return `${STOREFRONT_IMAGE.replace(/\/$/, "")}/_next/image?url=${encoded}&w=1080&q=75`;
 }
 
+function yandexFallbackFromUploads(remoteUrl: string): string | null {
+  try {
+    const { pathname } = new URL(remoteUrl);
+    const match = pathname.match(
+      /^\/uploads\/products\/([^/?#]+\.(?:webp|jpe?g|png|gif|avif))$/i,
+    );
+    if (!match) return null;
+    return `${YANDEX_MEDIA}/products/products/${match[1]}`;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchRemoteImage(remoteUrl: string): Promise<Response> {
   try {
     const res = await externalFetch(remoteUrl, { timeoutMs: 12_000 });
     if (res.ok) return res;
   } catch {
-    // прямое хранилище часто рвёт TLS — ниже запасной прокси витрины
+    // прямое хранилище часто рвёт TLS — ниже запасной прокси витрины / Yandex
+  }
+
+  const yandexFromUploads = yandexFallbackFromUploads(remoteUrl);
+  if (yandexFromUploads) {
+    try {
+      const res = await externalFetch(yandexFromUploads, { timeoutMs: 12_000 });
+      if (res.ok) return res;
+    } catch {
+      // ниже storefront
+    }
+    try {
+      const viaStorefront = await externalFetch(storefrontImageUrl(yandexFromUploads), {
+        timeoutMs: 15_000,
+      });
+      if (viaStorefront.ok) return viaStorefront;
+    } catch {
+      // fall through
+    }
   }
 
   if (remoteUrl.startsWith(YANDEX_MEDIA)) {

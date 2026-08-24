@@ -109,12 +109,28 @@ export async function fetchAndSyncWorkspaceFromApiForBrand(
   };
 }
 
-/** Всегда тянем Casher; память — только если API упал. */
+/**
+ * Быстрый первый ответ: отдаём уже синхронированный workspace из памяти,
+ * а полный pull Casher гоняем в фоне. Первый холодный старт — ждём API.
+ */
 export async function loadWorkspaceFromLiveApi(): Promise<SharedWorkspaceState> {
+  const existing = await getSharedWorkspace();
+  const hasUsableCache =
+    existing != null &&
+    ((existing.orders?.length ?? 0) > 0 || (existing.assemblyItems?.length ?? 0) > 0);
+
+  if (hasUsableCache && existing) {
+    void fetchAndSyncWorkspaceFromApi().catch((error) => {
+      void logSync("api.sync.bg.fail", {
+        message: error instanceof Error ? error.message : "bg sync failed",
+      });
+    });
+    return existing;
+  }
+
   try {
     return (await fetchAndSyncWorkspaceFromApi()).workspace;
   } catch (error) {
-    const existing = await getSharedWorkspace();
     if (existing) return existing;
     throw error;
   }

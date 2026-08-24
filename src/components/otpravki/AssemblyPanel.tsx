@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import {
@@ -76,7 +77,8 @@ export function AssemblyPanel({
   useOtpravkiNoSwipe();
 
   useEffect(() => {
-    void refreshFromApi(selectedBrand);
+    setReloading(true);
+    void refreshFromApi(selectedBrand).finally(() => setReloading(false));
   }, [refreshFromApi, selectedBrand]);
 
   useEffect(() => {
@@ -229,11 +231,11 @@ export function AssemblyPanel({
     if (!next || next === selectedBrand) return;
     setSelectedBrand(next);
     setFilters(DEFAULT_FILTERS);
-    void refreshFromApi(next);
   };
 
   return (
-    <div className="otpravki-shell flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-gray-50 touch-pan-y overscroll-none">
+    <div className="otpravki-shell relative flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-gray-50 touch-pan-y overscroll-none">
+      {reloading ? <StageLoadingScreen variant="overlay" /> : null}
       <OtpravkiPageHeader
         title="Сборка"
         subtitle={`${filteredAssemblyItems.length} поз. · ${filteredOrders.length} зак. · ${selectedBrand}`}

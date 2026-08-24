@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/AuthGate";
+import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { orderIsBlogger } from "@/lib/blogger-order";
@@ -87,7 +88,8 @@ export function ShippingPanel({
   }, [loading, user]);
 
   useEffect(() => {
-    void refreshFromApi(selectedBrand);
+    setReloading(true);
+    void refreshFromApi(selectedBrand).finally(() => setReloading(false));
   }, [refreshFromApi, selectedBrand]);
 
   const brandOrders = useMemo(
@@ -192,8 +194,11 @@ export function ShippingPanel({
     setFilters(DEFAULT_FILTERS);
   }, [selectedBrand]);
 
+  const showLoadOverlay = reloading;
+
   return (
-    <div className="otpravki-shell flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-gray-50 touch-pan-y overscroll-none">
+    <div className="otpravki-shell relative flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-gray-50 touch-pan-y overscroll-none">
+      {showLoadOverlay ? <StageLoadingScreen variant="overlay" /> : null}
       <OtpravkiPageHeader
         title="Отправки"
         subtitle={

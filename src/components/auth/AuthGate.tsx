@@ -14,6 +14,7 @@ import { LogoutShiftSummary } from "@/components/auth/LogoutShiftSummary";
 import { RegisterScreen } from "@/components/auth/RegisterScreen";
 import { ShiftStartReminder } from "@/components/auth/ShiftStartReminder";
 import { usePointerDragScroll } from "@/hooks/usePointerDragScroll";
+import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
 
 /** Без логина: инструкция и скрытые гайды (только по ссылке). Остальное — после входа. */
 function isGuestPublicPath(pathname: string | null): boolean {
@@ -158,11 +159,7 @@ function AuthShell({ children }: { children: ReactNode }) {
   const showLoginOverlay = !user && !loading && guestPublic && loginOpen && !isEmbedded;
 
   if (loading && !keepMounted.current && !showBlockingLogin) {
-    return (
-      <div className="flex min-h-dvh items-center justify-center bg-gray-50 text-sm text-gray-500">
-        Загрузка…
-      </div>
-    );
+    return <StageLoadingScreen variant="fullscreen" />;
   }
 
   return (

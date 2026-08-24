@@ -276,6 +276,13 @@ function remoteCandidates(imageUrl?: string): string[] {
 
   if (raw.startsWith("/api/images/")) {
     const rest = raw.slice("/api/images/".length);
+    // uploads/products/{file} → тот же объект в Yandex
+    const uploadsMatch = rest.match(
+      /^uploads\/products\/([^/?#]+\.(?:webp|jpe?g|png|gif|avif))$/i,
+    );
+    if (uploadsMatch) {
+      addYandex(`products/products/${uploadsMatch[1]}`);
+    }
     const base = (process.env.PRODUCTS_API_URL ?? "https://api.cashercollection.com").replace(
       /\/$/,
       "",

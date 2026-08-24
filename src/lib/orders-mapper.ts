@@ -44,14 +44,23 @@ function resolveSizeId(product: ApiProduct | undefined, size: string): number | 
 function buildProductIndex(products: ApiProduct[]): Map<string, ApiProduct> {
   const index = new Map<string, ApiProduct>();
   for (const product of products) {
-    if (!product.slug) continue;
-    index.set(product.slug, product);
-    index.set(product.slug.toLowerCase(), product);
+    if (product.slug) {
+      index.set(product.slug, product);
+      index.set(product.slug.toLowerCase(), product);
+    }
+    // В заказах иногда приходит пустой slug → fallback `product-{id}` (см. orders-api).
+    if (product.id != null && String(product.id).trim()) {
+      const id = String(product.id).trim();
+      index.set(id, product);
+      index.set(`product-${id}`, product);
+      index.set(`product-${id}`.toLowerCase(), product);
+    }
   }
   return index;
 }
 
 function findProduct(index: Map<string, ApiProduct>, slug: string): ApiProduct | undefined {
+  if (!slug) return undefined;
   return index.get(slug) ?? index.get(slug.toLowerCase());
 }
 
