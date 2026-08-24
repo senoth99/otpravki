@@ -62,7 +62,7 @@ export function StageLoadingScreen({
         </p>
         <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-gray-100">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-amber-400 transition-[width] duration-200 ease-out"
+            className="h-full rounded-full bg-gray-900 transition-[width] duration-200 ease-out"
             style={{ width: `${value}%` }}
           />
         </div>
