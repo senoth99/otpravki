@@ -121,17 +121,34 @@ export function GuidesShell({
 
   return (
     <GuidesLockProvider guides={guides} onGuideLocked={onGuideLocked}>
-      <div className="otpravki-shell flex h-dvh max-h-dvh w-full overflow-hidden bg-gray-50">
+      <div className="otpravki-shell relative flex h-dvh max-h-dvh w-full overflow-hidden bg-gray-50">
+      {/* Мобильный оверлей поверх статьи */}
+      {sidebarOpen ? (
+        <button
+          type="button"
+          aria-label="Закрыть меню"
+          className="absolute inset-0 z-20 bg-black/30 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      ) : null}
+
       <aside
-        className={`flex h-full shrink-0 flex-col overflow-hidden border-r border-gray-200 bg-white transition-[width] duration-200 ease-out ${
-          sidebarOpen ? "w-[min(100%,18.5rem)]" : "w-[4.25rem]"
+        className={`absolute inset-y-0 left-0 z-30 flex h-full flex-col overflow-hidden border-r border-gray-200 bg-white transition-transform duration-200 ease-out lg:static lg:z-auto lg:translate-x-0 ${
+          sidebarOpen
+            ? "w-[min(100%,18.5rem)] translate-x-0"
+            : "w-[min(100%,18.5rem)] -translate-x-full lg:w-[4.25rem] lg:translate-x-0"
         }`}
       >
         <div
           className={`safe-top flex shrink-0 items-center ${
-            sidebarOpen ? "justify-end px-3 py-3" : "justify-center px-2 py-3"
+            sidebarOpen ? "justify-between px-3 py-3" : "justify-center px-2 py-3"
           }`}
         >
+          {sidebarOpen ? (
+            <p className="text-sm font-semibold text-gray-900">Гайды</p>
+          ) : (
+            <span className="sr-only">Гайды</span>
+          )}
           <button
             type="button"
             onClick={() => setSidebarOpen((open) => !open)}
@@ -169,7 +186,7 @@ export function GuidesShell({
             {error ? <p className="mt-2 px-1 text-xs text-red-600">{error}</p> : null}
           </form>
         ) : (
-          <div className="flex shrink-0 justify-center border-b border-gray-100 py-2">
+          <div className="hidden shrink-0 justify-center border-b border-gray-100 py-2 lg:flex">
             <button
               type="button"
               onClick={expandAndCreate}
@@ -182,7 +199,11 @@ export function GuidesShell({
           </div>
         )}
 
-        <nav className="min-h-0 flex-1 touch-scroll-y space-y-1 overflow-y-auto p-2">
+        <nav
+          className={`min-h-0 flex-1 touch-scroll-y space-y-1 overflow-y-auto p-2 ${
+            sidebarOpen ? "" : "hidden lg:block"
+          }`}
+        >
           {guides.length === 0 && sidebarOpen ? (
             <p className="px-2 py-3 text-sm text-gray-400">
               Пока пусто — плюсик справа создаёт страницу
@@ -192,7 +213,22 @@ export function GuidesShell({
         </nav>
       </aside>
 
-      <main className="min-h-0 min-w-0 flex-1 touch-scroll-y overflow-y-auto overscroll-contain">
+      <main className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col touch-scroll-y overflow-y-auto overscroll-contain">
+        {!sidebarOpen ? (
+          <div className="safe-top sticky top-0 z-10 flex shrink-0 items-center gap-2 border-b border-gray-200 bg-gray-50/95 px-3 py-2 backdrop-blur lg:hidden">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Открыть меню гайдов"
+              className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-800 active:bg-gray-50"
+            >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" d="M4 7h16M4 12h16M4 17h16" />
+              </svg>
+            </button>
+            <p className="min-w-0 truncate text-sm font-semibold text-gray-900">Гайды</p>
+          </div>
+        ) : null}
         {children}
       </main>
     </div>
