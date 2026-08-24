@@ -114,7 +114,7 @@ export function GuideArticle({ guide }: { guide: GuidePage }) {
             ) : null}
             <p className="mt-1 truncate font-mono text-xs text-gray-400">/gaidy/{guide.slug}</p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
             <GuideLockToggle slug={guide.slug} />
             <GuideQrButton slug={guide.slug} title={guide.title} />
           </div>
