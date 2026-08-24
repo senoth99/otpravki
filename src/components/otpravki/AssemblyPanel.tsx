@@ -74,7 +74,7 @@ export function AssemblyPanel({
     initialRevision,
   });
 
-  useOtpravkiNoSwipe();
+  useOtpravkiNoSwipe("tablet");
 
   // Полный pull Casher (все бренды), как в отправках — не застреваем на старом кэше.
   useEffect(() => {

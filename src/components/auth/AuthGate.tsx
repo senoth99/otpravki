@@ -137,8 +137,10 @@ function useIsEmbedded(): boolean {
 }
 
 function AuthShell({ children }: { children: ReactNode }) {
-  usePointerDragScroll();
   const pathname = usePathname();
+  const isOtpravkiMonitor =
+    pathname === "/otpravki" || Boolean(pathname?.startsWith("/otpravki/"));
+  usePointerDragScroll(isOtpravkiMonitor);
   const isEmbedded = useIsEmbedded();
   const {
     loading,

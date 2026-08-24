@@ -81,7 +81,7 @@ export function ShippingPanel({
     initialRevision,
   });
 
-  useOtpravkiNoSwipe();
+  useOtpravkiNoSwipe("monitor");
 
   // Полный pull всех брендов — не только выбранного (иначе AMMO/Кураж «пустые»).
   useEffect(() => {
@@ -160,11 +160,6 @@ export function ShippingPanel({
   const assembledOrderIds = useMemo(
     () => collectedReadyOrderIds(orders, syncedAssemblyItems),
     [orders, syncedAssemblyItems],
-  );
-
-  const assembledBrandCount = useMemo(
-    () => activeBrandOrders.filter((order) => assembledOrderIds.has(order.id)).length,
-    [activeBrandOrders, assembledOrderIds],
   );
 
   const filteredOrders = useMemo(
@@ -277,7 +272,7 @@ export function ShippingPanel({
   }, []);
 
   return (
-    <div className="otpravki-shell relative flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-gray-50 touch-pan-y overscroll-none">
+    <div className="otpravki-shell otpravki-shell-monitor relative flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-gray-50 overscroll-none">
       {reloading ? <StageLoadingScreen variant="overlay" /> : null}
       {!reloading && filterPending ? <FilterBusyOverlay /> : null}
       <OtpravkiPageHeader

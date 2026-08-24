@@ -65,12 +65,26 @@ body.otpravki-noswipe {
   touch-action: manipulation;
 }
 
+/* Отправки на сенсорном мониторе — вертикальный свайп */
+html.otpravki-monitor,
+body.otpravki-monitor {
+  overscroll-behavior: none;
+  overscroll-behavior-x: none;
+  overflow-x: hidden;
+  position: relative;
+  touch-action: pan-y;
+}
+
 .otpravki-shell {
   overscroll-behavior: none;
   /* manipulation: тапы/клики без задержки; pan только у scroll-контейнеров */
   touch-action: manipulation;
   -webkit-user-select: none;
   user-select: none;
+}
+
+.otpravki-shell-monitor {
+  touch-action: pan-y;
 }
 
 .otpravki-shell button,
