@@ -240,7 +240,10 @@ export function AssemblyPanel({
   };
 
   return (
-    <div className="otpravki-shell relative flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-gray-50 touch-pan-y overscroll-none">
+    <div
+      className="otpravki-shell relative flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-gray-50 overscroll-none"
+      data-no-drag-scroll
+    >
       {reloading ? <StageLoadingScreen variant="overlay" /> : null}
       <OtpravkiPageHeader
         title="Сборка"
@@ -264,7 +267,7 @@ export function AssemblyPanel({
             brandOptions={brandOptions}
             selectedBrand={selectedBrand}
             onBrandChange={handleBrandChange}
-            brandDisabled={reloading || isSyncing}
+            brandDisabled={reloading}
             alwaysVisible
             collapsible
             defaultExpanded={false}

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 
-const MOVE_THRESHOLD_PX = 16;
+const MOVE_THRESHOLD_PX = 24;
 
 function isScrollableY(el: HTMLElement): boolean {
   const { overflowY } = getComputedStyle(el);
@@ -24,7 +25,7 @@ function findScrollParent(start: Element | null): HTMLElement | null {
 function shouldSkipTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return true;
   // Кнопки/ссылки нельзя тащить в drag-scroll: на складских планшетах
-  // pointerType=mouse, лёгкий джиттер пальца > порога → click глушится и UI «мёртвый».
+  // pointerType=mouse, джиттер пальца → click глушится и UI «мёртвый».
   return Boolean(
     target.closest(
       'button, a, input, textarea, select, label, summary, [role="button"], [contenteditable="true"], [data-no-drag-scroll]',
@@ -32,12 +33,22 @@ function shouldSkipTarget(target: EventTarget | null): boolean {
   );
 }
 
+function pathDisablesDragScroll(pathname: string | null): boolean {
+  if (!pathname) return false;
+  // Сборка с планшета: нативный скролл + тапы. Drag-scroll только ломает клики.
+  return pathname === "/sborka" || pathname.startsWith("/sborka/");
+}
+
 /**
  * Скролл списков пальцем на складских мониторах, которые эмулируют мышь
- * (нет touch* — только pointer/mouse). На реальном touch не вмешиваемся.
+ * (нет touch* — только pointer/mouse). На реальном touch и на /sborka не вмешиваемся.
  */
 export function usePointerDragScroll() {
+  const pathname = usePathname();
+
   useEffect(() => {
+    if (pathDisablesDragScroll(pathname)) return;
+
     let session: {
       el: HTMLElement;
       pointerId: number;
@@ -54,8 +65,8 @@ export function usePointerDragScroll() {
       } catch {
         /* ignore */
       }
-      // Глушим click только после реального скролла, не после дрожи пальца.
-      if (moved && Math.abs(scrolledPx) >= 4) {
+      // Глушим click только после реального скролла.
+      if (moved && Math.abs(scrolledPx) >= 8) {
         const suppressClick = (event: Event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -72,12 +83,13 @@ export function usePointerDragScroll() {
       if (event.button !== 0) return;
       // Реальный touch/pen — браузер сам скроллит
       if (event.pointerType !== "mouse") return;
+      // Есть настоящий тачскрин — не перехватываем (планшеты часто шлют mouse+touch)
+      if (navigator.maxTouchPoints > 0) return;
       if (shouldSkipTarget(event.target)) return;
 
       const el = findScrollParent(event.target as Element | null);
       if (!el) return;
 
-      // Иначе Firefox/Chrome тащат картинку вместо скролла списка
       const target = event.target;
       if (
         target instanceof Element &&
@@ -132,5 +144,5 @@ export function usePointerDragScroll() {
       document.removeEventListener("pointercancel", onPointerUp);
       if (session) endSession(false);
     };
-  }, []);
+  }, [pathname]);
 }

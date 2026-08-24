@@ -61,15 +61,23 @@ body.otpravki-noswipe {
   overscroll-behavior-x: none;
   overflow-x: hidden;
   position: relative;
-  /* Разрешаем вертикальный pan одним пальцем по всей странице */
-  touch-action: pan-y;
+  /* Не pan-y на весь документ — на планшетах это иногда глушит click */
+  touch-action: manipulation;
 }
 
 .otpravki-shell {
   overscroll-behavior: none;
-  touch-action: pan-y;
+  /* manipulation: тапы/клики без задержки; pan только у scroll-контейнеров */
+  touch-action: manipulation;
   -webkit-user-select: none;
   user-select: none;
+}
+
+.otpravki-shell button,
+.otpravki-shell a,
+.otpravki-shell [role="button"] {
+  touch-action: manipulation;
+  cursor: pointer;
 }
 
 .otpravki-shell input,
