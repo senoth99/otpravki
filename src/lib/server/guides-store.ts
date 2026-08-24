@@ -11,12 +11,37 @@ interface GuidesFile {
 
 function isBlock(raw: unknown): raw is GuideBlock {
   if (!raw || typeof raw !== "object") return false;
-  const row = raw as { type?: unknown; text?: unknown; items?: unknown };
+  const row = raw as {
+    type?: unknown;
+    text?: unknown;
+    items?: unknown;
+    src?: unknown;
+    caption?: unknown;
+    sources?: unknown;
+    aspect?: unknown;
+  };
   if (row.type === "heading" || row.type === "lead" || row.type === "paragraph" || row.type === "note") {
     return typeof row.text === "string";
   }
   if (row.type === "bullets" || row.type === "steps") {
     return Array.isArray(row.items) && row.items.every((item) => typeof item === "string");
+  }
+  if (row.type === "video") {
+    if (typeof row.src !== "string" || !row.src.trim()) return false;
+    if (row.caption !== undefined && typeof row.caption !== "string") return false;
+    if (row.aspect !== undefined && row.aspect !== "9:16" && row.aspect !== "16:9" && row.aspect !== "auto") {
+      return false;
+    }
+    if (row.sources !== undefined) {
+      if (!Array.isArray(row.sources)) return false;
+      for (const source of row.sources) {
+        if (!source || typeof source !== "object") return false;
+        const s = source as { src?: unknown; type?: unknown };
+        if (typeof s.src !== "string" || !s.src.trim()) return false;
+        if (s.type !== undefined && typeof s.type !== "string") return false;
+      }
+    }
+    return true;
   }
   return false;
 }

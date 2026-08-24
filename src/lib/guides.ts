@@ -1,10 +1,25 @@
+export type GuideVideoSource = {
+  src: string;
+  type?: string;
+};
+
 export type GuideBlock =
   | { type: "heading"; text: string }
   | { type: "lead"; text: string }
   | { type: "paragraph"; text: string }
   | { type: "bullets"; items: string[] }
   | { type: "steps"; items: string[] }
-  | { type: "note"; text: string };
+  | { type: "note"; text: string }
+  | {
+      type: "video";
+      /** Основной src (обычно mp4) */
+      src: string;
+      caption?: string;
+      /** Доп. источники (webm и т.п.) */
+      sources?: GuideVideoSource[];
+      /** Вертикальный рилс 9:16 */
+      aspect?: "9:16" | "16:9" | "auto";
+    };
 
 export interface GuidePage {
   slug: string;

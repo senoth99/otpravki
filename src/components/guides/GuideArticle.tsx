@@ -2,6 +2,49 @@ import { GuideLockToggle } from "@/components/guides/GuideLockToggle";
 import { GuideQrButton } from "@/components/guides/GuideQrButton";
 import type { GuideBlock, GuidePage } from "@/lib/guides";
 
+function VideoBlockView({
+  block,
+}: {
+  block: Extract<GuideBlock, { type: "video" }>;
+}) {
+  const aspect = block.aspect ?? "9:16";
+  const frameClass =
+    aspect === "16:9"
+      ? "aspect-video w-full max-w-xl"
+      : aspect === "auto"
+        ? "w-full max-w-md"
+        : "aspect-[9/16] w-full max-w-[280px] sm:max-w-[320px]";
+
+  const sources =
+    block.sources && block.sources.length > 0
+      ? block.sources
+      : [{ src: block.src, type: "video/mp4" }];
+
+  return (
+    <figure className="flex flex-col items-center gap-2.5">
+      <div
+        className={`overflow-hidden rounded-[1.5rem] border border-gray-200 bg-black shadow-md ${frameClass}`}
+      >
+        <video
+          className="h-full w-full object-cover object-center"
+          controls
+          playsInline
+          preload="metadata"
+          controlsList="nodownload"
+        >
+          {sources.map((source) => (
+            <source key={source.src} src={source.src} type={source.type} />
+          ))}
+          Ваш браузер не поддерживает видео.
+        </video>
+      </div>
+      {block.caption ? (
+        <figcaption className="text-center text-xs text-gray-500">{block.caption}</figcaption>
+      ) : null}
+    </figure>
+  );
+}
+
 function BlockView({ block }: { block: GuideBlock }) {
   if (block.type === "heading") {
     return <h3 className="text-base font-bold text-gray-900">{block.text}</h3>;
@@ -36,6 +79,10 @@ function BlockView({ block }: { block: GuideBlock }) {
         ))}
       </ul>
     );
+  }
+
+  if (block.type === "video") {
+    return <VideoBlockView block={block} />;
   }
 
   return (
