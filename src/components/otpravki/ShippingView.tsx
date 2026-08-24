@@ -251,11 +251,16 @@ export function ShippingView({
           const order = orders[index];
           if (order.barcodePrinted) return false;
           if (getOrderStoreBrand(order) !== selectedBrand) return false;
-          if (!orderMatchesSearch(order, searchQuery)) return false;
           return true;
         }),
-    [orders, selectedBrand, searchQuery],
+    [orders, selectedBrand],
   );
+
+  const searchMatchIndices = useMemo(() => {
+    const q = searchQuery.trim();
+    if (!q) return activeIndices;
+    return activeIndices.filter((index) => orderMatchesSearch(orders[index], q));
+  }, [activeIndices, orders, searchQuery]);
 
   const shippableIndices = activeIndices;
 
@@ -274,6 +279,27 @@ export function ShippingView({
   const isManualConfirm = manualConfirmOrder !== null && !autoMode;
   const displayOrder = isManualConfirm ? manualConfirmOrder : currentOrder;
   const isShipped = displayOrder?.barcodePrinted ?? false;
+
+  // Поиск только прыгает к первому совпадению — список заказов не режем
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) return;
+    if (manualConfirmOrder || countdown) return;
+    if (searchMatchIndices.length === 0) return;
+    if (currentIndex >= 0 && searchMatchIndices.includes(currentIndex)) return;
+    const first = searchMatchIndices[0];
+    const order = orders[first];
+    if (!order) return;
+    queueCursorRef.current = { id: order.id, orderNumber: order.orderNumber };
+    setCurrentOrderId(order.id);
+  }, [
+    searchQuery,
+    searchMatchIndices,
+    currentIndex,
+    orders,
+    manualConfirmOrder,
+    countdown,
+  ]);
 
   const allScanned =
     displayOrder?.items.every((i) => i.scannedCount >= i.quantity) ?? false;

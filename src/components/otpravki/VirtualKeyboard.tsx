@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type KeyboardLayout = "digits" | "en" | "ru";
@@ -31,7 +31,7 @@ function KeyButton({
   return (
     <button
       type="button"
-      onPointerDown={(e) => {
+      onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
         onPress();
@@ -45,77 +45,99 @@ function KeyButton({
   );
 }
 
+type KeyHandlers = {
+  append: (char: string) => void;
+  backspace: () => void;
+  clear: () => void;
+};
+
+/** Сетка клавиш — memo, не перерисовывается при наборе текста. */
+const Keypad = memo(function Keypad({
+  layout,
+  setLayout,
+  handlersRef,
+}: {
+  layout: KeyboardLayout;
+  setLayout: (next: KeyboardLayout) => void;
+  handlersRef: React.RefObject<KeyHandlers>;
+}) {
+  const letterRows = layout === "ru" ? RU_ROWS : EN_ROWS;
+  return (
+    <>
+      <div className="flex gap-1.5">
+        {DIGITS.map((digit) => (
+          <KeyButton
+            key={digit}
+            label={digit}
+            onPress={() => handlersRef.current.append(digit)}
+            className="text-lg"
+          />
+        ))}
+      </div>
+
+      {layout !== "digits" &&
+        letterRows.map((row, rowIdx) => (
+          <div key={`${layout}-${rowIdx}`} className="flex gap-1.5">
+            {row.map((key) => (
+              <KeyButton
+                key={key}
+                label={key}
+                onPress={() => handlersRef.current.append(key)}
+              />
+            ))}
+          </div>
+        ))}
+
+      <div className="grid grid-cols-6 gap-1.5">
+        <KeyButton
+          label="123"
+          onPress={() => setLayout("digits")}
+          active={layout === "digits"}
+        />
+        <KeyButton label="ABC" onPress={() => setLayout("en")} active={layout === "en"} />
+        <KeyButton label="АБВ" onPress={() => setLayout("ru")} active={layout === "ru"} />
+        <KeyButton label="␣" onPress={() => handlersRef.current.append(" ")} />
+        <KeyButton label="⌫" onPress={() => handlersRef.current.backspace()} />
+        <KeyButton
+          label="✕"
+          onPress={() => handlersRef.current.clear()}
+          className="!text-red-700"
+        />
+      </div>
+    </>
+  );
+});
+
 interface VirtualKeyboardProps {
-  /** Стартовое значение; дальше правки идут через ref без React-ререндера */
-  initialValue: string;
-  valueRef: React.MutableRefObject<string>;
+  draft: string;
+  onDraftChange: (next: string) => void;
   onClose: () => void;
   title?: string;
-  keyboardRef?: React.RefObject<HTMLDivElement | null>;
 }
 
-/**
- * Экранная клавиатура без setState на каждый символ.
- * Иначе Chrome на складе убивает вкладку («This page couldn't be loaded»).
- */
 export function VirtualKeyboard({
-  initialValue,
-  valueRef,
+  draft,
+  onDraftChange,
   onClose,
   title = "Клавиатура",
-  keyboardRef,
 }: VirtualKeyboardProps) {
   const [layout, setLayout] = useState<KeyboardLayout>("digits");
-  const displayRef = useRef<HTMLSpanElement>(null);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
 
-  const paint = useCallback(() => {
-    const text = valueRef.current;
-    if (displayRef.current) {
-      displayRef.current.textContent = text || "…";
-      displayRef.current.classList.toggle("text-gray-400", !text);
-      displayRef.current.classList.toggle("text-gray-900", Boolean(text));
-    }
-  }, [valueRef]);
-
-  useEffect(() => {
-    valueRef.current = initialValue;
-    paint();
-  }, [initialValue, paint, valueRef]);
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  const append = useCallback(
-    (char: string) => {
-      valueRef.current += char;
-      paint();
-    },
-    [paint, valueRef],
-  );
-
-  const backspace = useCallback(() => {
-    valueRef.current = valueRef.current.slice(0, -1);
-    paint();
-  }, [paint, valueRef]);
-
-  const clear = useCallback(() => {
-    valueRef.current = "";
-    paint();
-  }, [paint, valueRef]);
-
-  const letterRows = layout === "ru" ? RU_ROWS : EN_ROWS;
+  const handlersRef = useRef<KeyHandlers>({
+    append: () => undefined,
+    backspace: () => undefined,
+    clear: () => undefined,
+  });
+  handlersRef.current = {
+    append: (char) => onDraftChange(draftRef.current + char),
+    backspace: () => onDraftChange(draftRef.current.slice(0, -1)),
+    clear: () => onDraftChange(""),
+  };
 
   return (
-    <div
-      ref={keyboardRef}
-      className="fixed inset-0 z-[80] flex flex-col justify-end"
-      data-no-drag-scroll
-    >
+    <div className="fixed inset-0 z-[80] flex flex-col justify-end" data-no-drag-scroll>
       <button
         type="button"
         aria-label="Закрыть клавиатуру"
@@ -128,10 +150,8 @@ export function VirtualKeyboard({
             <p className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wide text-gray-500">
               {title}
             </p>
-            <div className="max-w-[55%] truncate rounded-lg bg-white px-3 py-1.5 font-mono text-sm shadow-sm">
-              <span ref={displayRef} className={initialValue ? "text-gray-900" : "text-gray-400"}>
-                {initialValue || "…"}
-              </span>
+            <div className="max-w-[55%] truncate rounded-lg bg-white px-3 py-1.5 font-mono text-sm text-gray-900 shadow-sm">
+              {draft || <span className="text-gray-400">…</span>}
             </div>
             <button
               type="button"
@@ -142,33 +162,7 @@ export function VirtualKeyboard({
             </button>
           </div>
 
-          <div className="flex gap-1.5">
-            {DIGITS.map((digit) => (
-              <KeyButton key={digit} label={digit} onPress={() => append(digit)} className="text-lg" />
-            ))}
-          </div>
-
-          {layout !== "digits" &&
-            letterRows.map((row, rowIdx) => (
-              <div key={`${layout}-${rowIdx}`} className="flex gap-1.5">
-                {row.map((key) => (
-                  <KeyButton key={key} label={key} onPress={() => append(key)} />
-                ))}
-              </div>
-            ))}
-
-          <div className="grid grid-cols-6 gap-1.5">
-            <KeyButton
-              label="123"
-              onPress={() => setLayout("digits")}
-              active={layout === "digits"}
-            />
-            <KeyButton label="ABC" onPress={() => setLayout("en")} active={layout === "en"} />
-            <KeyButton label="АБВ" onPress={() => setLayout("ru")} active={layout === "ru"} />
-            <KeyButton label="␣" onPress={() => append(" ")} />
-            <KeyButton label="⌫" onPress={backspace} />
-            <KeyButton label="✕" onPress={clear} className="!text-red-700" />
-          </div>
+          <Keypad layout={layout} setLayout={setLayout} handlersRef={handlersRef} />
         </div>
       </div>
     </div>
@@ -182,9 +176,7 @@ interface KeyboardFieldProps {
   disabled?: boolean;
   className?: string;
   title?: string;
-  /** @deprecated оставлен для совместимости */
   debounceMs?: number;
-  /** Применить значение только по Готово / закрытию */
   applyOnCloseOnly?: boolean;
 }
 
@@ -199,9 +191,7 @@ export function KeyboardField({
 }: KeyboardFieldProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const keyboardRef = useRef<HTMLDivElement>(null);
-  const draftRef = useRef(value);
+  const [draft, setDraft] = useState(value);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
@@ -210,46 +200,32 @@ export function KeyboardField({
   }, []);
 
   useEffect(() => {
-    if (!open) draftRef.current = value;
+    if (!open) setDraft(value);
   }, [value, open]);
 
   const closeAndCommit = useCallback(() => {
-    const next = draftRef.current;
     setOpen(false);
-    if (next !== value) onChangeRef.current(next);
-  }, [value]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointer = (event: PointerEvent) => {
-      const target = event.target as Node | null;
-      if (!target) return;
-      if (wrapRef.current?.contains(target)) return;
-      if (keyboardRef.current?.contains(target)) return;
-      closeAndCommit();
-    };
-    document.addEventListener("pointerdown", onPointer);
-    return () => document.removeEventListener("pointerdown", onPointer);
-  }, [open, closeAndCommit]);
+    onChangeRef.current(draft);
+  }, [draft]);
 
   return (
-    <div ref={wrapRef} className="relative">
+    <div className="relative">
       <input
         type="text"
         inputMode="none"
         readOnly
-        value={value}
+        value={open ? draft : value}
         disabled={disabled}
         placeholder={placeholder}
         onFocus={() => {
           if (!disabled) {
-            draftRef.current = value;
+            setDraft(value);
             setOpen(true);
           }
         }}
         onClick={() => {
           if (!disabled) {
-            draftRef.current = value;
+            setDraft(value);
             setOpen(true);
           }
         }}
@@ -260,11 +236,10 @@ export function KeyboardField({
         mounted &&
         createPortal(
           <VirtualKeyboard
-            initialValue={value}
-            valueRef={draftRef}
+            draft={draft}
+            onDraftChange={setDraft}
             onClose={closeAndCommit}
             title={title}
-            keyboardRef={keyboardRef}
           />,
           document.body,
         )}
