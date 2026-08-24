@@ -196,6 +196,18 @@ async function forceDarkOnWhite(buf: Buffer): Promise<Buffer> {
   return flat;
 }
 
+async function trimWhiteMargins(png: Buffer): Promise<Buffer> {
+  try {
+    // Убираем пустые поля — иначе логотип на этикетке выглядит мелко в «воздухе».
+    return await sharp(png)
+      .trim({ threshold: 18, background: { r: 255, g: 255, b: 255, alpha: 1 } })
+      .png({ compressionLevel: 8 })
+      .toBuffer();
+  } catch {
+    return png;
+  }
+}
+
 async function toPrintablePng(buf: Buffer): Promise<Buffer | null> {
   try {
     // Только первый кадр GIF/APNG — иначе sharp склеивает все кадры в длинную полосу
@@ -204,7 +216,7 @@ async function toPrintablePng(buf: Buffer): Promise<Buffer | null> {
       .resize({ width: 900, height: 900, fit: "inside", withoutEnlargement: false })
       .png()
       .toBuffer();
-    return await forceDarkOnWhite(frame);
+    return await trimWhiteMargins(await forceDarkOnWhite(frame));
   } catch {
     try {
       const frame = await sharp(buf)
@@ -212,7 +224,7 @@ async function toPrintablePng(buf: Buffer): Promise<Buffer | null> {
         .resize({ width: 900, height: 900, fit: "inside" })
         .png()
         .toBuffer();
-      return await forceDarkOnWhite(frame);
+      return await trimWhiteMargins(await forceDarkOnWhite(frame));
     } catch {
       return null;
     }

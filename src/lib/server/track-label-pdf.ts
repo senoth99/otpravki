@@ -594,8 +594,10 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
 
   const brand = brandDisplayName(input.brand);
   const brandId = boxLabelBrandIdFromStoreBrand(input.brand);
-  const logoMaxH = 26;
-  const logoMaxW = PAGE_W - MARGIN * 2;
+  // Шапка: средний логотип по центру, без «воздуха» по краям и без налоза на зоны ниже.
+  const contentW = PAGE_W - MARGIN * 2;
+  const logoMaxH = 34;
+  const logoMaxW = contentW * 0.58;
   let brandBottomY = PAGE_H - MARGIN - 18;
 
   let logoDrawn = false;
@@ -603,10 +605,12 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
     try {
       const logo = await getBrandSiteLogo(brandId);
       const logoImage = await pdf.embedPng(logo.png);
-      const scale = Math.min(logoMaxW / logoImage.width, logoMaxH / logoImage.height, 1);
+      // Разрешаем лёгкий апскейл мелких иконок, но жёстко держим в рамке шапки.
+      const scale = Math.min(logoMaxW / logoImage.width, logoMaxH / logoImage.height, 1.4);
       const logoW = logoImage.width * scale;
       const logoH = logoImage.height * scale;
-      const logoY = PAGE_H - MARGIN - logoH;
+      const logoTopGap = 2;
+      const logoY = PAGE_H - MARGIN - logoTopGap - logoH;
       page.drawImage(logoImage, {
         x: (PAGE_W - logoW) / 2,
         y: logoY,
@@ -621,13 +625,13 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
   }
 
   if (!logoDrawn) {
-    const brandSize = 18;
+    const brandSize = 16;
     const brandY = PAGE_H - MARGIN - brandSize;
     drawCenteredText(page, bold, brand, brandSize, brandY);
     brandBottomY = brandY;
   }
 
-  const ruleY = brandBottomY - 4;
+  const ruleY = brandBottomY - 5;
   page.drawRectangle({
     x: MARGIN,
     y: ruleY,
