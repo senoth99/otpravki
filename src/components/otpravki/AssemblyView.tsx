@@ -20,6 +20,10 @@ interface AssemblyViewProps {
   orders: ShippingOrder[];
   onItemsChange: (items: AssemblyItem[]) => void;
   warehouseMap?: WarehouseMapConfig;
+  /** Есть что обнулять по всем брендам */
+  canResetCollected?: boolean;
+  resetCollectedBusy?: boolean;
+  onResetCollected?: () => void;
 }
 
 function totalUnits(sections: AssemblyViewSections) {
@@ -42,6 +46,9 @@ export function AssemblyView({
   orders,
   onItemsChange,
   warehouseMap,
+  canResetCollected = false,
+  resetCollectedBusy = false,
+  onResetCollected,
 }: AssemblyViewProps) {
   const visibleItems = [...sections.pending, ...sections.completed];
   const [autoMode, setAutoMode] = useState(false);
@@ -273,27 +280,42 @@ export function AssemblyView({
                 : "Сканируйте штрихкод или отмечайте вручную"}
             </p>
           </div>
-          {!isEmpty && (
-            <div className="flex items-center gap-2 self-start">
-              <button
-                type="button"
-                onClick={() => setScannerOpen(true)}
-                disabled={!canScan}
-                className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 active:bg-gray-50 disabled:opacity-40"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                  />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                Сканер
-              </button>
-              <div className="rounded-xl bg-gray-100 px-4 py-2 text-sm font-semibold tabular-nums text-gray-700">
-                {collectedUnits(sections)} / {totalUnits(sections)}
-              </div>
+          {(canResetCollected || !isEmpty) && (
+            <div className="flex flex-wrap items-center gap-2 self-start">
+              {canResetCollected && onResetCollected ? (
+                <button
+                  type="button"
+                  data-no-drag-scroll
+                  onClick={onResetCollected}
+                  disabled={resetCollectedBusy}
+                  className="inline-flex min-h-11 touch-manipulation items-center rounded-xl border border-red-200 bg-white px-4 text-sm font-medium text-red-700 active:bg-red-50 disabled:opacity-40"
+                >
+                  {resetCollectedBusy ? "Обнуляю…" : "Обнулить собранные"}
+                </button>
+              ) : null}
+              {!isEmpty ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setScannerOpen(true)}
+                    disabled={!canScan}
+                    className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 active:bg-gray-50 disabled:opacity-40"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                      />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    Сканер
+                  </button>
+                  <div className="rounded-xl bg-gray-100 px-4 py-2 text-sm font-semibold tabular-nums text-gray-700">
+                    {collectedUnits(sections)} / {totalUnits(sections)}
+                  </div>
+                </>
+              ) : null}
             </div>
           )}
         </div>

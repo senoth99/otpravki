@@ -56,6 +56,7 @@ export function AssemblyPanel({
   const [reloading, setReloading] = useState(false);
   const [filterPending, startFilterTransition] = useTransition();
   const [progress, setProgress] = useState<AssemblyProgressState | null>(null);
+  const [resetCollectedBusy, setResetCollectedBusy] = useState(false);
   const progressRef = useRef(progress);
   progressRef.current = progress;
 
@@ -253,6 +254,46 @@ export function AssemblyPanel({
     });
   };
 
+  const canResetCollected = useMemo(() => {
+    if (Object.values(progress?.items ?? {}).some((entry) => entry.collectedCount > 0)) {
+      return true;
+    }
+    return syncedAssemblyItems.some((item) => item.collectedCount > 0);
+  }, [progress, syncedAssemblyItems]);
+
+  const handleResetCollected = () => {
+    if (resetCollectedBusy || !canResetCollected) return;
+    const ok = window.confirm(
+      "Обнулить все отметки «собрано» по всем брендам? Заказы в отправках снова скроются, пока их не соберут заново.",
+    );
+    if (!ok) return;
+
+    const ids = new Set<string>();
+    for (const [id, entry] of Object.entries(progress?.items ?? {})) {
+      if (entry.collectedCount > 0) ids.add(id);
+    }
+    for (const item of syncedAssemblyItems) {
+      if (item.collectedCount > 0) ids.add(item.id);
+    }
+    if (ids.size === 0) return;
+
+    const patch = [...ids].map((id) => ({ id, collectedCount: 0 }));
+    noteClientAction(`sborka:reset-collected:${patch.length}`);
+    setResetCollectedBusy(true);
+    setProgress((current) => ({
+      revision: current?.revision ?? 0,
+      updatedAt: Date.now(),
+      updatedBy: "local",
+      items: {},
+    }));
+
+    void pushAssemblyProgress(patch)
+      .then((remote) => {
+        if (remote) setProgress(remote);
+      })
+      .finally(() => setResetCollectedBusy(false));
+  };
+
   return (
     <div
       className="otpravki-shell relative flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-gray-50 overscroll-none"
@@ -298,6 +339,9 @@ export function AssemblyPanel({
             orders={filteredOrders}
             onItemsChange={handleFilteredAssemblyChange}
             warehouseMap={warehouseMap}
+            canResetCollected={canResetCollected}
+            resetCollectedBusy={resetCollectedBusy}
+            onResetCollected={handleResetCollected}
           />
         </main>
       </div>
