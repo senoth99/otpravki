@@ -56,12 +56,14 @@ export function mergeFreshOrdersData(
     const archived = archiveById.get(order.id);
 
     // Отправленные не воскрешаем — API может ещё отдавать заказ с лагом.
-    if (archived?.barcodePrinted || prev?.barcodePrinted) {
+    // Но если в сессии заказ уже снова active (отмена отправки) — не прячем.
+    const sessionLive = prev && !prev.barcodePrinted;
+    if ((archived?.barcodePrinted || prev?.barcodePrinted) && !sessionLive) {
       continue;
     }
+    if (archived) archiveById.delete(order.id);
 
-    archiveById.delete(order.id);
-    activeOrders.push(prev ? mergeOrderProgress(prev, order) : order);
+    activeOrders.push(prev && !prev.barcodePrinted ? mergeOrderProgress(prev, order) : order);
   }
 
   const shippedArchive = unionPermanentArchive(

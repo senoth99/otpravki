@@ -11,7 +11,7 @@ import {
   ORDERS_API_REFRESH_AFTER_SHIP_MS,
 } from "@/lib/orders-sync";
 import { checkServerReachable, subscribeServerReachability } from "@/lib/server-reachability";
-import { persistSessionProgress, persistShippedOrders } from "@/lib/archive-api";
+import { persistSessionProgress, persistShippedOrders, removeShippedOrdersFromArchive } from "@/lib/archive-api";
 import { reportClientError } from "@/lib/client-diag";
 import {
   createWorkspace,
@@ -291,7 +291,7 @@ export function useWorkspace({
   const apiSet = useMemo(() => new Set(apiOrderIds), [apiOrderIds]);
 
   const unshipFromArchive = useCallback(
-    (orderId: string): { ok: true } | { ok: false; error: string } => {
+    async (orderId: string): Promise<{ ok: true } | { ok: false; error: string }> => {
       if (!canUnshipFromArchive(orderId, apiSet)) {
         return { ok: false, error: "Заказ уже отправлен в СДЭК — отменить нельзя" };
       }
@@ -302,6 +302,11 @@ export function useWorkspace({
 
       if (!archived) {
         return { ok: false, error: "Заказ не найден в архиве" };
+      }
+
+      const removed = await removeShippedOrdersFromArchive([orderId]);
+      if (!removed) {
+        return { ok: false, error: "Не удалось убрать заказ из архива на сервере" };
       }
 
       const unshipped: ShippingOrder = {
@@ -318,22 +323,26 @@ export function useWorkspace({
       shippedArchiveRef.current = shippedArchiveRef.current.filter((order) => order.id !== orderId);
       setShippedArchive([...shippedArchiveRef.current]);
 
+      const prevOrders = [
+        ...ordersRef.current.filter((order) => order.id !== orderId),
+        { ...archived, barcodePrinted: true },
+      ];
       const nextOrders = [
         ...ordersRef.current.filter((order) => order.id !== orderId),
         unshipped,
       ];
 
-      const prevOrders = ordersRef.current;
       const assembly = reconcileAssemblyChanges(prevOrders, nextOrders, assemblyRef.current);
       ordersRef.current = nextOrders;
       assemblyRef.current = assembly;
       setOrders(nextOrders);
       setAssemblyItems(assembly);
       persist(assembly, nextOrders);
+      void refreshFromApi(undefined, { silent: true });
 
       return { ok: true };
     },
-    [apiSet, persist],
+    [apiSet, persist, refreshFromApi],
   );
 
   return {

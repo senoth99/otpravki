@@ -18,7 +18,12 @@ interface ArchiveViewProps {
   orders: ShippingOrder[];
   shippedArchive?: ShippingOrder[];
   apiOrderIds: string[];
-  onUnship?: (orderId: string) => { ok: true } | { ok: false; error: string };
+  onUnship?: (
+    orderId: string,
+  ) =>
+    | { ok: true }
+    | { ok: false; error: string }
+    | Promise<{ ok: true } | { ok: false; error: string }>;
   /** Гость: только просмотр, без отмены/перепечати */
   readOnly?: boolean;
   onRequestLogin?: () => void;
@@ -101,7 +106,7 @@ export function ArchiveView({
     (order) => getArchiveDeliveryStatus(order.id, apiSet) === "in-transit",
   ).length;
 
-  const handleUnship = (order: ShippingOrder) => {
+  const handleUnship = async (order: ShippingOrder) => {
     if (readOnly) {
       onRequestLogin?.();
       return;
@@ -119,11 +124,13 @@ export function ArchiveView({
 
     setUnshipError(null);
     setUnshippingId(order.id);
-    const result = onUnship(order.id);
-    setUnshippingId(null);
-
-    if (!result.ok) {
-      setUnshipError(result.error);
+    try {
+      const result = await onUnship(order.id);
+      if (!result.ok) {
+        setUnshipError(result.error);
+      }
+    } finally {
+      setUnshippingId(null);
     }
   };
 

@@ -4,7 +4,7 @@ import { newlyShippedOrders, reconcileAssemblyChanges, assemblyProgressPatchForS
 import { mergeShippedArchives, normalizeWorkspaceState } from "@/lib/shipped-archive";
 import { mergeWorkspaces } from "@/lib/workspace-merge";
 import type { WorkspaceData } from "@/lib/build-workspace";
-import { mergePersistedArchive } from "@/lib/server/shipped-archive-store";
+import { mergePersistedArchive, removePersistedArchiveOrders } from "@/lib/server/shipped-archive-store";
 import {
   applySessionProgress,
   loadSessionProgress,
@@ -228,9 +228,54 @@ export function persistAndReplaceArchive(incoming: ShippingOrder[]): Promise<Shi
   });
 }
 
+/** Отмена отправки: убрать заказы из постоянного архива (диск + сессия) */
+export function unshipOrdersFromArchive(orderIds: string[]): Promise<{
+  removed: string[];
+  archiveCount: number;
+  revision: number;
+}> {
+  return enqueueWorkspaceUpdate(async () => {
+    const ids = [...new Set(orderIds.filter(Boolean))];
+    const archive = await removePersistedArchiveOrders(ids);
+    if (memoryState) {
+      const idSet = new Set(ids);
+      const prev = memoryState;
+      memoryState = withoutAssemblyProgress(
+        normalizeWorkspaceState({
+          ...prev,
+          shippedArchive: (prev.shippedArchive ?? []).filter((order) => !idSet.has(order.id)),
+          revision: prev.revision + 1,
+          updatedAt: Date.now(),
+          updatedBy: "archive-unship",
+        }),
+      );
+      await saveSessionProgress(memoryState);
+      broadcast(memoryState);
+    }
+    return {
+      removed: ids,
+      archiveCount: archive.length,
+      revision: memoryState?.revision ?? 0,
+    };
+  });
+}
+
 /** Свежие заказы с API + архив + сохранённый прогресс сборки/сканов */
 async function replaceWorkspaceFromApiInner(fresh: WorkspaceData): Promise<SharedWorkspaceState> {
   let shippedArchive = memoryState?.shippedArchive ?? [];
+  // Заказы, которые в сессии снова active после отмены отправки, вычищаем из диска.
+  const sessionLiveIds = (memoryState?.orders ?? [])
+    .filter((order) => !order.barcodePrinted)
+    .map((order) => order.id);
+  if (sessionLiveIds.length > 0) {
+    try {
+      await removePersistedArchiveOrders(sessionLiveIds);
+      const liveSet = new Set(sessionLiveIds);
+      shippedArchive = shippedArchive.filter((order) => !liveSet.has(order.id));
+    } catch {
+      // диск недоступен — ниже merge всё равно попробуем
+    }
+  }
   try {
     shippedArchive = await mergePersistedArchive(shippedArchive);
   } catch {
@@ -277,6 +322,18 @@ async function replaceWorkspaceFromApiForBrandInner(
   fresh: WorkspaceData,
 ): Promise<SharedWorkspaceState> {
   let shippedArchive = memoryState?.shippedArchive ?? [];
+  const sessionLiveIds = (memoryState?.orders ?? [])
+    .filter((order) => !order.barcodePrinted)
+    .map((order) => order.id);
+  if (sessionLiveIds.length > 0) {
+    try {
+      await removePersistedArchiveOrders(sessionLiveIds);
+      const liveSet = new Set(sessionLiveIds);
+      shippedArchive = shippedArchive.filter((order) => !liveSet.has(order.id));
+    } catch {
+      // ignore
+    }
+  }
   try {
     shippedArchive = await mergePersistedArchive(shippedArchive);
   } catch {
@@ -359,9 +416,16 @@ async function applyWorkspaceUpdateInner(
     resetToken: current?.resetToken,
   });
 
-  next.shippedArchive = await mergePersistedArchive(next.shippedArchive ?? []);
-  const activeIds = new Set(next.orders.map((order) => order.id));
-  next.shippedArchive = next.shippedArchive.filter((order) => !activeIds.has(order.id));
+  const activeIds = next.orders.map((order) => order.id);
+  const activeIdSet = new Set(activeIds);
+  const sessionArchive = (next.shippedArchive ?? []).filter((order) => !activeIdSet.has(order.id));
+  // Отмена отправки: заказ снова active — вычистить из постоянного архива на диске,
+  // иначе API refresh снова спрячет его и позиции не вернутся в сборку.
+  if (activeIds.length > 0) {
+    await removePersistedArchiveOrders(activeIds);
+  }
+  next.shippedArchive = await mergePersistedArchive(sessionArchive);
+  next.shippedArchive = next.shippedArchive.filter((order) => !activeIdSet.has(order.id));
 
   await saveSessionProgress(next);
   memoryState = withoutAssemblyProgress(next);

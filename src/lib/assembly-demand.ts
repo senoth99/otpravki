@@ -217,6 +217,45 @@ export function restoreAssemblyForOrder(
   });
 }
 
+/**
+ * После отмены отправки снова показывает позиции в сборке.
+ * Не восстанавливает «собрано» — заказ нужно собрать заново.
+ */
+export function ensureAssemblyItemsForOrder(
+  assemblyItems: AssemblyItem[],
+  order: ShippingOrder,
+): AssemblyItem[] {
+  if (order.barcodePrinted || order.items.length === 0) return assemblyItems;
+
+  const isBlogger = orderIsBlogger(order);
+  const byId = new Map(assemblyItems.map((item) => [item.id, item]));
+  const next = [...assemblyItems];
+  let changed = false;
+
+  for (const line of order.items) {
+    const id = assemblyItemIdFromOrderLine(order, line);
+    if (byId.has(id)) continue;
+    changed = true;
+    const item: AssemblyItem = {
+      id,
+      productId: line.productId,
+      productName: line.productName,
+      size: line.size,
+      sizeId: line.sizeId,
+      brand: (line.brand || order.storeBrand || "CASHER").trim() || "CASHER",
+      imageUrl: line.imageUrl,
+      barcodeId: line.barcodeId || String(line.sizeId),
+      quantity: line.quantity,
+      collectedCount: 0,
+      isBlogger,
+    };
+    byId.set(id, item);
+    next.push(item);
+  }
+
+  return changed ? next : assemblyItems;
+}
+
 export function reconcileAssemblyOnShip(
   prevOrders: ShippingOrder[],
   nextOrders: ShippingOrder[],
@@ -245,7 +284,8 @@ export function reconcileAssemblyChanges(
   for (const [orderId, prevOrder] of prevShipped) {
     const next = nextOrders.find((order) => order.id === orderId);
     if (next && !next.barcodePrinted) {
-      items = restoreAssemblyForOrder(items, prevOrder);
+      // Позиции снова в очереди; «собрано» не возвращаем — собирать заново.
+      items = ensureAssemblyItemsForOrder(items, next);
     }
   }
 

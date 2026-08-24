@@ -113,3 +113,13 @@ export async function mergePersistedArchive(...sources: ShippingOrder[][]): Prom
   if (merged.length === 0) return persisted;
   return savePersistedArchive(merged);
 }
+
+/** Убрать заказы из постоянного архива (отмена отправки) */
+export async function removePersistedArchiveOrders(orderIds: string[]): Promise<ShippingOrder[]> {
+  const remove = new Set(orderIds.filter(Boolean));
+  if (remove.size === 0) return loadPersistedArchive();
+  const persisted = await loadPersistedArchive();
+  const next = persisted.filter((order) => !remove.has(order.id));
+  if (next.length === persisted.length) return persisted;
+  return savePersistedArchive(next);
+}
