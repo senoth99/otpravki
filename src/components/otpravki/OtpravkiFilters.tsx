@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import { noteClientAction } from "@/lib/client-diag";
 import { isRushUrgency, resolveOrderUrgency, URGENCY_LABELS } from "@/lib/urgency";
@@ -299,12 +299,26 @@ function Chip({
   disabled?: boolean;
   className?: string;
 }) {
+  const lastAt = useRef(0);
+  const run = () => {
+    if (disabled) return;
+    const now = Date.now();
+    if (now - lastAt.current < 350) return;
+    lastAt.current = now;
+    onClick();
+  };
+
   return (
     <button
       type="button"
-      onClick={onClick}
       disabled={disabled}
-      className={`inline-flex min-h-11 w-full items-center justify-center rounded-xl px-3 text-center text-sm font-medium transition-colors active:scale-[0.98] disabled:opacity-60 ${
+      onPointerUp={(event) => {
+        if (event.pointerType === "mouse" && event.button !== 0) return;
+        event.preventDefault();
+        run();
+      }}
+      onClick={run}
+      className={`inline-flex min-h-11 w-full touch-manipulation items-center justify-center rounded-xl px-3 text-center text-sm font-medium transition-colors active:scale-[0.98] disabled:opacity-60 ${
         active
           ? "bg-gray-900 text-white"
           : "bg-gray-100 text-gray-700 active:bg-gray-200"
@@ -625,6 +639,7 @@ export function OtpravkiMobileFilters({
 }) {
   const [productsOpen, setProductsOpen] = useState(false);
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const expandTapAt = useRef(0);
   const set = <K extends keyof OtpravkiFiltersState>(key: K, value: OtpravkiFiltersState[K]) => {
     onChange({ ...filters, [key]: value });
   };
@@ -744,7 +759,20 @@ export function OtpravkiMobileFilters({
           <button
             type="button"
             data-no-drag-scroll
-            onClick={() => setExpanded((open) => !open)}
+            onPointerUp={(event) => {
+              if (event.pointerType === "mouse" && event.button !== 0) return;
+              event.preventDefault();
+              const now = Date.now();
+              if (now - expandTapAt.current < 350) return;
+              expandTapAt.current = now;
+              setExpanded((open) => !open);
+            }}
+            onClick={() => {
+              const now = Date.now();
+              if (now - expandTapAt.current < 350) return;
+              expandTapAt.current = now;
+              setExpanded((open) => !open);
+            }}
             className="inline-flex min-h-12 w-full touch-manipulation items-center justify-between rounded-2xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-900 active:bg-gray-50"
           >
             <span>

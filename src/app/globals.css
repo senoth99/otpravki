@@ -96,6 +96,25 @@ body.otpravki-noswipe {
   overscroll-behavior-y: contain;
 }
 
+/**
+ * Сборка на планшете: pan-y на родителе + кнопка = intersection pan-y,
+ * из‑за чего тап часто не даёт click. manipulation сохраняет тапы и скролл.
+ */
+.sborka-scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: manipulation;
+}
+
+.sborka-scroll button,
+.sborka-scroll a,
+.sborka-scroll [role="button"] {
+  touch-action: manipulation;
+  cursor: pointer;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.08);
+}
+
 /* Drag-scroll на мониторах с эмуляцией мыши */
 .is-drag-scrolling {
   cursor: grabbing;

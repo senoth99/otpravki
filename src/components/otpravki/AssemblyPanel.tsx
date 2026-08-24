@@ -277,7 +277,7 @@ export function AssemblyPanel({
       </OtpravkiPageHeader>
 
       <div className="flex min-h-0 flex-1 overflow-hidden p-3 sm:p-4">
-        <main className="min-h-0 min-w-0 flex-1 touch-scroll-y overflow-y-auto overscroll-contain rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-5">
+        <main className="sborka-scroll min-h-0 min-w-0 flex-1 overscroll-contain rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-5">
           <AssemblyView
             sections={assemblySections}
             allItems={filteredAssemblyItems}
