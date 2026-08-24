@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { extrasForProductIds, type AssemblyExtra } from "@/lib/assembly-extras";
+import { getStoreBrand } from "@/lib/store-brand";
 import type { ShippingOrder } from "@/types/shipping";
 
 function ExtraInfoButton({
@@ -34,7 +35,11 @@ export function OrderExtrasHint({
 }) {
   const [preview, setPreview] = useState<AssemblyExtra | null>(null);
   const productIds = order.items.map((item) => item.productId);
-  const relevant = extrasForProductIds(extras, productIds);
+  const orderBrand = getStoreBrand(order.storeBrand);
+  const relevant = extrasForProductIds(
+    extras.filter((extra) => extra.brand === orderBrand),
+    productIds,
+  );
   if (relevant.length === 0) return null;
 
   const nameById = new Map(order.items.map((item) => [item.productId, item.productName]));

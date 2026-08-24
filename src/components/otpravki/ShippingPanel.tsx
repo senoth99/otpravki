@@ -17,6 +17,7 @@ import {
   type AssemblyProgressState,
 } from "@/lib/assembly-progress";
 import { collectedReadyOrderIds } from "@/lib/assembly-status";
+import { ALL_BRANDS, formatBrandLabel, getStoreBrand, matchesStoreBrand } from "@/lib/store-brand";
 import type { AssemblyItem, ShippingOrder, ShippingTab } from "@/types/shipping";
 import { ArchiveView } from "./ArchiveView";
 import {
@@ -42,7 +43,7 @@ interface ShippingPanelProps {
 const KNOWN_BRANDS = ["CASHER", "SHECASH", "AMMO", "KURAZHDVIZH"] as const;
 
 function getOrderStoreBrand(order: ShippingOrder): string {
-  return order.storeBrand?.trim() || "CASHER";
+  return getStoreBrand(order.storeBrand);
 }
 
 export function ShippingPanel({
@@ -54,7 +55,7 @@ export function ShippingPanel({
 }: ShippingPanelProps) {
   const { user, loading } = useAuth();
   const [tab, setTab] = useState<ShippingTab>("shipping");
-  const [selectedBrand, setSelectedBrand] = useState<string>(KNOWN_BRANDS[0]);
+  const [selectedBrand, setSelectedBrand] = useState<string>(ALL_BRANDS);
   const [filters, setFilters] = useState<OtpravkiFiltersState>(DEFAULT_FILTERS);
   const [reloading, setReloading] = useState(false);
   const [filterPending, startFilterTransition] = useTransition();
@@ -138,7 +139,7 @@ export function ShippingPanel({
   }, [loading, user]);
 
   const brandOrders = useMemo(
-    () => orders.filter((order) => getOrderStoreBrand(order) === selectedBrand),
+    () => orders.filter((order) => matchesStoreBrand(order.storeBrand, selectedBrand)),
     [orders, selectedBrand],
   );
 
@@ -194,7 +195,7 @@ export function ShippingPanel({
 
   const filteredAssemblyItems = useMemo(
     () =>
-      syncedAssemblyItems.filter((item) => (item.brand?.trim() || "CASHER") === selectedBrand),
+      syncedAssemblyItems.filter((item) => matchesStoreBrand(item.brand, selectedBrand)),
     [syncedAssemblyItems, selectedBrand],
   );
 
@@ -206,7 +207,7 @@ export function ShippingPanel({
     const nextById = new Map(resolved.map((order) => [order.id, order]));
     updateOrders(
       orders.map((order) => {
-        if (getOrderStoreBrand(order) !== selectedBrand) return order;
+        if (!matchesStoreBrand(order.storeBrand, selectedBrand)) return order;
         return nextById.get(order.id) ?? order;
       }),
     );
@@ -215,7 +216,11 @@ export function ShippingPanel({
   const brandOptions = useMemo(
     () =>
       Array.from(
-        new Set([...KNOWN_BRANDS, ...orders.map((order) => order.storeBrand?.trim() || "CASHER")]),
+        new Set([
+          ALL_BRANDS,
+          ...KNOWN_BRANDS,
+          ...orders.map((order) => getOrderStoreBrand(order)),
+        ]),
       ),
     [orders],
   );
@@ -279,10 +284,10 @@ export function ShippingPanel({
         title="Отправки"
         subtitle={
           tab === "archive"
-            ? `${shippedArchive.filter((order) => getOrderStoreBrand(order) === selectedBrand).length} в архиве · ${selectedBrand}`
+            ? `${shippedArchive.filter((order) => matchesStoreBrand(order.storeBrand, selectedBrand)).length} в архиве · ${formatBrandLabel(selectedBrand)}`
             : filters.fromAssembly
-              ? `${filteredOrders.length} со сборки · ${selectedBrand}`
-              : `${filteredOrders.length} готовы · ${notReadyCount} ждут склад · ${selectedBrand}`
+              ? `${filteredOrders.length} со сборки · ${formatBrandLabel(selectedBrand)}`
+              : `${filteredOrders.length} готовы · ${notReadyCount} ждут склад · ${formatBrandLabel(selectedBrand)}`
         }
         onRefresh={() => {
           setReloading(true);
@@ -341,7 +346,7 @@ export function ShippingPanel({
             <ArchiveView
               orders={filteredOrders}
               shippedArchive={shippedArchive.filter(
-                (order) => getOrderStoreBrand(order) === selectedBrand,
+                (order) => matchesStoreBrand(order.storeBrand, selectedBrand),
               )}
               apiOrderIds={apiOrderIds}
               onUnship={unshipFromArchive}

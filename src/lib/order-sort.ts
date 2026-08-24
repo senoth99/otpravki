@@ -1,3 +1,4 @@
+import { matchesStoreBrand } from "@/lib/store-brand";
 import type { OrderDisplayStatus } from "@/lib/order-status";
 import type { ShippingOrder } from "@/types/shipping";
 
@@ -25,10 +26,6 @@ export function getSortedOrderIndices(
     .map(({ index }) => index);
 }
 
-function getOrderStoreBrand(order: ShippingOrder): string {
-  return order.storeBrand?.trim() || "CASHER";
-}
-
 /**
  * Следующий неотправленный заказ в очереди пикера (по номеру).
  * Если `fromId` уже выпал из списка (после печати уходит из filteredOrders),
@@ -43,7 +40,7 @@ export function findNextActiveOrderId(
 ): string | null {
   const brandIndices = orders
     .map((_, index) => index)
-    .filter((index) => getOrderStoreBrand(orders[index]) === brand);
+    .filter((index) => matchesStoreBrand(orders[index].storeBrand, brand));
 
   if (brandIndices.length === 0) return null;
 

@@ -17,12 +17,13 @@ import { printOrderBarcode } from "@/lib/print-barcode";
 import { brandNeedsSecondBarcode } from "@/lib/brand-second-label";
 import { preloadProductImages } from "@/lib/image-url";
 import { resolveOrderUrgency, URGENCY_LABELS } from "@/lib/urgency";
-import { BloggerBadge } from "./BloggerBadge";
+import { isAllBrands, matchesStoreBrand } from "@/lib/store-brand";
 import type { AssemblyExtra } from "@/lib/assembly-extras";
 import { toGtin14 } from "@/lib/chestny-znak-gtin";
 import type { ApiProduct, AssemblyItem, ShippingOrder, ShippingOrderItem } from "@/types/shipping";
 import { AutoModeButton } from "./AutoModeButton";
 import { AutoModeCountdown } from "./AutoModeCountdown";
+import { BloggerBadge } from "./BloggerBadge";
 import { OrderComments } from "./OrderComments";
 import { OrderExtrasHint } from "./OrderExtrasHint";
 import { OrderItemRow } from "./OrderItemRow";
@@ -97,10 +98,6 @@ interface ShippingViewProps {
   emptyHint?: string | null;
   /** collected — готовность по кнопке «Собрано» в приложении сборки */
   assemblyReadyBy?: "stock" | "collected";
-}
-
-function getOrderStoreBrand(order: ShippingOrder): string {
-  return order.storeBrand?.trim() || "CASHER";
 }
 
 function buildShippingAllocation(
@@ -228,7 +225,9 @@ export function ShippingView({
   useEffect(() => {
     const controller = new AbortController();
     void fetch(
-      `/api/assembly/extras?brand=${encodeURIComponent(selectedBrand)}`,
+      isAllBrands(selectedBrand)
+        ? "/api/assembly/extras"
+        : `/api/assembly/extras?brand=${encodeURIComponent(selectedBrand)}`,
       { cache: "no-store", signal: controller.signal },
     )
       .then((res) => (res.ok ? res.json() : null))
@@ -267,7 +266,7 @@ export function ShippingView({
         .filter((index) => {
           const order = orders[index];
           if (order.barcodePrinted) return false;
-          if (getOrderStoreBrand(order) !== selectedBrand) return false;
+          if (!matchesStoreBrand(order.storeBrand, selectedBrand)) return false;
           return true;
         }),
     [orders, selectedBrand],
@@ -756,7 +755,7 @@ export function ShippingView({
       getOrderDisplayStatus(order, assemblyItems, nextAllocation),
     );
     const nextVisibleOrders = updatedOrders.filter(
-      (order) => !order.barcodePrinted && getOrderStoreBrand(order) === selectedBrand,
+      (order) => !order.barcodePrinted && matchesStoreBrand(order.storeBrand, selectedBrand),
     );
     const nextVisibleStatuses = nextVisibleOrders.map((order) => {
       const sourceIndex = updatedOrders.findIndex((entry) => entry.id === order.id);

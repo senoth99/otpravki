@@ -16,6 +16,7 @@ import {
 } from "@/lib/assembly-progress";
 import { getAssemblyViewSections } from "@/lib/assembly-demand";
 import { orderIsBlogger } from "@/lib/blogger-order";
+import { ALL_BRANDS, formatBrandLabel, getStoreBrand, matchesStoreBrand } from "@/lib/store-brand";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { WarehouseMapConfig } from "@/types/stock";
 import { AssemblyView } from "./AssemblyView";
@@ -40,7 +41,7 @@ interface AssemblyPanelProps {
 const KNOWN_BRANDS = ["CASHER", "SHECASH", "AMMO", "KURAZHDVIZH"] as const;
 
 function getOrderStoreBrand(order: ShippingOrder): string {
-  return order.storeBrand?.trim() || "CASHER";
+  return getStoreBrand(order.storeBrand);
 }
 
 export function AssemblyPanel({
@@ -51,7 +52,7 @@ export function AssemblyPanel({
   initialRevision = 0,
   warehouseMap,
 }: AssemblyPanelProps) {
-  const [selectedBrand, setSelectedBrand] = useState<string>(KNOWN_BRANDS[0]);
+  const [selectedBrand, setSelectedBrand] = useState<string>(ALL_BRANDS);
   const [filters, setFilters] = useState<OtpravkiFiltersState>(DEFAULT_FILTERS);
   const [reloading, setReloading] = useState(false);
   const [filterPending, startFilterTransition] = useTransition();
@@ -133,7 +134,10 @@ export function AssemblyPanel({
   }, [assemblyItems, progress]);
 
   const brandOrders = useMemo(
-    () => orders.filter((order) => getOrderStoreBrand(order) === selectedBrand && !order.barcodePrinted),
+    () =>
+      orders.filter(
+        (order) => matchesStoreBrand(order.storeBrand, selectedBrand) && !order.barcodePrinted,
+      ),
     [orders, selectedBrand],
   );
 
@@ -144,7 +148,7 @@ export function AssemblyPanel({
 
   const filteredAssemblyItems = useMemo(() => {
     const brandAsm = syncedAssemblyItems.filter(
-      (item) => (item.brand?.trim() || "CASHER") === selectedBrand && item.quantity > 0,
+      (item) => matchesStoreBrand(item.brand, selectedBrand) && item.quantity > 0,
     );
     if (filters.kind === "blogger") {
       return brandAsm.filter((item) => item.isBlogger === true);
@@ -228,7 +232,11 @@ export function AssemblyPanel({
   const brandOptions = useMemo(
     () =>
       Array.from(
-        new Set([...KNOWN_BRANDS, ...orders.map((order) => order.storeBrand?.trim() || "CASHER")]),
+        new Set([
+          ALL_BRANDS,
+          ...KNOWN_BRANDS,
+          ...orders.map((order) => getOrderStoreBrand(order)),
+        ]),
       ),
     [orders],
   );
@@ -302,7 +310,7 @@ export function AssemblyPanel({
       {reloading ? <StageLoadingScreen variant="overlay" /> : null}
       <OtpravkiPageHeader
         title="Сборка"
-        subtitle={`${filteredAssemblyItems.length} поз. · ${filteredOrders.length} зак. · ${selectedBrand}`}
+        subtitle={`${filteredAssemblyItems.length} поз. · ${filteredOrders.length} зак. · ${formatBrandLabel(selectedBrand)}`}
         hideNav
         onRefresh={() => {
           setReloading(true);

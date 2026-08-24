@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { ALL_BRANDS, formatBrandLabel } from "@/lib/store-brand";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import { noteClientAction } from "@/lib/client-diag";
 import { isRushUrgency, resolveOrderUrgency, URGENCY_LABELS } from "@/lib/urgency";
@@ -465,6 +466,7 @@ function BrandFilter({
       >
         {brands.map((brand) => {
           const active = brand === selected;
+          const all = brand === ALL_BRANDS;
           return (
             <Chip
               key={brand}
@@ -475,9 +477,9 @@ function BrandFilter({
                 noteClientAction(`brand-chip:${brand}`);
                 onChange(brand);
               }}
-              className={active ? "cursor-default" : ""}
+              className={`${active ? "cursor-default" : ""} ${all ? "col-span-2" : ""}`}
             >
-              <span className="truncate">{brand}</span>
+              <span className="truncate">{formatBrandLabel(brand)}</span>
             </Chip>
           );
         })}
