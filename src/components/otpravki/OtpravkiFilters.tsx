@@ -25,6 +25,8 @@ export interface OtpravkiFiltersState {
   productIds: string[];
   /** true (по умолчанию) — только заказы готовые к отправке (всё в наличии) */
   inStock: boolean;
+  /** true (по умолчанию) — только заказы, собранные в приложении сборки */
+  fromAssembly: boolean;
 }
 
 export interface FilterProductOption {
@@ -44,6 +46,7 @@ export const DEFAULT_FILTERS: OtpravkiFiltersState = {
   query: "",
   productIds: [],
   inStock: true,
+  fromAssembly: true,
 };
 
 const URGENCY_KEYS = ["critical", "rush", "high", "normal"] as const;
@@ -64,8 +67,10 @@ function orderHasComments(order: ShippingOrder): boolean {
 export function applyOrderFilters(
   orders: ShippingOrder[],
   filters: OtpravkiFiltersState,
+  extras?: { assembledOrderIds?: ReadonlySet<string> },
 ): ShippingOrder[] {
   const q = filters.query.trim().toLowerCase();
+  const assembledOrderIds = extras?.assembledOrderIds;
 
   return orders.filter((order) => {
     const urgency = resolveOrderUrgency(order);
@@ -91,6 +96,10 @@ export function applyOrderFilters(
     }
 
     if (filters.inStock && order.ready === false) return false;
+
+    if (filters.fromAssembly && assembledOrderIds && !assembledOrderIds.has(order.id)) {
+      return false;
+    }
 
     if (filters.productIds.length > 0) {
       const wanted = new Set(filters.productIds);
@@ -385,6 +394,55 @@ function InStockToggle({
   );
 }
 
+function FromAssemblyToggle({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  const [pinOpen, setPinOpen] = useState(false);
+
+  return (
+    <>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={value}
+        onClick={() => {
+          if (value) {
+            setPinOpen(true);
+            return;
+          }
+          onChange(true);
+        }}
+        className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-900 active:bg-gray-50"
+      >
+        <span>Только со сборки</span>
+        <span
+          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+            value ? "bg-gray-900" : "bg-gray-300"
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+              value ? "translate-x-6" : "translate-x-1"
+            }`}
+          />
+        </span>
+      </button>
+      <AdminPinPopup
+        open={pinOpen}
+        title="Код доступа"
+        description="Чтобы показать заказы, которые ещё не собрали в приложении сборки"
+        verifyUrl="/api/guides/unlock"
+        onClose={() => setPinOpen(false)}
+        onSuccess={() => onChange(false)}
+      />
+    </>
+  );
+}
+
 function BrandFilter({
   brands,
   selected,
@@ -505,7 +563,13 @@ export function OtpravkiFiltersPanel({
         ) : (
           <>
             <FilterSection title="Наличие">
-              <InStockToggle value={filters.inStock} onChange={(next) => set("inStock", next)} />
+              <div className="space-y-2">
+                <InStockToggle value={filters.inStock} onChange={(next) => set("inStock", next)} />
+                <FromAssemblyToggle
+                  value={filters.fromAssembly}
+                  onChange={(next) => set("fromAssembly", next)}
+                />
+              </div>
             </FilterSection>
 
             <FilterSection title="Поиск">
@@ -608,6 +672,7 @@ export function OtpravkiMobileFilters({
   /** Свернуть доп.фильтры по умолчанию, бренд остаётся сверху */
   collapsible = false,
   defaultExpanded = true,
+  showFromAssembly = true,
 }: {
   filters: OtpravkiFiltersState;
   onChange: (next: OtpravkiFiltersState) => void;
@@ -622,6 +687,7 @@ export function OtpravkiMobileFilters({
   alwaysVisible?: boolean;
   collapsible?: boolean;
   defaultExpanded?: boolean;
+  showFromAssembly?: boolean;
 }) {
   const [productsOpen, setProductsOpen] = useState(false);
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -649,7 +715,15 @@ export function OtpravkiMobileFilters({
   ) : (
     <>
       <FilterSection title="Наличие">
-        <InStockToggle value={filters.inStock} onChange={(next) => set("inStock", next)} />
+        <div className="space-y-2">
+          <InStockToggle value={filters.inStock} onChange={(next) => set("inStock", next)} />
+          {showFromAssembly ? (
+            <FromAssemblyToggle
+              value={filters.fromAssembly}
+              onChange={(next) => set("fromAssembly", next)}
+            />
+          ) : null}
+        </div>
       </FilterSection>
 
       <FilterSection title="Поиск">

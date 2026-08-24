@@ -17,17 +17,18 @@ export interface AssemblyAllocation {
 }
 
 /**
- * Готовность к отправке по наличию в пуле сборки (quantity из API),
- * без учёта кнопки «Собрано» (collectedCount).
+ * Готовность к отправке по пулу единиц на позициях сборки.
+ * `unitsOf` — quantity (склад/спрос) или collectedCount (кнопка «Собрано»).
  */
-export function buildAssemblyAllocation(
+function buildAllocationFromUnits(
   orders: ShippingOrder[],
   assemblyItems: AssemblyItem[],
+  unitsOf: (item: AssemblyItem) => number,
 ): AssemblyAllocation {
   const pool = new Map<string, number>();
   for (const item of assemblyItems) {
     const key = assemblyItemKey(item.productId, item.sizeId, item.isBlogger === true);
-    pool.set(key, (pool.get(key) ?? 0) + item.quantity);
+    pool.set(key, (pool.get(key) ?? 0) + Math.max(0, unitsOf(item)));
   }
 
   const readyByOrderId = new Map<string, boolean>();
@@ -82,6 +83,37 @@ export function buildAssemblyAllocation(
   }
 
   return { readyByOrderId, missingByOrderId };
+}
+
+/**
+ * Готовность к отправке по наличию в пуле сборки (quantity из API),
+ * без учёта кнопки «Собрано» (collectedCount).
+ */
+export function buildAssemblyAllocation(
+  orders: ShippingOrder[],
+  assemblyItems: AssemblyItem[],
+): AssemblyAllocation {
+  return buildAllocationFromUnits(orders, assemblyItems, (item) => item.quantity);
+}
+
+/** Заказы, которые полностью закрыты кнопкой «Собрано» в приложении сборки. */
+export function buildCollectedAssemblyAllocation(
+  orders: ShippingOrder[],
+  assemblyItems: AssemblyItem[],
+): AssemblyAllocation {
+  return buildAllocationFromUnits(orders, assemblyItems, (item) => item.collectedCount);
+}
+
+export function collectedReadyOrderIds(
+  orders: ShippingOrder[],
+  assemblyItems: AssemblyItem[],
+): Set<string> {
+  const { readyByOrderId } = buildCollectedAssemblyAllocation(orders, assemblyItems);
+  const ids = new Set<string>();
+  for (const [id, ready] of readyByOrderId) {
+    if (ready) ids.add(id);
+  }
+  return ids;
 }
 
 export function getOrderAssemblyStatus(

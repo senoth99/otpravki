@@ -285,6 +285,7 @@ export function AssemblyPanel({
             alwaysVisible
             collapsible
             defaultExpanded={false}
+            showFromAssembly={false}
           />
         </div>
       </OtpravkiPageHeader>

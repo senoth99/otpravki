@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useAuth } from "@/components/auth/AuthGate";
 import { FilterBusyOverlay } from "@/components/ui/FilterBusyOverlay";
 import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
@@ -10,6 +10,13 @@ import { noteClientAction } from "@/lib/client-diag";
 import { ORDERS_API_POLL_MS } from "@/lib/orders-sync";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import { isRushUrgency, resolveOrderUrgency } from "@/lib/urgency";
+import {
+  applyProgressToAssemblyItems,
+  fetchAssemblyProgress,
+  subscribeAssemblyProgress,
+  type AssemblyProgressState,
+} from "@/lib/assembly-progress";
+import { collectedReadyOrderIds } from "@/lib/assembly-status";
 import type { AssemblyItem, ShippingOrder, ShippingTab } from "@/types/shipping";
 import { ArchiveView } from "./ArchiveView";
 import {
@@ -51,6 +58,9 @@ export function ShippingPanel({
   const [filters, setFilters] = useState<OtpravkiFiltersState>(DEFAULT_FILTERS);
   const [reloading, setReloading] = useState(false);
   const [filterPending, startFilterTransition] = useTransition();
+  const [progress, setProgress] = useState<AssemblyProgressState | null>(null);
+  const progressRef = useRef(progress);
+  progressRef.current = progress;
   const {
     assemblyItems,
     orders,
@@ -94,6 +104,23 @@ export function ShippingPanel({
   }, [refreshFromApi]);
 
   useEffect(() => {
+    let cancelled = false;
+    void fetchAssemblyProgress().then((next) => {
+      if (!cancelled && next) setProgress(next);
+    });
+    const unsub = subscribeAssemblyProgress({
+      onProgress: (next) => {
+        if (next.revision < (progressRef.current?.revision ?? 0)) return;
+        setProgress(next);
+      },
+    });
+    return () => {
+      cancelled = true;
+      unsub();
+    };
+  }, []);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
     const tabParam = new URLSearchParams(window.location.search).get("tab");
     if (tabParam === "archive") setTab("archive");
@@ -125,16 +152,36 @@ export function ShippingPanel({
     [activeBrandOrders],
   );
 
+  const syncedAssemblyItems = useMemo(
+    () => applyProgressToAssemblyItems(assemblyItems, progress),
+    [assemblyItems, progress],
+  );
+
+  const assembledOrderIds = useMemo(
+    () => collectedReadyOrderIds(orders, syncedAssemblyItems),
+    [orders, syncedAssemblyItems],
+  );
+
+  const assembledBrandCount = useMemo(
+    () => activeBrandOrders.filter((order) => assembledOrderIds.has(order.id)).length,
+    [activeBrandOrders, assembledOrderIds],
+  );
+
   const filteredOrders = useMemo(
     () =>
-      applyOrderFilters(activeBrandOrders, {
-        ...filters,
-        // Поиск не режет список отправок — иначе Chrome убивает вкладку на 1–2 символах.
-        // ShippingView сам прыгает к совпадению по searchQuery.
-        query: "",
-      }),
+      applyOrderFilters(
+        activeBrandOrders,
+        {
+          ...filters,
+          // Поиск не режет список отправок — иначе Chrome убивает вкладку на 1–2 символах.
+          // ShippingView сам прыгает к совпадению по searchQuery.
+          query: "",
+        },
+        { assembledOrderIds },
+      ),
     [
       activeBrandOrders,
+      assembledOrderIds,
       filters.urgency,
       filters.kind,
       filters.scan,
@@ -142,28 +189,27 @@ export function ShippingPanel({
       filters.city,
       filters.productIds,
       filters.inStock,
+      filters.fromAssembly,
     ],
   );
 
   const emptyHint =
-    filteredOrders.length === 0 && filters.inStock && notReadyCount > 0
-      ? `У ${selectedBrand} ещё ${notReadyCount} зак. ждут наличия на складе. Фильтр «В наличии» их скрывает — выключи в фильтрах (нужен PIN админа), чтобы увидеть.`
-      : filteredOrders.length === 0 && activeBrandOrders.length > 0
-        ? "Все заказы скрыты другими фильтрами."
-        : null;
+    filteredOrders.length === 0 &&
+    filters.fromAssembly &&
+    assembledBrandCount === 0 &&
+    activeBrandOrders.length > 0
+      ? `У ${selectedBrand} нет заказов со сборки. Соберите позиции в приложении сборки — или выключите фильтр «Только со сборки» (PIN 2828).`
+      : filteredOrders.length === 0 && filters.inStock && notReadyCount > 0
+        ? `У ${selectedBrand} ещё ${notReadyCount} зак. ждут наличия на складе. Фильтр «В наличии» их скрывает — выключи в фильтрах (нужен PIN админа), чтобы увидеть.`
+        : filteredOrders.length === 0 && activeBrandOrders.length > 0
+          ? "Все заказы скрыты другими фильтрами."
+          : null;
 
   const filteredAssemblyItems = useMemo(
     () =>
-      assemblyItems.filter((item) => (item.brand?.trim() || "CASHER") === selectedBrand),
-    [assemblyItems, selectedBrand],
+      syncedAssemblyItems.filter((item) => (item.brand?.trim() || "CASHER") === selectedBrand),
+    [syncedAssemblyItems, selectedBrand],
   );
-
-  const filteredShippedArchive = useMemo(() => {
-    const brandArchive = shippedArchive.filter(
-      (order) => getOrderStoreBrand(order) === selectedBrand,
-    );
-    return applyOrderFilters(brandArchive, { ...filters, scan: "all" });
-  }, [selectedBrand, shippedArchive, filters]);
 
   const handleFilteredOrdersChange = (
     nextOrders: ShippingOrder[] | ((prev: ShippingOrder[]) => ShippingOrder[]),
@@ -223,8 +269,12 @@ export function ShippingPanel({
     noteClientAction(`brand-filter:${next}`);
     startFilterTransition(() => {
       setSelectedBrand(next);
-      // «В наличии» оставляем как выбрал пользователь; остальное сбрасываем.
-      setFilters((prev) => ({ ...DEFAULT_FILTERS, inStock: prev.inStock }));
+      // «В наличии» и «Только со сборки» оставляем; остальное сбрасываем.
+      setFilters((prev) => ({
+        ...DEFAULT_FILTERS,
+        inStock: prev.inStock,
+        fromAssembly: prev.fromAssembly,
+      }));
     });
   }, [selectedBrand]);
 
@@ -243,7 +293,9 @@ export function ShippingPanel({
         subtitle={
           tab === "archive"
             ? `${shippedArchive.filter((order) => getOrderStoreBrand(order) === selectedBrand).length} в архиве · ${selectedBrand}`
-            : `${filteredOrders.length} готовы · ${notReadyCount} ждут склад · ${selectedBrand}`
+            : filters.fromAssembly
+              ? `${filteredOrders.length} со сборки · ${selectedBrand}`
+              : `${filteredOrders.length} готовы · ${notReadyCount} ждут склад · ${selectedBrand}`
         }
         onRefresh={() => {
           setReloading(true);
@@ -293,9 +345,10 @@ export function ShippingPanel({
               onBrandChange={handleBrandChange}
               onOrdersChange={handleFilteredOrdersChange}
               onOrderShipped={() => scheduleRefreshAfterShip(undefined)}
-              selectionResetKey={`${selectedBrand}:${filters.urgency}:${filters.kind}:${filters.inStock}:${filters.productIds.join(",")}`}
+              selectionResetKey={`${selectedBrand}:${filters.urgency}:${filters.kind}:${filters.inStock}:${filters.fromAssembly}:${filters.productIds.join(",")}`}
               searchQuery={filters.query}
               emptyHint={emptyHint}
+              assemblyReadyBy={filters.fromAssembly ? "collected" : "stock"}
             />
           ) : (
             <ArchiveView

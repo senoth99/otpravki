@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/AuthGate";
 import { useHardwareScanner } from "@/hooks/useHardwareScanner";
-import { buildAssemblyAllocation } from "@/lib/assembly-status";
+import { buildAssemblyAllocation, buildCollectedAssemblyAllocation } from "@/lib/assembly-status";
 import { resolveScanFromBarcode } from "@/lib/barcode-product";
 import { formatMoscowDate } from "@/lib/format";
 import { getOrderDisplayStatus } from "@/lib/order-status";
@@ -92,12 +92,24 @@ interface ShippingViewProps {
   selectionResetKey?: string;
   /** Поиск: прыжок к заказу, без пересборки списка orders */
   searchQuery?: string;
-  /** Подсказка, если список пуст из‑за фильтра «В наличии» */
+  /** Подсказка, если список пуст из‑за фильтра */
   emptyHint?: string | null;
+  /** collected — готовность по кнопке «Собрано» в приложении сборки */
+  assemblyReadyBy?: "stock" | "collected";
 }
 
 function getOrderStoreBrand(order: ShippingOrder): string {
   return order.storeBrand?.trim() || "CASHER";
+}
+
+function buildShippingAllocation(
+  orders: ShippingOrder[],
+  assemblyItems: AssemblyItem[],
+  readyBy: "stock" | "collected",
+) {
+  return readyBy === "collected"
+    ? buildCollectedAssemblyAllocation(orders, assemblyItems)
+    : buildAssemblyAllocation(orders, assemblyItems);
 }
 
 function orderMatchesSearch(order: ShippingOrder, query: string): boolean {
@@ -129,6 +141,7 @@ export function ShippingView({
   selectionResetKey = "",
   searchQuery = "",
   emptyHint = null,
+  assemblyReadyBy = "stock",
 }: ShippingViewProps) {
   const { user } = useAuth();
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(
@@ -229,8 +242,8 @@ export function ShippingView({
   }, [selectedBrand]);
 
   const assemblyAllocation = useMemo(
-    () => buildAssemblyAllocation(orders, assemblyItems),
-    [orders, assemblyItems],
+    () => buildShippingAllocation(orders, assemblyItems, assemblyReadyBy),
+    [orders, assemblyItems, assemblyReadyBy],
   );
 
   const readyOrderIds = useMemo(() => {
@@ -471,7 +484,7 @@ export function ShippingView({
       fromOrderId?: string | null,
       afterOrderNumber?: string | null,
     ) => {
-      const allocation = buildAssemblyAllocation(updatedOrders, assemblyItems);
+      const allocation = buildShippingAllocation(updatedOrders, assemblyItems, assemblyReadyBy);
       const nextStatuses = updatedOrders.map((order) =>
         getOrderDisplayStatus(order, assemblyItems, allocation),
       );
@@ -496,7 +509,7 @@ export function ShippingView({
         setCurrentOrderId(nextId);
       }
     },
-    [assemblyItems, currentOrderId, selectedBrand],
+    [assemblyItems, assemblyReadyBy, currentOrderId, selectedBrand],
   );
 
   const startBetweenCountdown = useCallback(
@@ -737,7 +750,7 @@ export function ShippingView({
     const updatedOrders = orders.map((order) =>
       order.id === shippedId ? { ...order, barcodePrinted: true } : order,
     );
-    const nextAllocation = buildAssemblyAllocation(updatedOrders, assemblyItems);
+    const nextAllocation = buildShippingAllocation(updatedOrders, assemblyItems, assemblyReadyBy);
     const nextStatuses = updatedOrders.map((order) =>
       getOrderDisplayStatus(order, assemblyItems, nextAllocation),
     );
@@ -754,6 +767,7 @@ export function ShippingView({
   }, [
     allScanned,
     assemblyItems,
+    assemblyReadyBy,
     autoMode,
     autoPrintRetry,
     canScan,
