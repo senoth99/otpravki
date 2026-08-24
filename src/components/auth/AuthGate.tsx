@@ -146,7 +146,9 @@ function AuthShell({ children }: { children: ReactNode }) {
     dismissShiftReminder,
   } = useAuth();
   const guestPublic = isGuestPublicPath(pathname);
-  // Держим страницу смонтированной под оверлеем, чтобы Chrome не мигал «couldn't load»
+  // Держим страницу смонтированной под оверлеем, чтобы Chrome не мигал «couldn't load».
+  // Не используем display:contents — в Chrome он роняет вкладку при тяжёлых ре-рендерах
+  // (смена бренда, поиск по треку и т.п.).
   const keepMounted = useRef(false);
   if (user || guestPublic || isEmbedded) keepMounted.current = true;
 
@@ -167,7 +169,11 @@ function AuthShell({ children }: { children: ReactNode }) {
     <>
       {keepMounted.current ? (
         <div
-          className={showApp ? "contents" : "pointer-events-none fixed inset-0 -z-10 opacity-0"}
+          className={
+            showApp
+              ? "flex min-h-dvh flex-1 flex-col"
+              : "pointer-events-none fixed inset-0 -z-10 h-0 overflow-hidden opacity-0"
+          }
           aria-hidden={!showApp}
         >
           {children}

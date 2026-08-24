@@ -231,7 +231,7 @@ export function ShippingPanel({
               onBrandChange={handleBrandChange}
               onOrdersChange={handleFilteredOrdersChange}
               onOrderShipped={() => scheduleRefreshAfterShip(selectedBrand)}
-              selectionResetKey={`${selectedBrand}:${JSON.stringify(filters)}`}
+              selectionResetKey={`${selectedBrand}:${filters.urgency}:${filters.kind}:${filters.inStock}:${filters.productIds.join(",")}`}
             />
           ) : (
             <ArchiveView
