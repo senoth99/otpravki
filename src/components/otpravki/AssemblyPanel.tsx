@@ -229,7 +229,8 @@ export function AssemblyPanel({
     noteClientAction(`brand-filter:${next}`);
     startFilterTransition(() => {
       setSelectedBrand(next);
-      setFilters(DEFAULT_FILTERS);
+      // «В наличии» оставляем как выбрал пользователь; остальное сбрасываем.
+      setFilters((prev) => ({ ...DEFAULT_FILTERS, inStock: prev.inStock }));
     });
   };
 
