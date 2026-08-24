@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { formatMoscowDate, formatOrderNumberShort } from "@/lib/format";
-import { type OrderDisplayStatus } from "@/lib/order-status";
+import { ORDER_STATUS_LABEL, type OrderDisplayStatus } from "@/lib/order-status";
 import { getSortedOrderIndices } from "@/lib/order-sort";
 import type { ShippingOrder } from "@/types/shipping";
 
@@ -16,8 +16,11 @@ interface OrderPickerProps {
   visibleIndices?: number[];
 }
 
-function tabClass(active: boolean): string {
+function tabClass(active: boolean, partial?: boolean): string {
   if (active) {
+    if (partial) {
+      return "border-amber-600 bg-amber-700 text-white shadow-sm";
+    }
     return "border-gray-900 bg-gray-900 text-white shadow-sm";
   }
   return "border-gray-200 bg-white text-gray-900";
@@ -26,10 +29,13 @@ function tabClass(active: boolean): string {
 function OrderTabContent({
   order,
   active,
+  status,
 }: {
   order: ShippingOrder;
   active: boolean;
+  status?: OrderDisplayStatus;
 }) {
+  const isPartial = status === "partial-assembly";
   return (
     <>
       <p className="w-full truncate text-sm font-semibold leading-tight">
@@ -40,7 +46,11 @@ function OrderTabContent({
           active ? "text-white/70" : "text-gray-400"
         }`}
       >
-        {order.createdAt ? `от ${formatMoscowDate(order.createdAt)}` : ""}
+        {isPartial
+          ? ORDER_STATUS_LABEL["partial-assembly"]
+          : order.createdAt
+            ? `от ${formatMoscowDate(order.createdAt)}`
+            : ""}
       </p>
     </>
   );
@@ -97,6 +107,8 @@ export function OrderPicker({
 
   const positionInSorted = sortedIndices.indexOf(currentIndex);
   const currentOrder = orders[currentIndex];
+  const currentStatus = currentIndex >= 0 ? statuses[currentIndex] : undefined;
+  const isPartial = currentStatus === "partial-assembly";
   const pendingCount = orders.filter((o) => !o.barcodePrinted).length;
 
   const goPrev = () => {
@@ -127,9 +139,9 @@ export function OrderPicker({
         <NavButton label="Предыдущий заказ" onClick={goPrev} disabled={locked} direction="prev" />
 
         <div
-          className={`relative min-h-12 min-w-0 flex-1 rounded-xl border px-3 py-2.5 text-left ${tabClass(true)}`}
+          className={`relative min-h-12 min-w-0 flex-1 rounded-xl border px-3 py-2.5 text-left ${tabClass(true, isPartial)}`}
         >
-          <OrderTabContent order={currentOrder} active />
+          <OrderTabContent order={currentOrder} active status={currentStatus} />
         </div>
 
         <NavButton label="Следующий заказ" onClick={goNext} disabled={locked} direction="next" />

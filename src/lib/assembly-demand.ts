@@ -66,13 +66,16 @@ export function getAssemblyViewSections(
   orders: ShippingOrder[],
   settled: boolean,
   pinnedCompletedIds?: ReadonlySet<string>,
+  /** Для сортировки по срочности — все активные заказы бренда, не только отфильтрованные */
+  urgencyOrders?: ShippingOrder[],
 ): AssemblyViewSections {
   const activeOrders = orders.filter((order) => !order.barcodePrinted);
+  const urgencySource = (urgencyOrders ?? orders).filter((order) => !order.barcodePrinted);
   const enriched = enrichAssemblyItems(items, orders);
 
   if (!settled) {
     return {
-      pending: sortAssemblyItemsByUrgency(enriched, activeOrders),
+      pending: sortAssemblyItemsByUrgency(enriched, urgencySource),
       completed: [],
     };
   }
@@ -82,8 +85,8 @@ export function getAssemblyViewSections(
     const pending = enriched.filter((item) => !pinnedCompletedIds.has(item.id));
 
     return {
-      pending: sortAssemblyItemsByUrgency(pending, activeOrders),
-      completed: sortAssemblyItemsByUrgency(completed, activeOrders),
+      pending: sortAssemblyItemsByUrgency(pending, urgencySource),
+      completed: sortAssemblyItemsByUrgency(completed, urgencySource),
     };
   }
 
@@ -91,8 +94,8 @@ export function getAssemblyViewSections(
   const completed = enriched.filter((item) => item.collectedCount >= item.quantity);
 
   return {
-    pending: sortAssemblyItemsByUrgency(pending, activeOrders),
-    completed: sortAssemblyItemsByUrgency(completed, activeOrders),
+    pending: sortAssemblyItemsByUrgency(pending, urgencySource),
+    completed: sortAssemblyItemsByUrgency(completed, urgencySource),
   };
 }
 

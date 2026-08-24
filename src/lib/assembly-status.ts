@@ -5,6 +5,8 @@ import { resolveOrderUrgency, URGENCY_WEIGHT } from "@/lib/urgency";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 
 export interface MissingAssemblyItem {
+  productId: string;
+  sizeId: number;
   productName: string;
   size: string;
   need: number;
@@ -56,6 +58,8 @@ function buildAllocationFromUnits(
       if (have < need) {
         ready = false;
         missing.push({
+          productId: line.productId,
+          sizeId: line.sizeId,
           productName: line.productName,
           size: formatSize(line.size),
           need,
@@ -116,6 +120,45 @@ export function collectedReadyOrderIds(
   return ids;
 }
 
+/** Заказ частично собран: не готов целиком, но сборка уже начата. */
+export function isPartiallyCollectedOrder(
+  order: ShippingOrder,
+  allocation: AssemblyAllocation,
+): boolean {
+  if (order.barcodePrinted) return false;
+  if (allocation.readyByOrderId.get(order.id)) return false;
+
+  const missing = allocation.missingByOrderId.get(order.id) ?? [];
+  if (missing.length === 0) return false;
+  if (missing.length < order.items.length) return true;
+  return missing.some((row) => row.have > 0);
+}
+
+/**
+ * Заказы для отправок при фильтре «Только со сборки»:
+ * полностью собранные + частично собранные.
+ */
+export function collectedVisibleOrderIds(
+  orders: ShippingOrder[],
+  assemblyItems: AssemblyItem[],
+): Set<string> {
+  const allocation = buildCollectedAssemblyAllocation(orders, assemblyItems);
+  const ids = new Set<string>();
+
+  for (const order of orders) {
+    if (order.barcodePrinted) continue;
+    if (allocation.readyByOrderId.get(order.id)) {
+      ids.add(order.id);
+      continue;
+    }
+    if (isPartiallyCollectedOrder(order, allocation)) {
+      ids.add(order.id);
+    }
+  }
+
+  return ids;
+}
+
 export function getOrderAssemblyStatus(
   order: ShippingOrder,
   assemblyItems: AssemblyItem[],
@@ -148,6 +191,8 @@ export function getOrderAssemblyStatus(
 
     if (have < need) {
       missing.push({
+        productId: item.productId,
+        sizeId: item.sizeId,
         productName: item.productName,
         size: formatSize(item.size),
         need,

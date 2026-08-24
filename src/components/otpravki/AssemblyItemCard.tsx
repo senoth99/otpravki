@@ -40,6 +40,8 @@ interface AssemblyItemCardProps {
   /** Тап по фото — отфильтровать сборку по этому товару */
   onFindProduct?: (productId: string) => void;
   findActive?: boolean;
+  /** Бейдж срочности (как в отправках) */
+  urgency?: { label: string; className: string };
 }
 
 export function AssemblyItemCard({
@@ -60,6 +62,7 @@ export function AssemblyItemCard({
   showBrandMark = false,
   onFindProduct,
   findActive = false,
+  urgency,
 }: AssemblyItemCardProps) {
   const [navOpenLocal, setNavOpenLocal] = useState(false);
   const navOpen = navOpenProp ?? navOpenLocal;
@@ -150,6 +153,13 @@ export function AssemblyItemCard({
               {formatSize(item.size)}
             </span>
             {item.isBlogger && <BloggerBadge />}
+            {urgency && (
+              <span
+                className={`inline-flex items-center rounded-lg px-2 py-0.5 text-[10px] font-medium leading-none sm:text-xs ${urgency.className}`}
+              >
+                {urgency.label}
+              </span>
+            )}
             {cellLocation && (
               <button
                 type="button"

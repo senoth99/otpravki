@@ -248,8 +248,8 @@ export function AssemblyPanel({
   };
 
   const assemblySections = useMemo(
-    () => getAssemblyViewSections(filteredAssemblyItems, filteredOrders, false),
-    [filteredAssemblyItems, filteredOrders],
+    () => getAssemblyViewSections(filteredAssemblyItems, filteredOrders, false, undefined, brandOrders),
+    [filteredAssemblyItems, filteredOrders, brandOrders],
   );
 
   const brandOptions = useMemo(
@@ -374,6 +374,7 @@ export function AssemblyPanel({
             sections={assemblySections}
             allItems={filteredAssemblyItems}
             orders={filteredOrders}
+            urgencyOrders={brandOrders}
             onItemsChange={handleFilteredAssemblyChange}
             warehouseMap={warehouseMap}
             canResetCollected={canResetCollected}

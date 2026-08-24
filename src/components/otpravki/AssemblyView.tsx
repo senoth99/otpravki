@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHardwareScanner } from "@/hooks/useHardwareScanner";
 import type { AssemblyViewSections } from "@/lib/assembly-demand";
+import { resolveAssemblyItemUrgency } from "@/lib/assembly-sort";
 import { planAssemblyRoute } from "@/lib/assembly-route";
+import { URGENCY_LABELS } from "@/lib/urgency";
 import { resolveAssemblyScan } from "@/lib/barcode-product";
 import { findCellLocation, locationKey } from "@/lib/warehouse-location";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
@@ -19,6 +21,8 @@ interface AssemblyViewProps {
   sections: AssemblyViewSections;
   allItems: AssemblyItem[];
   orders: ShippingOrder[];
+  /** Заказы для расчёта срочности на карточках (обычно все активные заказы бренда) */
+  urgencyOrders?: ShippingOrder[];
   onItemsChange: (items: AssemblyItem[]) => void;
   warehouseMap?: WarehouseMapConfig;
   /** Есть что обнулять по всем брендам */
@@ -49,6 +53,7 @@ export function AssemblyView({
   sections,
   allItems,
   orders,
+  urgencyOrders,
   onItemsChange,
   warehouseMap,
   canResetCollected = false,
@@ -59,6 +64,11 @@ export function AssemblyView({
   findProductIds = [],
 }: AssemblyViewProps) {
   const visibleItems = [...sections.pending, ...sections.completed];
+  const urgencySource = urgencyOrders ?? orders;
+  const getItemUrgency = useCallback(
+    (item: AssemblyItem) => URGENCY_LABELS[resolveAssemblyItemUrgency(item, urgencySource)],
+    [urgencySource],
+  );
   const [autoMode, setAutoMode] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [navDismissedFor, setNavDismissedFor] = useState<string | null>(null);
@@ -402,6 +412,7 @@ export function AssemblyView({
               findActive={Boolean(
                 currentItem.productId && findProductIds.includes(currentItem.productId),
               )}
+              urgency={getItemUrgency(currentItem)}
             />
           )}
 
@@ -428,6 +439,7 @@ export function AssemblyView({
                       showBrandMark={showBrandMark}
                       onFindProduct={onFindProduct}
                       findActive={Boolean(item.productId && findProductIds.includes(item.productId))}
+                      urgency={getItemUrgency(fresh)}
                     />
                   );
                 })}
@@ -455,6 +467,7 @@ export function AssemblyView({
                     showBrandMark={showBrandMark}
                     onFindProduct={onFindProduct}
                     findActive={Boolean(item.productId && findProductIds.includes(item.productId))}
+                    urgency={getItemUrgency(item)}
                   />
                 ))}
               </div>
@@ -476,6 +489,7 @@ export function AssemblyView({
                   showBrandMark={showBrandMark}
                   onFindProduct={onFindProduct}
                   findActive={Boolean(item.productId && findProductIds.includes(item.productId))}
+                  urgency={getItemUrgency(item)}
                 />
               ))}
             </div>
@@ -499,6 +513,7 @@ export function AssemblyView({
                     showBrandMark={showBrandMark}
                     onFindProduct={onFindProduct}
                     findActive={Boolean(item.productId && findProductIds.includes(item.productId))}
+                    urgency={getItemUrgency(item)}
                   />
                 ))}
               </div>

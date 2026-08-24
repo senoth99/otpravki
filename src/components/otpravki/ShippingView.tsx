@@ -6,7 +6,7 @@ import { useHardwareScanner } from "@/hooks/useHardwareScanner";
 import { buildAssemblyAllocation, buildCollectedAssemblyAllocation } from "@/lib/assembly-status";
 import { resolveScanFromBarcode } from "@/lib/barcode-product";
 import { formatMoscowDate } from "@/lib/format";
-import { getOrderDisplayStatus } from "@/lib/order-status";
+import { getOrderDisplayStatus, ORDER_STATUS_LABEL, type OrderDisplayStatus } from "@/lib/order-status";
 import {
   findFirstAutoOrderIndex,
   findNextActiveOrderId,
@@ -292,9 +292,28 @@ export function ShippingView({
     ? orders.findIndex((order) => order.id === currentOrderId)
     : -1;
   const currentOrder = currentIndex >= 0 ? orders[currentIndex] : undefined;
+  const currentOrderStatus = currentIndex >= 0 ? orderStatuses[currentIndex] : undefined;
+  const isPartialAssembly = currentOrderStatus === "partial-assembly";
   const isManualConfirm = manualConfirmOrder !== null && !autoMode;
   const displayOrder = isManualConfirm ? manualConfirmOrder : currentOrder;
+  const displayOrderStatus = isManualConfirm
+    ? getOrderDisplayStatus(manualConfirmOrder, assemblyItems, assemblyAllocation)
+    : currentOrderStatus;
+  const isDisplayPartialAssembly = displayOrderStatus === "partial-assembly";
   const isShipped = displayOrder?.barcodePrinted ?? false;
+
+  const displayMissingAssembly = useMemo(() => {
+    if (!displayOrder || !isDisplayPartialAssembly) return [];
+    return assemblyAllocation.missingByOrderId.get(displayOrder.id) ?? [];
+  }, [displayOrder, isDisplayPartialAssembly, assemblyAllocation]);
+
+  const displayMissingByLineKey = useMemo(() => {
+    const map = new Map<string, { need: number; have: number }>();
+    for (const row of displayMissingAssembly) {
+      map.set(`${row.productId}-${row.sizeId}`, { need: row.need, have: row.have });
+    }
+    return map;
+  }, [displayMissingAssembly]);
 
   // Поиск только прыгает к первому совпадению — список заказов не режем
   useEffect(() => {
@@ -320,7 +339,7 @@ export function ShippingView({
   const allScanned =
     displayOrder?.items.every((i) => i.scannedCount >= i.quantity) ?? false;
   const urgency = displayOrder ? URGENCY_LABELS[resolveOrderUrgency(displayOrder)] : null;
-  const canScan = !isManualConfirm && !isShipped && !countdown && !packingOverlay;
+  const canScan = !isManualConfirm && !isShipped && !isPartialAssembly && !countdown && !packingOverlay;
 
   const exitAutoMode = useCallback(() => {
     setAutoMode(false);
@@ -652,7 +671,7 @@ export function ShippingView({
   );
 
   const handlePrint = () => {
-    if (!canScan || !allScanned || autoMode || !currentOrder || countdown) return;
+    if (!canScan || !allScanned || isPartialAssembly || autoMode || !currentOrder || countdown) return;
     const hasNext = activeIndices.some((index) => {
       const order = orders[index];
       return order && order.id !== currentOrder.id && !order.barcodePrinted;
@@ -714,7 +733,7 @@ export function ShippingView({
     if (!autoMode || countdown) return;
 
     const status = orderStatuses[currentIndex];
-    if (!currentOrder?.barcodePrinted && status !== "awaiting-assembly" && status !== "shipped") {
+    if (!currentOrder?.barcodePrinted && status !== "awaiting-assembly" && status !== "partial-assembly" && status !== "shipped") {
       return;
     }
 
@@ -742,7 +761,7 @@ export function ShippingView({
   ]);
 
   useEffect(() => {
-    if (!autoMode || !allScanned || !canScan || countdown || !currentOrder) return;
+    if (!autoMode || !allScanned || isPartialAssembly || !canScan || countdown || !currentOrder) return;
     if (autoHandledRef.current === currentOrder.id) return;
 
     autoHandledRef.current = currentOrder.id;
@@ -1006,7 +1025,11 @@ export function ShippingView({
               <OrderComments order={displayOrder} />
             </div>
           ) : (
-            <div className="space-y-4">
+            <div
+              className={`space-y-4 transition-opacity ${
+                isDisplayPartialAssembly ? "opacity-70 saturate-75" : ""
+              }`}
+            >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -1021,7 +1044,12 @@ export function ShippingView({
                         {urgency.label}
                       </span>
                     )}
-                    {allScanned && (
+                    {isDisplayPartialAssembly && (
+                      <span className="inline-flex items-center rounded-lg bg-amber-100 px-2 py-0.5 text-xs font-medium leading-none text-amber-900">
+                        {ORDER_STATUS_LABEL["partial-assembly"]}
+                      </span>
+                    )}
+                    {allScanned && !isDisplayPartialAssembly && (
                       <span className="inline-flex items-center rounded-lg bg-gray-900 px-2 py-0.5 text-xs font-medium leading-none text-white">
                         Собран
                       </span>
@@ -1045,6 +1073,23 @@ export function ShippingView({
                 </div>
               </div>
 
+              {isDisplayPartialAssembly && displayMissingAssembly.length > 0 && (
+                <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">
+                    Не хватает в сборке
+                  </p>
+                  <ul className="mt-1.5 space-y-1">
+                    {displayMissingAssembly.map((row) => (
+                      <li key={`${row.productId}-${row.sizeId}`} className="text-sm text-amber-950">
+                        {row.productName}
+                        <span className="text-amber-800"> · {row.size}</span>
+                        <span className="font-medium"> — {row.have} / {row.need}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <OrderComments order={displayOrder} />
 
               <div className="flex flex-col gap-3 md:flex-row md:items-start">
@@ -1053,12 +1098,13 @@ export function ShippingView({
                     <OrderItemRow
                       key={item.id}
                       item={item}
-                      manual={manualMode && !autoMode}
+                      manual={manualMode && !autoMode && !isDisplayPartialAssembly}
                       busy={packingOverlay}
                       chestnyZnakActive={czEnabled && orderUsesChestnyZnak(displayOrder)}
                       hideChestnyZnak={!orderUsesChestnyZnak(displayOrder)}
                       remainingByGtin={remainingByGtin}
                       imagePriority
+                      assemblyMissing={displayMissingByLineKey.get(`${item.productId}-${item.sizeId}`)}
                       onIncrement={() => updateItemCount(item.id, 1)}
                       onDecrement={() => updateItemCount(item.id, -1)}
                     />
@@ -1095,9 +1141,9 @@ export function ShippingView({
             <button
               type="button"
               onClick={handlePrint}
-              disabled={!allScanned}
+              disabled={!allScanned || isPartialAssembly}
               className={`inline-flex h-14 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium transition-colors active:scale-[0.98] ${
-                allScanned
+                allScanned && !isPartialAssembly
                   ? "bg-blue-600 text-white active:bg-blue-700"
                   : "cursor-not-allowed bg-gray-100 text-gray-400"
               }`}

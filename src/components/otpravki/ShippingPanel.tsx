@@ -16,7 +16,7 @@ import {
   subscribeAssemblyProgress,
   type AssemblyProgressState,
 } from "@/lib/assembly-progress";
-import { collectedReadyOrderIds } from "@/lib/assembly-status";
+import { collectedVisibleOrderIds } from "@/lib/assembly-status";
 import { ALL_BRANDS, formatBrandLabel, getStoreBrand, matchesStoreBrand } from "@/lib/store-brand";
 import type { AssemblyItem, ShippingOrder, ShippingTab } from "@/types/shipping";
 import { ArchiveView } from "./ArchiveView";
@@ -159,7 +159,7 @@ export function ShippingPanel({
   );
 
   const assembledOrderIds = useMemo(
-    () => collectedReadyOrderIds(orders, syncedAssemblyItems),
+    () => collectedVisibleOrderIds(orders, syncedAssemblyItems),
     [orders, syncedAssemblyItems],
   );
 

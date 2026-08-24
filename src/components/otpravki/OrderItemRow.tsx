@@ -26,6 +26,8 @@ interface OrderItemRowProps {
   onDecrement?: () => void;
   /** Мгновенная загрузка фото (отправки при листании заказов) */
   imagePriority?: boolean;
+  /** Позиция не собрана в приложении сборки */
+  assemblyMissing?: { need: number; have: number };
 }
 
 export function OrderItemRow({
@@ -38,10 +40,12 @@ export function OrderItemRow({
   onIncrement,
   onDecrement,
   imagePriority = false,
+  assemblyMissing,
 }: OrderItemRowProps) {
   const isComplete = item.scannedCount >= item.quantity;
   const isPartial = item.scannedCount > 0 && !isComplete;
   const isMulti = item.quantity > 1;
+  const missingAssembly = Boolean(assemblyMissing);
   const hasChestnyZnak = chestnyZnakActive && Boolean(item.chestnyZnak?.trim());
   const czStock = chestnyZnakStockStatus(item.chestnyZnak, remainingByGtin);
 
@@ -63,11 +67,13 @@ export function OrderItemRow({
   return (
     <div
       className={`rounded-xl border p-3 transition-colors ${
-        isComplete
-          ? "border-green-200 bg-green-50/60"
-          : isPartial
-            ? "border-amber-200 bg-amber-50/40"
-            : "border-gray-100 bg-gray-50/50"
+        missingAssembly
+          ? "border-amber-300/80 bg-amber-50/30 opacity-60 saturate-75"
+          : isComplete
+            ? "border-green-200 bg-green-50/60"
+            : isPartial
+              ? "border-amber-200 bg-amber-50/40"
+              : "border-gray-100 bg-gray-50/50"
       }`}
     >
       <div className="flex items-center gap-3">
@@ -95,6 +101,11 @@ export function OrderItemRow({
             <p className="mt-0.5 text-xs text-gray-600">
               <span className="font-medium">{formatSize(item.size)}</span>
             </p>
+            {missingAssembly && assemblyMissing && (
+              <p className="mt-1 text-xs font-medium text-amber-800">
+                Не собрано: {assemblyMissing.have} / {assemblyMissing.need}
+              </p>
+            )}
           </div>
         </div>
 

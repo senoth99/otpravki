@@ -1,7 +1,8 @@
 import { assemblyItemKey } from "@/lib/assembly-demand";
 import { orderIsBlogger } from "@/lib/blogger-order";
-import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import { resolveOrderUrgency, URGENCY_WEIGHT } from "@/lib/urgency";
+import type { OrderUrgency } from "@/types/shipping";
+import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 
 function buildUrgencyMap(orders: ShippingOrder[]) {
   const map = new Map<string, number>();
@@ -20,6 +21,20 @@ function buildUrgencyMap(orders: ShippingOrder[]) {
   }
 
   return map;
+}
+
+export function resolveAssemblyItemUrgency(
+  item: Pick<AssemblyItem, "productId" | "sizeId" | "isBlogger">,
+  orders: ShippingOrder[],
+): OrderUrgency {
+  const key = assemblyItemKey(item.productId, item.sizeId, item.isBlogger === true);
+  const urgencyMap = buildUrgencyMap(orders);
+  const weight = urgencyMap.get(key) ?? 999;
+
+  const entry = (Object.entries(URGENCY_WEIGHT) as [OrderUrgency, number][]).find(
+    ([, value]) => value === weight,
+  );
+  return entry?.[0] ?? "normal";
 }
 
 export function sortAssemblyItemsByUrgency(

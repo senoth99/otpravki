@@ -85,7 +85,7 @@ export function findFirstAutoOrderIndex(
 ): number | null {
   for (const index of getSortedOrderIndices(orders, statuses)) {
     if (orders[index].barcodePrinted) continue;
-    if (statuses[index] === "awaiting-assembly" || statuses[index] === "shipped") continue;
+    if (statuses[index] === "awaiting-assembly" || statuses[index] === "partial-assembly" || statuses[index] === "shipped") continue;
     return index;
   }
   return null;
