@@ -947,9 +947,6 @@ export function ShippingView({
           <p className="font-medium text-gray-900">
             {emptyHint ? "Нет готовых к отправке" : "Нет заказов на отправку"}
           </p>
-          {emptyHint ? (
-            <p className="mx-auto max-w-md text-sm text-gray-500">{emptyHint}</p>
-          ) : null}
         </div>
       </div>
     );

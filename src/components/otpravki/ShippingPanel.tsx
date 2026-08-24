@@ -193,17 +193,9 @@ export function ShippingPanel({
     ],
   );
 
+  // Truthy → заголовок «Нет готовых к отправке» (текст-пояснение больше не показываем).
   const emptyHint =
-    filteredOrders.length === 0 &&
-    filters.fromAssembly &&
-    assembledBrandCount === 0 &&
-    activeBrandOrders.length > 0
-      ? `У ${selectedBrand} нет заказов со сборки. Соберите позиции в приложении сборки — или выключите фильтр «Только со сборки» (PIN 2828).`
-      : filteredOrders.length === 0 && filters.inStock && notReadyCount > 0
-        ? `У ${selectedBrand} ещё ${notReadyCount} зак. ждут наличия на складе. Фильтр «В наличии» их скрывает — выключи в фильтрах (нужен PIN админа), чтобы увидеть.`
-        : filteredOrders.length === 0 && activeBrandOrders.length > 0
-          ? "Все заказы скрыты другими фильтрами."
-          : null;
+    filteredOrders.length === 0 && activeBrandOrders.length > 0 ? "filtered" : null;
 
   const filteredAssemblyItems = useMemo(
     () =>
