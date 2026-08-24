@@ -21,19 +21,24 @@ function KeyButton({
   label,
   onPress,
   className = "",
+  active,
 }: {
   label: string;
   onPress: () => void;
   className?: string;
+  active?: boolean;
 }) {
   return (
     <button
       type="button"
       onPointerDown={(e) => {
         e.preventDefault();
+        e.stopPropagation();
         onPress();
       }}
-      className={`inline-flex h-12 min-w-0 flex-1 items-center justify-center rounded-xl border border-gray-200 bg-white text-base font-semibold text-gray-900 shadow-sm active:scale-[0.98] active:bg-gray-900 active:text-white sm:h-14 ${className}`}
+      className={`inline-flex h-12 min-w-0 flex-1 items-center justify-center rounded-xl border border-gray-200 bg-white text-base font-semibold text-gray-900 shadow-sm active:scale-[0.98] active:bg-gray-900 active:text-white sm:h-14 ${
+        active ? "!bg-gray-900 !text-white" : ""
+      } ${className}`}
     >
       {label}
     </button>
@@ -41,36 +46,41 @@ function KeyButton({
 }
 
 interface VirtualKeyboardProps {
-  value: string;
-  onChange: (next: string) => void;
+  /** Стартовое значение; дальше правки идут через ref без React-ререндера */
+  initialValue: string;
+  valueRef: React.MutableRefObject<string>;
   onClose: () => void;
   title?: string;
   keyboardRef?: React.RefObject<HTMLDivElement | null>;
 }
 
+/**
+ * Экранная клавиатура без setState на каждый символ.
+ * Иначе Chrome на складе убивает вкладку («This page couldn't be loaded»).
+ */
 export function VirtualKeyboard({
-  value,
-  onChange,
+  initialValue,
+  valueRef,
   onClose,
   title = "Клавиатура",
   keyboardRef,
 }: VirtualKeyboardProps) {
   const [layout, setLayout] = useState<KeyboardLayout>("digits");
+  const displayRef = useRef<HTMLSpanElement>(null);
 
-  const append = useCallback(
-    (char: string) => {
-      onChange(value + char);
-    },
-    [onChange, value],
-  );
+  const paint = useCallback(() => {
+    const text = valueRef.current;
+    if (displayRef.current) {
+      displayRef.current.textContent = text || "…";
+      displayRef.current.classList.toggle("text-gray-400", !text);
+      displayRef.current.classList.toggle("text-gray-900", Boolean(text));
+    }
+  }, [valueRef]);
 
-  const backspace = useCallback(() => {
-    onChange(value.slice(0, -1));
-  }, [onChange, value]);
-
-  const clear = useCallback(() => {
-    onChange("");
-  }, [onChange]);
+  useEffect(() => {
+    valueRef.current = initialValue;
+    paint();
+  }, [initialValue, paint, valueRef]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -80,10 +90,32 @@ export function VirtualKeyboard({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  const append = useCallback(
+    (char: string) => {
+      valueRef.current += char;
+      paint();
+    },
+    [paint, valueRef],
+  );
+
+  const backspace = useCallback(() => {
+    valueRef.current = valueRef.current.slice(0, -1);
+    paint();
+  }, [paint, valueRef]);
+
+  const clear = useCallback(() => {
+    valueRef.current = "";
+    paint();
+  }, [paint, valueRef]);
+
   const letterRows = layout === "ru" ? RU_ROWS : EN_ROWS;
 
   return (
-    <div ref={keyboardRef} className="fixed inset-0 z-[80] flex flex-col justify-end">
+    <div
+      ref={keyboardRef}
+      className="fixed inset-0 z-[80] flex flex-col justify-end"
+      data-no-drag-scroll
+    >
       <button
         type="button"
         aria-label="Закрыть клавиатуру"
@@ -96,8 +128,10 @@ export function VirtualKeyboard({
             <p className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wide text-gray-500">
               {title}
             </p>
-            <div className="max-w-[55%] truncate rounded-lg bg-white px-3 py-1.5 font-mono text-sm text-gray-900 shadow-sm">
-              {value || <span className="text-gray-400">…</span>}
+            <div className="max-w-[55%] truncate rounded-lg bg-white px-3 py-1.5 font-mono text-sm shadow-sm">
+              <span ref={displayRef} className={initialValue ? "text-gray-900" : "text-gray-400"}>
+                {initialValue || "…"}
+              </span>
             </div>
             <button
               type="button"
@@ -116,7 +150,7 @@ export function VirtualKeyboard({
 
           {layout !== "digits" &&
             letterRows.map((row, rowIdx) => (
-              <div key={rowIdx} className="flex gap-1.5">
+              <div key={`${layout}-${rowIdx}`} className="flex gap-1.5">
                 {row.map((key) => (
                   <KeyButton key={key} label={key} onPress={() => append(key)} />
                 ))}
@@ -127,18 +161,10 @@ export function VirtualKeyboard({
             <KeyButton
               label="123"
               onPress={() => setLayout("digits")}
-              className={layout === "digits" ? "!bg-gray-900 !text-white" : ""}
+              active={layout === "digits"}
             />
-            <KeyButton
-              label="ABC"
-              onPress={() => setLayout("en")}
-              className={layout === "en" ? "!bg-gray-900 !text-white" : ""}
-            />
-            <KeyButton
-              label="АБВ"
-              onPress={() => setLayout("ru")}
-              className={layout === "ru" ? "!bg-gray-900 !text-white" : ""}
-            />
+            <KeyButton label="ABC" onPress={() => setLayout("en")} active={layout === "en"} />
+            <KeyButton label="АБВ" onPress={() => setLayout("ru")} active={layout === "ru"} />
             <KeyButton label="␣" onPress={() => append(" ")} />
             <KeyButton label="⌫" onPress={backspace} />
             <KeyButton label="✕" onPress={clear} className="!text-red-700" />
@@ -156,16 +182,9 @@ interface KeyboardFieldProps {
   disabled?: boolean;
   className?: string;
   title?: string;
-  /**
-   * Задержка перед onChange в родителя.
-   * Локальный ввод обновляется сразу — иначе каждый символ
-   * пересобирает тяжёлый список заказов и Chrome убивает вкладку.
-   */
+  /** @deprecated оставлен для совместимости */
   debounceMs?: number;
-  /**
-   * Не слать onChange пока открыта клавиатура — только по «Готово» / закрытию.
-   * Нужно для поиска на отправках: набор цифр не должен трогать ShippingView.
-   */
+  /** Применить значение только по Готово / закрытию */
   applyOnCloseOnly?: boolean;
 }
 
@@ -177,14 +196,12 @@ export function KeyboardField({
   disabled,
   className = "",
   title,
-  debounceMs = 0,
-  applyOnCloseOnly = false,
 }: KeyboardFieldProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [draft, setDraft] = useState(value);
   const wrapRef = useRef<HTMLDivElement>(null);
   const keyboardRef = useRef<HTMLDivElement>(null);
+  const draftRef = useRef(value);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
@@ -192,20 +209,15 @@ export function KeyboardField({
     setMounted(true);
   }, []);
 
-  // Внешний сброс (смена бренда / «Сбросить») — подтягиваем draft
   useEffect(() => {
-    setDraft(value);
-  }, [value]);
+    if (!open) draftRef.current = value;
+  }, [value, open]);
 
-  useEffect(() => {
-    if (applyOnCloseOnly) return;
-    if (!debounceMs) return;
-    if (draft === value) return;
-    const timer = window.setTimeout(() => {
-      onChangeRef.current(draft);
-    }, debounceMs);
-    return () => window.clearTimeout(timer);
-  }, [draft, value, debounceMs, applyOnCloseOnly]);
+  const closeAndCommit = useCallback(() => {
+    const next = draftRef.current;
+    setOpen(false);
+    if (next !== value) onChangeRef.current(next);
+  }, [value]);
 
   useEffect(() => {
     if (!open) return;
@@ -214,31 +226,11 @@ export function KeyboardField({
       if (!target) return;
       if (wrapRef.current?.contains(target)) return;
       if (keyboardRef.current?.contains(target)) return;
-      setOpen(false);
+      closeAndCommit();
     };
     document.addEventListener("pointerdown", onPointer);
     return () => document.removeEventListener("pointerdown", onPointer);
-  }, [open]);
-
-  const useLocalDraft = debounceMs > 0 || applyOnCloseOnly;
-  const displayValue = useLocalDraft ? draft : value;
-
-  const commitDraft = useCallback(() => {
-    if (draft !== value) onChangeRef.current(draft);
-  }, [draft, value]);
-
-  const handleChange = (next: string) => {
-    if (useLocalDraft) {
-      setDraft(next);
-      return;
-    }
-    onChange(next);
-  };
-
-  const handleClose = () => {
-    if (useLocalDraft) commitDraft();
-    setOpen(false);
-  };
+  }, [open, closeAndCommit]);
 
   return (
     <div ref={wrapRef} className="relative">
@@ -246,14 +238,20 @@ export function KeyboardField({
         type="text"
         inputMode="none"
         readOnly
-        value={displayValue}
+        value={value}
         disabled={disabled}
         placeholder={placeholder}
         onFocus={() => {
-          if (!disabled) setOpen(true);
+          if (!disabled) {
+            draftRef.current = value;
+            setOpen(true);
+          }
         }}
         onClick={() => {
-          if (!disabled) setOpen(true);
+          if (!disabled) {
+            draftRef.current = value;
+            setOpen(true);
+          }
         }}
         className={className}
       />
@@ -262,9 +260,9 @@ export function KeyboardField({
         mounted &&
         createPortal(
           <VirtualKeyboard
-            value={displayValue}
-            onChange={handleChange}
-            onClose={handleClose}
+            initialValue={value}
+            valueRef={draftRef}
+            onClose={closeAndCommit}
             title={title}
             keyboardRef={keyboardRef}
           />,
