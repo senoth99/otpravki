@@ -38,6 +38,34 @@ export function applyProgressToAssemblyItems(
   });
 }
 
+/** Убрать прогресс по позициям, которых больше нет в очереди сборки (после отгрузки). */
+export function staleAssemblyProgressPatch(
+  items: AssemblyItem[],
+  progress: AssemblyProgressState | null | undefined,
+): Array<{ id: string; collectedCount: number; collectedAt?: number }> {
+  if (!progress?.items) return [];
+  const live = new Map(items.map((item) => [item.id, item]));
+  const patch: Array<{ id: string; collectedCount: number; collectedAt?: number }> = [];
+
+  for (const [id, entry] of Object.entries(progress.items)) {
+    const item = live.get(id);
+    if (!item) {
+      if (entry.collectedCount > 0) patch.push({ id, collectedCount: 0 });
+      continue;
+    }
+    const capped = Math.min(entry.collectedCount, Math.max(0, item.quantity));
+    if (capped !== entry.collectedCount) {
+      patch.push({
+        id,
+        collectedCount: capped,
+        collectedAt: capped > 0 ? entry.collectedAt : undefined,
+      });
+    }
+  }
+
+  return patch;
+}
+
 export async function fetchAssemblyProgress(): Promise<AssemblyProgressState | null> {
   try {
     const res = await fetchWithTimeout("/api/assembly/progress", {

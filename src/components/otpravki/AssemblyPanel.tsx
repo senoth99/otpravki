@@ -10,6 +10,7 @@ import {
   applyProgressToAssemblyItems,
   fetchAssemblyProgress,
   pushAssemblyProgress,
+  staleAssemblyProgressPatch,
   subscribeAssemblyProgress,
   type AssemblyProgressState,
 } from "@/lib/assembly-progress";
@@ -64,7 +65,6 @@ export function AssemblyPanel({
     isInternetOnline,
     isServerReachable,
     refreshFromApi,
-    isSyncing,
   } = useWorkspace({
     initialAssembly,
     initialOrders,
@@ -117,6 +117,19 @@ export function AssemblyPanel({
     () => applyProgressToAssemblyItems(assemblyItems, progress),
     [assemblyItems, progress],
   );
+
+  // После отгрузки спрос падает — чистим «собрано» по исчезнувшим/урезанным позициям.
+  useEffect(() => {
+    const patch = staleAssemblyProgressPatch(assemblyItems, progress);
+    if (patch.length === 0) return;
+    let cancelled = false;
+    void pushAssemblyProgress(patch).then((remote) => {
+      if (!cancelled && remote) setProgress(remote);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [assemblyItems, progress]);
 
   const brandOrders = useMemo(
     () => orders.filter((order) => getOrderStoreBrand(order) === selectedBrand && !order.barcodePrinted),
@@ -256,7 +269,7 @@ export function AssemblyPanel({
           // Полный sync всех брендов — не только выбранного
           void refreshFromApi(undefined).finally(() => setReloading(false));
         }}
-        refreshing={reloading || isSyncing}
+        refreshing={reloading}
         offline={offline}
         offlineMessage={!isInternetOnline ? "Нет интернета" : "Сервер недоступен"}
       >

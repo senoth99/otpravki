@@ -61,6 +61,8 @@ export function useWorkspace({
   const [isStreamConnected, setIsStreamConnected] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const refreshRequestIdRef = useRef(0);
+  /** Сколько не-silent refresh сейчас в полёте — silent poll не должен залипать крутилку. */
+  const nonSilentSyncsRef = useRef(0);
 
   assemblyRef.current = assemblyItems;
   ordersRef.current = orders;
@@ -124,7 +126,11 @@ export function useWorkspace({
   const refreshFromApi = useCallback(
     async (brand?: string, options?: { silent?: boolean }) => {
       const requestId = ++refreshRequestIdRef.current;
-      if (!options?.silent) setIsSyncing(true);
+      const silent = Boolean(options?.silent);
+      if (!silent) {
+        nonSilentSyncsRef.current += 1;
+        setIsSyncing(true);
+      }
       try {
         const result = await refreshWorkspaceFromApi(brand);
         if (requestId !== refreshRequestIdRef.current) {
@@ -136,13 +142,14 @@ export function useWorkspace({
           return { ok: true as const };
         }
         setIsServerReachable(false);
-        if (!options?.silent && result.error) {
+        if (!silent && result.error) {
           reportClientError(`refresh ${brand ?? "all"}: ${result.error}`);
         }
         return { ok: false as const, error: result.error };
       } finally {
-        if (requestId === refreshRequestIdRef.current && !options?.silent) {
-          setIsSyncing(false);
+        if (!silent) {
+          nonSilentSyncsRef.current = Math.max(0, nonSilentSyncsRef.current - 1);
+          if (nonSilentSyncsRef.current === 0) setIsSyncing(false);
         }
       }
     },
