@@ -568,6 +568,7 @@ export function OverviewPanel({
                   setQuery(value);
                   onUserAction();
                 }}
+                debounceMs={250}
                 placeholder="Поиск модели…"
                 title="Поиск модели"
                 className="h-12 w-full rounded-2xl border border-gray-200 bg-white px-3 text-base text-gray-900 placeholder:text-gray-400 shadow-sm"

@@ -801,7 +801,7 @@ export function ShippingView({
       selectedBrand,
       { afterOrderNumber: afterNumber },
     );
-    if (nextId) setCurrentOrderId(nextId);
+    if (nextId && nextId !== currentOrderId) setCurrentOrderId(nextId);
   }, [
     currentIndex,
     orders,

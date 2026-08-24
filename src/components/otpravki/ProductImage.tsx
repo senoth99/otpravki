@@ -30,7 +30,7 @@ export function ProductImage({
   const [defectsOpen, setDefectsOpen] = useState(false);
   const [specIndex, setSpecIndex] = useState(0);
   const imageSrc = toLocalImageUrl(src);
-  const techImages = findTechSpecImages(productName || alt);
+  const techImages = previewable ? findTechSpecImages(productName || alt) : null;
   const hasSpecs = Boolean(techImages?.length);
 
   useEffect(() => {
@@ -61,6 +61,8 @@ export function ProductImage({
           src={PRODUCT_PLACEHOLDER_SRC}
           alt=""
           draggable={false}
+          loading="lazy"
+          decoding="async"
           className={`h-full w-full object-cover ${className ?? ""}`}
         />
       </div>
@@ -99,6 +101,8 @@ export function ProductImage({
           src={imageSrc}
           alt={alt}
           draggable={false}
+          loading="lazy"
+          decoding="async"
           className={`absolute inset-0 h-full w-full select-none [-webkit-user-drag:none] ${className ?? ""}`}
           onError={() => setFailed(true)}
           onDragStart={(event) => event.preventDefault()}

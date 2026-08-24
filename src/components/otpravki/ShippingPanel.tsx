@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/AuthGate";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
@@ -142,9 +142,10 @@ export function ShippingPanel({
 
   const cities = useMemo(() => collectFilterCities(activeBrandOrders), [activeBrandOrders]);
   const products = useMemo(() => {
-    const source = tab === "archive" ? filteredShippedArchive : activeBrandOrders;
-    return collectFilterProducts(source);
-  }, [tab, filteredShippedArchive, activeBrandOrders]);
+    // Архив: не пересчитываем товары на каждый символ поиска
+    if (tab === "archive") return [];
+    return collectFilterProducts(activeBrandOrders);
+  }, [tab, activeBrandOrders]);
 
   const handleTabChange = (next: ShippingTab) => {
     setTab(next);
@@ -169,12 +170,12 @@ export function ShippingPanel({
 
   const offline = !isInternetOnline || !isServerReachable;
 
-  const handleBrandChange = (brand: string) => {
+  const handleBrandChange = useCallback((brand: string) => {
     const next = brand.trim();
     if (!next || next === selectedBrand) return;
     setSelectedBrand(next);
     setFilters(DEFAULT_FILTERS);
-  };
+  }, [selectedBrand]);
 
   return (
     <div className="otpravki-shell flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-gray-50 touch-pan-y overscroll-none">

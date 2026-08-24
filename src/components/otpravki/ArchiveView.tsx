@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ARCHIVE_STATUS_HINT,
   ARCHIVE_STATUS_LABEL,
@@ -39,6 +39,9 @@ const STATUS_STYLES = {
   },
 } as const;
 
+/** Сколько карточек рисовать за раз — иначе Chrome OOM на архиве. */
+const ARCHIVE_PAGE_SIZE = 40;
+
 function matchesArchiveQuery(order: ShippingOrder, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
@@ -71,6 +74,7 @@ export function ArchiveView({
   const [unshippingId, setUnshippingId] = useState<string | null>(null);
   const [reprintingId, setReprintingId] = useState<string | null>(null);
   const [reprintError, setReprintError] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(ARCHIVE_PAGE_SIZE);
   const apiSet = useMemo(() => new Set(apiOrderIds), [apiOrderIds]);
 
   const allShipped = useMemo(
@@ -82,6 +86,16 @@ export function ArchiveView({
     () => allShipped.filter((order) => matchesArchiveQuery(order, query)),
     [allShipped, query],
   );
+
+  useEffect(() => {
+    setVisibleCount(ARCHIVE_PAGE_SIZE);
+  }, [query]);
+
+  const visibleOrders = useMemo(
+    () => shippedOrders.slice(0, visibleCount),
+    [shippedOrders, visibleCount],
+  );
+  const hasMore = visibleOrders.length < shippedOrders.length;
 
   const inTransitCount = shippedOrders.filter(
     (order) => getArchiveDeliveryStatus(order.id, apiSet) === "in-transit",
@@ -177,7 +191,7 @@ export function ArchiveView({
         </div>
       ) : (
         <div className="grid gap-2.5 sm:gap-3">
-          {shippedOrders.map((order) => {
+          {visibleOrders.map((order) => {
             const status = getArchiveDeliveryStatus(order.id, apiSet);
             const styles = STATUS_STYLES[status];
             const itemCount = order.items.reduce((sum, item) => sum + item.quantity, 0);
@@ -241,6 +255,7 @@ export function ArchiveView({
                           productName={item.productName}
                           className="object-cover"
                           sizes="40px"
+                          previewable={false}
                         />
                         {item.quantity > 1 && (
                           <div className="absolute left-0.5 top-0.5 rounded bg-gray-900 px-0.5 py-0.5 text-[9px] font-bold leading-none text-white">
@@ -295,6 +310,16 @@ export function ArchiveView({
               </div>
             );
           })}
+
+          {hasMore ? (
+            <button
+              type="button"
+              onClick={() => setVisibleCount((n) => n + ARCHIVE_PAGE_SIZE)}
+              className="min-h-12 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-800 active:bg-gray-50"
+            >
+              Показать ещё · {shippedOrders.length - visibleOrders.length} скрыто
+            </button>
+          ) : null}
         </div>
       )}
     </div>

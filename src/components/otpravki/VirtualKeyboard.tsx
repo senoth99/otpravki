@@ -156,6 +156,12 @@ interface KeyboardFieldProps {
   disabled?: boolean;
   className?: string;
   title?: string;
+  /**
+   * Задержка перед onChange в родителя.
+   * Локальный ввод обновляется сразу — иначе каждый символ
+   * пересобирает тяжёлый список заказов и Chrome убивает вкладку.
+   */
+  debounceMs?: number;
 }
 
 /** Поле ввода с экранной клавиатурой (без системной). */
@@ -166,15 +172,33 @@ export function KeyboardField({
   disabled,
   className = "",
   title,
+  debounceMs = 0,
 }: KeyboardFieldProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [draft, setDraft] = useState(value);
   const wrapRef = useRef<HTMLDivElement>(null);
   const keyboardRef = useRef<HTMLDivElement>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Внешний сброс (смена бренда / «Сбросить») — подтягиваем draft
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  useEffect(() => {
+    if (!debounceMs) return;
+    if (draft === value) return;
+    const timer = window.setTimeout(() => {
+      onChangeRef.current(draft);
+    }, debounceMs);
+    return () => window.clearTimeout(timer);
+  }, [draft, value, debounceMs]);
 
   useEffect(() => {
     if (!open) return;
@@ -189,13 +213,22 @@ export function KeyboardField({
     return () => document.removeEventListener("pointerdown", onPointer);
   }, [open]);
 
+  const displayValue = debounceMs > 0 ? draft : value;
+  const handleChange = (next: string) => {
+    if (debounceMs > 0) {
+      setDraft(next);
+      return;
+    }
+    onChange(next);
+  };
+
   return (
     <div ref={wrapRef} className="relative">
       <input
         type="text"
         inputMode="none"
         readOnly
-        value={value}
+        value={displayValue}
         disabled={disabled}
         placeholder={placeholder}
         onFocus={() => {
@@ -211,9 +244,14 @@ export function KeyboardField({
         mounted &&
         createPortal(
           <VirtualKeyboard
-            value={value}
-            onChange={onChange}
-            onClose={() => setOpen(false)}
+            value={displayValue}
+            onChange={handleChange}
+            onClose={() => {
+              if (debounceMs > 0 && draft !== value) {
+                onChangeRef.current(draft);
+              }
+              setOpen(false);
+            }}
             title={title}
             keyboardRef={keyboardRef}
           />,
