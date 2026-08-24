@@ -162,6 +162,11 @@ interface KeyboardFieldProps {
    * пересобирает тяжёлый список заказов и Chrome убивает вкладку.
    */
   debounceMs?: number;
+  /**
+   * Не слать onChange пока открыта клавиатура — только по «Готово» / закрытию.
+   * Нужно для поиска на отправках: набор цифр не должен трогать ShippingView.
+   */
+  applyOnCloseOnly?: boolean;
 }
 
 /** Поле ввода с экранной клавиатурой (без системной). */
@@ -173,6 +178,7 @@ export function KeyboardField({
   className = "",
   title,
   debounceMs = 0,
+  applyOnCloseOnly = false,
 }: KeyboardFieldProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -192,13 +198,14 @@ export function KeyboardField({
   }, [value]);
 
   useEffect(() => {
+    if (applyOnCloseOnly) return;
     if (!debounceMs) return;
     if (draft === value) return;
     const timer = window.setTimeout(() => {
       onChangeRef.current(draft);
     }, debounceMs);
     return () => window.clearTimeout(timer);
-  }, [draft, value, debounceMs]);
+  }, [draft, value, debounceMs, applyOnCloseOnly]);
 
   useEffect(() => {
     if (!open) return;
@@ -213,13 +220,24 @@ export function KeyboardField({
     return () => document.removeEventListener("pointerdown", onPointer);
   }, [open]);
 
-  const displayValue = debounceMs > 0 ? draft : value;
+  const useLocalDraft = debounceMs > 0 || applyOnCloseOnly;
+  const displayValue = useLocalDraft ? draft : value;
+
+  const commitDraft = useCallback(() => {
+    if (draft !== value) onChangeRef.current(draft);
+  }, [draft, value]);
+
   const handleChange = (next: string) => {
-    if (debounceMs > 0) {
+    if (useLocalDraft) {
       setDraft(next);
       return;
     }
     onChange(next);
+  };
+
+  const handleClose = () => {
+    if (useLocalDraft) commitDraft();
+    setOpen(false);
   };
 
   return (
@@ -246,12 +264,7 @@ export function KeyboardField({
           <VirtualKeyboard
             value={displayValue}
             onChange={handleChange}
-            onClose={() => {
-              if (debounceMs > 0 && draft !== value) {
-                onChangeRef.current(draft);
-              }
-              setOpen(false);
-            }}
+            onClose={handleClose}
             title={title}
             keyboardRef={keyboardRef}
           />,

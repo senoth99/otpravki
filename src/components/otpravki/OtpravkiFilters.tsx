@@ -510,7 +510,7 @@ export function OtpravkiFiltersPanel({
               <KeyboardField
                 value={filters.query}
                 onChange={(next) => set("query", next)}
-                debounceMs={250}
+                applyOnCloseOnly
                 placeholder="Номер, ФИО, город…"
                 title="Поиск заказа"
                 className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
@@ -656,7 +656,7 @@ export function OtpravkiMobileFilters({
             <KeyboardField
               value={filters.query}
               onChange={(next) => set("query", next)}
-              debounceMs={250}
+              applyOnCloseOnly
               placeholder="Поиск заказа…"
               title="Поиск заказа"
               className="h-12 w-full rounded-xl border border-gray-200 bg-white px-3 text-base text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"

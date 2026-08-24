@@ -101,8 +101,23 @@ export function ShippingPanel({
   );
 
   const filteredOrders = useMemo(
-    () => applyOrderFilters(activeBrandOrders, filters),
-    [activeBrandOrders, filters],
+    () =>
+      applyOrderFilters(activeBrandOrders, {
+        ...filters,
+        // Поиск не режет список отправок — иначе Chrome убивает вкладку на 1–2 символах.
+        // ShippingView сам прыгает к совпадению по searchQuery.
+        query: "",
+      }),
+    [
+      activeBrandOrders,
+      filters.urgency,
+      filters.kind,
+      filters.scan,
+      filters.comment,
+      filters.city,
+      filters.productIds,
+      filters.inStock,
+    ],
   );
 
   const filteredAssemblyItems = useMemo(
@@ -233,6 +248,7 @@ export function ShippingPanel({
               onOrdersChange={handleFilteredOrdersChange}
               onOrderShipped={() => scheduleRefreshAfterShip(selectedBrand)}
               selectionResetKey={`${selectedBrand}:${filters.urgency}:${filters.kind}:${filters.inStock}:${filters.productIds.join(",")}`}
+              searchQuery={filters.query}
             />
           ) : (
             <ArchiveView

@@ -90,10 +90,30 @@ interface ShippingViewProps {
   onOrderShipped?: () => void;
   /** Смена фильтров/бренда — открыть первый заказ нового списка */
   selectionResetKey?: string;
+  /** Поиск: прыжок к заказу, без пересборки списка orders */
+  searchQuery?: string;
 }
 
 function getOrderStoreBrand(order: ShippingOrder): string {
   return order.storeBrand?.trim() || "CASHER";
+}
+
+function orderMatchesSearch(order: ShippingOrder, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const hay = [
+    order.orderNumber,
+    order.customerName,
+    order.city,
+    order.trackingNumber,
+    order.shippedByEmoji,
+    ...(order.tags?.map((tag) => tag.label) ?? []),
+    ...order.items.map((item) => item.productName),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return hay.includes(q);
 }
 
 export function ShippingView({
@@ -105,6 +125,7 @@ export function ShippingView({
   onOrdersChange,
   onOrderShipped,
   selectionResetKey = "",
+  searchQuery = "",
 }: ShippingViewProps) {
   const { user } = useAuth();
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(
@@ -230,10 +251,10 @@ export function ShippingView({
           const order = orders[index];
           if (order.barcodePrinted) return false;
           if (getOrderStoreBrand(order) !== selectedBrand) return false;
-          // В workspace уже только заказы с наличием из API; «Собрано» не влияет
+          if (!orderMatchesSearch(order, searchQuery)) return false;
           return true;
         }),
-    [orders, selectedBrand],
+    [orders, selectedBrand, searchQuery],
   );
 
   const shippableIndices = activeIndices;
