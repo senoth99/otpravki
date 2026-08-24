@@ -153,43 +153,59 @@ export function AssemblyPanel({
   );
 
   const filteredAssemblyItems = useMemo(() => {
-    const brandAsm = syncedAssemblyItems.filter(
+    let brandAsm = syncedAssemblyItems.filter(
       (item) => matchesStoreBrand(item.brand, selectedBrand) && item.quantity > 0,
     );
     if (filters.kind === "blogger") {
-      return brandAsm.filter((item) => item.isBlogger === true);
+      brandAsm = brandAsm.filter((item) => item.isBlogger === true);
+    } else if (filters.kind === "regular") {
+      brandAsm = brandAsm.filter((item) => item.isBlogger !== true);
     }
-    if (filters.kind === "regular") {
-      return brandAsm.filter((item) => item.isBlogger !== true);
+
+    if (filters.productIds.length > 0) {
+      const wanted = new Set(filters.productIds);
+      brandAsm = brandAsm.filter((item) => wanted.has(item.productId));
     }
-    if (
-      filters.query.trim() ||
-      filters.urgency !== "all" ||
-      filters.city !== "all" ||
-      filters.productIds.length > 0
-    ) {
+
+    const q = filters.query.trim().toLowerCase();
+    if (q) {
+      brandAsm = brandAsm.filter((item) => {
+        const hay = [item.productName, item.brand, item.size, item.barcodeId]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(q);
+      });
+    }
+
+    if (filters.urgency !== "all" || filters.city !== "all") {
       const allowedKeys = new Set(
         filteredOrders.flatMap((order) =>
           order.items.map((item) => `${item.productId}-${item.sizeId}-${orderIsBlogger(order)}`),
         ),
       );
-      if (
-        allowedKeys.size === 0 &&
-        (filters.query ||
-          filters.urgency !== "all" ||
-          filters.city !== "all" ||
-          filters.productIds.length > 0)
-      ) {
-        return [];
-      }
-      if (allowedKeys.size > 0) {
-        return brandAsm.filter((item) =>
-          allowedKeys.has(`${item.productId}-${item.sizeId}-${item.isBlogger === true}`),
-        );
-      }
+      if (allowedKeys.size === 0) return [];
+      brandAsm = brandAsm.filter((item) =>
+        allowedKeys.has(`${item.productId}-${item.sizeId}-${item.isBlogger === true}`),
+      );
     }
+
     return brandAsm;
   }, [syncedAssemblyItems, selectedBrand, filters, filteredOrders]);
+
+  const handleFindProduct = (productId: string) => {
+    const id = productId.trim();
+    if (!id) return;
+    startFilterTransition(() => {
+      setFilters((prev) => {
+        const onlyThis = prev.productIds.length === 1 && prev.productIds[0] === id;
+        return {
+          ...prev,
+          productIds: onlyThis ? [] : [id],
+        };
+      });
+    });
+  };
 
   const handleFilteredAssemblyChange = (nextItems: AssemblyItem[]) => {
     const prevById = new Map(syncedAssemblyItems.map((item) => [item.id, item]));
@@ -341,6 +357,7 @@ export function AssemblyPanel({
             collapsible
             defaultExpanded={false}
             showFromAssembly={false}
+            pinProductSearch
           />
         </div>
       </OtpravkiPageHeader>
@@ -357,6 +374,8 @@ export function AssemblyPanel({
             resetCollectedBusy={resetCollectedBusy}
             onResetCollected={handleResetCollected}
             showBrandMark={isAllBrands(selectedBrand)}
+            onFindProduct={handleFindProduct}
+            findProductIds={filters.productIds}
           />
         </main>
       </div>

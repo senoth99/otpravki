@@ -16,6 +16,12 @@ interface ProductImageProps {
   previewable?: boolean;
   /** Сразу грузить (отправки / видимая карточка) — без lazy-задержки */
   priority?: boolean;
+  /**
+   * Поиск по товару (сборка): тап по миниатюре фильтрует список.
+   * Крупное фото — маленькая кнопка «лупа» на миниатюре.
+   */
+  onFind?: () => void;
+  findLabel?: string;
 }
 
 export function ProductImage({
@@ -26,6 +32,8 @@ export function ProductImage({
   productName,
   previewable = true,
   priority = false,
+  onFind,
+  findLabel = "Найти этот товар",
 }: ProductImageProps) {
   const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState(false);
@@ -33,11 +41,14 @@ export function ProductImage({
   const [defectsOpen, setDefectsOpen] = useState(false);
   const [specIndex, setSpecIndex] = useState(0);
   const imageSrc = toLocalImageUrl(src);
-  const techImages = previewable ? findTechSpecImages(productName || alt) : null;
+  const techImages = previewable || onFind ? findTechSpecImages(productName || alt) : null;
   const hasSpecs = Boolean(techImages?.length);
   const loading = priority ? "eager" : "lazy";
   const decoding = priority ? "sync" : "async";
   const fetchPriority = priority ? "high" : undefined;
+  const canPreview = previewable;
+  const findMode = Boolean(onFind);
+  const label = productName || alt;
 
   useEffect(() => {
     setFailed(false);
@@ -75,32 +86,37 @@ export function ProductImage({
     );
   }
 
-  const canPreview = previewable;
-  const label = productName || alt;
-
   return (
     <>
       <div
-        role={canPreview ? "button" : undefined}
-        tabIndex={canPreview ? 0 : undefined}
+        role={canPreview || findMode ? "button" : undefined}
+        tabIndex={canPreview || findMode ? 0 : undefined}
         onClick={(event) => {
-          if (!canPreview) return;
+          if (!canPreview && !findMode) return;
           event.preventDefault();
           event.stopPropagation();
+          if (findMode && onFind) {
+            onFind();
+            return;
+          }
           setOpen(true);
         }}
         onKeyDown={(event) => {
-          if (!canPreview) return;
+          if (!canPreview && !findMode) return;
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             event.stopPropagation();
+            if (findMode && onFind) {
+              onFind();
+              return;
+            }
             setOpen(true);
           }
         }}
-        aria-label={canPreview ? `Открыть фото: ${label}` : undefined}
+        aria-label={findMode ? `Найти: ${label}` : canPreview ? `Открыть фото: ${label}` : undefined}
         className={`absolute inset-0 block h-full w-full overflow-hidden p-0 ${
-          canPreview ? "cursor-zoom-in active:opacity-90" : ""
-        }`}
+          canPreview || findMode ? "active:opacity-90" : ""
+        } ${findMode ? "cursor-pointer" : canPreview ? "cursor-zoom-in" : ""}`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -115,6 +131,24 @@ export function ProductImage({
           onDragStart={(event) => event.preventDefault()}
         />
       </div>
+
+      {findMode && canPreview ? (
+        <button
+          type="button"
+          aria-label={`Фото: ${label}`}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setOpen(true);
+          }}
+          className="absolute bottom-1 left-1 z-[2] flex h-7 w-7 items-center justify-center rounded-lg bg-black/55 text-white shadow-sm active:bg-black/70"
+        >
+          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <circle cx="11" cy="11" r="7" />
+            <path strokeLinecap="round" d="M20 20l-3-3" />
+          </svg>
+        </button>
+      ) : null}
 
       {open ? (
         <div
@@ -146,6 +180,18 @@ export function ProductImage({
               </button>
             </div>
             <div className="mt-3 flex w-full flex-col gap-2">
+              {onFind ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onFind();
+                    setOpen(false);
+                  }}
+                  className="flex h-12 w-full items-center justify-center rounded-xl bg-white text-sm font-semibold text-gray-900 active:bg-gray-100"
+                >
+                  {findLabel}
+                </button>
+              ) : null}
               <button
                 type="button"
                 disabled={!hasSpecs}

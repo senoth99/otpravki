@@ -26,6 +26,9 @@ interface AssemblyViewProps {
   resetCollectedBusy?: boolean;
   onResetCollected?: () => void;
   showBrandMark?: boolean;
+  /** Тап по фото — фильтр по товару (как «Вещи» в отправках) */
+  onFindProduct?: (productId: string) => void;
+  findProductIds?: readonly string[];
 }
 
 function totalUnits(sections: AssemblyViewSections) {
@@ -52,6 +55,8 @@ export function AssemblyView({
   resetCollectedBusy = false,
   onResetCollected,
   showBrandMark = false,
+  onFindProduct,
+  findProductIds = [],
 }: AssemblyViewProps) {
   const visibleItems = [...sections.pending, ...sections.completed];
   const [autoMode, setAutoMode] = useState(false);
@@ -283,8 +288,24 @@ export function AssemblyView({
                 : "Сканируйте штрихкод или отмечайте вручную"}
             </p>
           </div>
-          {(canResetCollected || !isEmpty) && (
+          {(canResetCollected || !isEmpty || findProductIds.length > 0) && (
             <div className="flex flex-wrap items-center gap-2 self-start">
+              {findProductIds.length > 0 && onFindProduct ? (
+                <button
+                  type="button"
+                  data-no-drag-scroll
+                  onClick={() => {
+                    const id = findProductIds[0];
+                    if (id) onFindProduct(id);
+                  }}
+                  className="inline-flex min-h-11 touch-manipulation items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 text-sm font-medium text-violet-800 active:bg-violet-100"
+                >
+                  Фильтр по фото
+                  <span aria-hidden className="text-violet-500">
+                    ×
+                  </span>
+                </button>
+              ) : null}
               {canResetCollected && onResetCollected ? (
                 <button
                   type="button"
@@ -377,6 +398,10 @@ export function AssemblyView({
               locationGroup={locationGroup.length > 1 ? locationGroup : undefined}
               locationGroupIndex={locationGroupIndex}
               showBrandMark={showBrandMark}
+              onFindProduct={onFindProduct}
+              findActive={Boolean(
+                currentItem.productId && findProductIds.includes(currentItem.productId),
+              )}
             />
           )}
 
@@ -401,6 +426,8 @@ export function AssemblyView({
                       locked
                       stepNumber={routeStepById.get(item.id)}
                       showBrandMark={showBrandMark}
+                      onFindProduct={onFindProduct}
+                      findActive={Boolean(item.productId && findProductIds.includes(item.productId))}
                     />
                   );
                 })}
@@ -426,6 +453,8 @@ export function AssemblyView({
                     dimmed
                     locked
                     showBrandMark={showBrandMark}
+                    onFindProduct={onFindProduct}
+                    findActive={Boolean(item.productId && findProductIds.includes(item.productId))}
                   />
                 ))}
               </div>
@@ -445,6 +474,8 @@ export function AssemblyView({
                   cellLocation={warehouseMap ? findCellLocation(item, warehouseMap) : undefined}
                   warehouseMap={warehouseMap}
                   showBrandMark={showBrandMark}
+                  onFindProduct={onFindProduct}
+                  findActive={Boolean(item.productId && findProductIds.includes(item.productId))}
                 />
               ))}
             </div>
@@ -466,6 +497,8 @@ export function AssemblyView({
                     cellLocation={warehouseMap ? findCellLocation(item, warehouseMap) : undefined}
                     warehouseMap={warehouseMap}
                     showBrandMark={showBrandMark}
+                    onFindProduct={onFindProduct}
+                    findActive={Boolean(item.productId && findProductIds.includes(item.productId))}
                   />
                 ))}
               </div>

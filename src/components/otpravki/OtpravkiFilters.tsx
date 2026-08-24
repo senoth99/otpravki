@@ -675,6 +675,8 @@ export function OtpravkiMobileFilters({
   collapsible = false,
   defaultExpanded = true,
   showFromAssembly = true,
+  /** Для сборки: поиск и «Вещи» всегда снаружи свёрнутого блока */
+  pinProductSearch = false,
 }: {
   filters: OtpravkiFiltersState;
   onChange: (next: OtpravkiFiltersState) => void;
@@ -690,6 +692,7 @@ export function OtpravkiMobileFilters({
   collapsible?: boolean;
   defaultExpanded?: boolean;
   showFromAssembly?: boolean;
+  pinProductSearch?: boolean;
 }) {
   const [productsOpen, setProductsOpen] = useState(false);
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -716,28 +719,32 @@ export function OtpravkiMobileFilters({
     </FilterSection>
   ) : (
     <>
-      <FilterSection title="Наличие">
-        <div className="space-y-2">
-          <InStockToggle value={filters.inStock} onChange={(next) => set("inStock", next)} />
-          {showFromAssembly ? (
-            <FromAssemblyToggle
-              value={filters.fromAssembly}
-              onChange={(next) => set("fromAssembly", next)}
-            />
-          ) : null}
-        </div>
-      </FilterSection>
+      {!pinProductSearch ? (
+        <FilterSection title="Наличие">
+          <div className="space-y-2">
+            <InStockToggle value={filters.inStock} onChange={(next) => set("inStock", next)} />
+            {showFromAssembly ? (
+              <FromAssemblyToggle
+                value={filters.fromAssembly}
+                onChange={(next) => set("fromAssembly", next)}
+              />
+            ) : null}
+          </div>
+        </FilterSection>
+      ) : null}
 
-      <FilterSection title="Поиск">
-        <KeyboardField
-          value={filters.query}
-          onChange={(next) => set("query", next)}
-          applyOnCloseOnly
-          placeholder="Поиск заказа…"
-          title="Поиск заказа"
-          className="h-12 w-full rounded-xl border border-gray-200 bg-white px-3 text-base text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
-        />
-      </FilterSection>
+      {!pinProductSearch ? (
+        <FilterSection title="Поиск">
+          <KeyboardField
+            value={filters.query}
+            onChange={(next) => set("query", next)}
+            applyOnCloseOnly
+            placeholder="Поиск заказа…"
+            title="Поиск заказа"
+            className="h-12 w-full rounded-xl border border-gray-200 bg-white px-3 text-base text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+          />
+        </FilterSection>
+      ) : null}
 
       <FilterSection title="Срочность">
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
@@ -776,7 +783,7 @@ export function OtpravkiMobileFilters({
         </div>
       </FilterSection>
 
-      {products.length > 0 && (
+      {!pinProductSearch && products.length > 0 ? (
         <FilterSection
           title="Вещи"
           hint={selectedCount > 0 ? `${selectedCount} выбрано` : undefined}
@@ -785,7 +792,7 @@ export function OtpravkiMobileFilters({
             {selectedCount > 0 ? `Выбрано · ${selectedCount}` : "Выбрать вещи"}
           </Chip>
         </FilterSection>
-      )}
+      ) : null}
 
       <ProductFilterModal
         open={productsOpen}
@@ -797,10 +804,35 @@ export function OtpravkiMobileFilters({
     </>
   );
 
+  const pinnedSearch = pinProductSearch && !brandOnly ? (
+    <>
+      <FilterSection title="Поиск">
+        <KeyboardField
+          value={filters.query}
+          onChange={(next) => set("query", next)}
+          applyOnCloseOnly
+          placeholder="Название вещи, размер…"
+          title="Поиск в сборке"
+          className="h-12 w-full rounded-xl border border-gray-200 bg-white px-3 text-base text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+        />
+      </FilterSection>
+      {products.length > 0 ? (
+        <FilterSection
+          title="Вещи"
+          hint={selectedCount > 0 ? `${selectedCount} выбрано · или тапни фото в списке` : "или тапни фото в списке"}
+        >
+          <Chip active={selectedCount > 0} onClick={() => setProductsOpen(true)}>
+            {selectedCount > 0 ? `Выбрано · ${selectedCount}` : "Выбрать по картинке"}
+          </Chip>
+        </FilterSection>
+      ) : null}
+    </>
+  ) : null;
+
   const activeFilterHints =
     filters.urgency !== "all" ||
     filters.kind !== "all" ||
-    filters.inStock ||
+    (!pinProductSearch && filters.inStock) ||
     filters.productIds.length > 0 ||
     filters.query.trim().length > 0;
 
@@ -814,6 +846,8 @@ export function OtpravkiMobileFilters({
           disabled={brandDisabled}
         />
       )}
+
+      {pinnedSearch}
 
       {collapsible && !brandOnly ? (
         <>

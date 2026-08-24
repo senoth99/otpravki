@@ -37,6 +37,9 @@ interface AssemblyItemCardProps {
   locationGroupIndex?: number;
   /** Показать логотип бренда (режим «Все бренды») */
   showBrandMark?: boolean;
+  /** Тап по фото — отфильтровать сборку по этому товару */
+  onFindProduct?: (productId: string) => void;
+  findActive?: boolean;
 }
 
 export function AssemblyItemCard({
@@ -55,6 +58,8 @@ export function AssemblyItemCard({
   locationGroup,
   locationGroupIndex,
   showBrandMark = false,
+  onFindProduct,
+  findActive = false,
 }: AssemblyItemCardProps) {
   const [navOpenLocal, setNavOpenLocal] = useState(false);
   const navOpen = navOpenProp ?? navOpenLocal;
@@ -81,26 +86,36 @@ export function AssemblyItemCard({
         </div>
       )}
       <div className="flex min-w-0 items-start gap-3 sm:flex-1">
-        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-gray-100 sm:h-20 sm:w-20">
+        <div
+          className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-gray-100 sm:h-20 sm:w-20 ${
+            findActive ? "ring-2 ring-violet-500 ring-offset-1" : ""
+          }`}
+        >
           <ProductImage
             src={item.imageUrl}
             alt={item.productName}
             productName={item.productName}
             className={`object-cover transition-opacity ${isComplete ? "opacity-60" : ""}`}
             sizes="(max-width: 640px) 64px, 80px"
+            onFind={
+              onFindProduct && item.productId
+                ? () => onFindProduct(item.productId)
+                : undefined
+            }
+            findLabel={findActive ? "Сбросить фильтр" : "Найти этот товар"}
           />
           {showBrandMark ? (
-            <div className="absolute bottom-1 right-1 z-[1]">
+            <div className="pointer-events-none absolute bottom-1 right-1 z-[1]">
               <BrandMark brand={item.brand} size="sm" />
             </div>
           ) : null}
           {item.quantity > 1 && (
-            <div className="absolute left-1 top-1 rounded-md bg-gray-900 px-1.5 py-0.5 text-[10px] font-bold text-white">
+            <div className="pointer-events-none absolute left-1 top-1 rounded-md bg-gray-900 px-1.5 py-0.5 text-[10px] font-bold text-white">
               ×{item.quantity}
             </div>
           )}
           {isComplete && (
-            <div className="absolute inset-0 flex items-center justify-center bg-green-500/20">
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-green-500/20">
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-green-500 text-white shadow sm:h-8 sm:w-8">
                 <svg className="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
