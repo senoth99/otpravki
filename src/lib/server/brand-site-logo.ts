@@ -198,9 +198,21 @@ async function forceDarkOnWhite(buf: Buffer): Promise<Buffer> {
 
 async function trimWhiteMargins(png: Buffer): Promise<Buffer> {
   try {
-    // Убираем пустые поля — иначе логотип на этикетке выглядит мелко в «воздухе».
-    return await sharp(png)
+    // Убираем пустые поля, затем чуть расширяем — иначе после trim контур
+    // (овал AMMO и т.п.) визуально «режется» краем этикетки.
+    const trimmed = await sharp(png)
       .trim({ threshold: 18, background: { r: 255, g: 255, b: 255, alpha: 1 } })
+      .png({ compressionLevel: 8 })
+      .toBuffer();
+    const pad = 16;
+    return await sharp(trimmed)
+      .extend({
+        top: pad,
+        bottom: pad,
+        left: pad,
+        right: pad,
+        background: { r: 255, g: 255, b: 255, alpha: 1 },
+      })
       .png({ compressionLevel: 8 })
       .toBuffer();
   } catch {
