@@ -249,9 +249,12 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
   }
 
   const contentW = PAGE_W - MX * 2;
-  const sizeBadgeH = mmToPoints(8);
-  const sizeBadgeY = MB;
-  const contentBottom = sizeBadgeY + sizeBadgeH + mmToPoints(1.5);
+  // Прямоугольник размера по центру внизу (не тонкая линия на всю ширину)
+  const sizeBadgeH = mmToPoints(11);
+  const sizeBadgeW = mmToPoints(28);
+  const sizeBadgeX = (PAGE_W - sizeBadgeW) / 2;
+  const sizeBadgeY = MB + mmToPoints(1);
+  const contentBottom = sizeBadgeY + sizeBadgeH + mmToPoints(2);
   let y = PAGE_H - MT;
 
   // --- Лого по центру ---
@@ -333,19 +336,18 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
   drawMeta("GTIN", fields.gtin);
   drawMeta("S/N", fields.serial);
 
-  // --- Размер: полная ширина внизу, литера по центру прямоугольника ---
+  // --- Размер: прямоугольник по центру, литера по центру внутри ---
   page.drawRectangle({
-    x: 0,
+    x: sizeBadgeX,
     y: sizeBadgeY,
-    width: PAGE_W,
+    width: sizeBadgeW,
     height: sizeBadgeH,
     color: BLACK,
   });
-  const sizeLetterSz = fitFontSize(bold, sizeLabel, contentW - 4, 16, 9);
-  // baseline + ascent (без descender) — иначе заглавные визуально чуть ниже центра
+  const sizeLetterSz = fitFontSize(bold, sizeLabel, sizeBadgeW - mmToPoints(3), 18, 10);
   const sizeAscent = bold.heightAtSize(sizeLetterSz, { descender: false });
   page.drawText(sizeLabel, {
-    x: (PAGE_W - bold.widthOfTextAtSize(sizeLabel, sizeLetterSz)) / 2,
+    x: sizeBadgeX + (sizeBadgeW - bold.widthOfTextAtSize(sizeLabel, sizeLetterSz)) / 2,
     y: sizeBadgeY + (sizeBadgeH - sizeAscent) / 2,
     size: sizeLetterSz,
     font: bold,
