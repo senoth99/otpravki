@@ -213,7 +213,15 @@ export function AssemblyItemCard({
         <button
           type="button"
           data-no-drag-scroll
-          onClick={onAutoTake}
+          onClick={(event) => {
+            if ((event.nativeEvent as PointerEvent).pointerType === "touch") return;
+            onAutoTake();
+          }}
+          onPointerUp={(event) => {
+            if (event.pointerType !== "touch") return;
+            event.preventDefault();
+            onAutoTake();
+          }}
           className="flex w-full min-h-[52px] touch-manipulation items-center justify-center rounded-2xl bg-gray-900 px-6 py-3.5 text-base font-bold uppercase tracking-wide text-white shadow-md transition-transform active:scale-[0.98] active:bg-gray-800 sm:min-h-[48px] sm:w-36 sm:shrink-0"
         >
           Взял

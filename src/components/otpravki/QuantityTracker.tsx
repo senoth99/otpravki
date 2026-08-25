@@ -41,7 +41,15 @@ export function QuantityTracker({
 
         <button
           type="button"
-          onClick={onIncrement}
+          onClick={(event) => {
+            if ((event.nativeEvent as PointerEvent).pointerType === "touch") return;
+            onIncrement();
+          }}
+          onPointerUp={(event) => {
+            if (event.pointerType !== "touch" || isComplete) return;
+            event.preventDefault();
+            onIncrement();
+          }}
           disabled={isComplete}
           className={`${BTN} min-w-0 flex-1 ${
             isComplete

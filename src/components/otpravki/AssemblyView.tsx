@@ -72,7 +72,15 @@ export function AssemblyView({
     () => new Map(allItems.map((item) => [item.id, item])),
     [allItems],
   );
+  const displayItemsById = useMemo(() => {
+    const map = new Map<string, AssemblyItem>();
+    for (const item of [...sections.pending, ...sections.completed]) {
+      map.set(item.id, item);
+    }
+    return map;
+  }, [sections.pending, sections.completed]);
   const allItemsByIdRef = useRef(allItemsById);
+  const displayItemsByIdRef = useRef(displayItemsById);
   const currentItemRef = useRef<AssemblyItem | undefined>(undefined);
   const urgencySource = urgencyOrders ?? orders;
   const urgencyMap = useMemo(
@@ -139,8 +147,12 @@ export function AssemblyView({
   const hasMoreCompleted = sections.completed.length > visibleCompletedCount;
 
   const currentRouteItem = route[0];
-  const currentItem = currentRouteItem ? itemFromMap(allItemsById, currentRouteItem.id) : undefined;
+  const currentItem = currentRouteItem
+    ? (displayItemsById.get(currentRouteItem.id) ??
+      itemFromMap(allItemsById, currentRouteItem.id))
+    : undefined;
   allItemsByIdRef.current = allItemsById;
+  displayItemsByIdRef.current = displayItemsById;
   currentItemRef.current = currentItem;
   const currentLocation = currentItem ? locationByItemId.get(currentItem.id) : undefined;
   const currentLocationKey = currentLocation ? locationKey(currentLocation) : null;
@@ -234,7 +246,8 @@ export function AssemblyView({
 
   const applyCollect = useCallback(
     (targetId: string) => {
-      const visible = allItemsByIdRef.current.get(targetId);
+      const visible =
+        displayItemsByIdRef.current.get(targetId) ?? allItemsByIdRef.current.get(targetId);
       if (!visible || visible.collectedCount >= visible.quantity) return false;
 
       const willComplete = visible.collectedCount + 1 >= visible.quantity;
@@ -289,7 +302,8 @@ export function AssemblyView({
   const handleDecrement = useCallback(
     (id: string) => {
       if (autoMode) return;
-      const item = allItemsByIdRef.current.get(id);
+      const item =
+        displayItemsByIdRef.current.get(id) ?? allItemsByIdRef.current.get(id);
       if (!item || item.collectedCount <= 0) return;
       setCollectedCount(id, item.collectedCount - 1);
     },

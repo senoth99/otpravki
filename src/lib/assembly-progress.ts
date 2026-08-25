@@ -38,7 +38,7 @@ export function applyProgressToItem(
   }
   return {
     ...item,
-    collectedCount: Math.min(entry.collectedCount, Math.max(0, item.quantity)),
+    collectedCount: Math.max(0, Math.floor(entry.collectedCount)),
     collectedAt: entry.collectedAt,
   };
 }
@@ -71,14 +71,6 @@ export function staleAssemblyProgressPatch(
     if (!item || item.quantity <= 0) {
       if (entry.collectedCount > 0) patch.push({ id, collectedCount: 0 });
       continue;
-    }
-    const capped = Math.min(entry.collectedCount, Math.max(0, item.quantity));
-    if (capped !== entry.collectedCount) {
-      patch.push({
-        id,
-        collectedCount: capped,
-        collectedAt: capped > 0 ? entry.collectedAt : undefined,
-      });
     }
   }
 

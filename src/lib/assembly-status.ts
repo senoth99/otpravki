@@ -160,7 +160,7 @@ export function buildCollectedPoolFromProgress(
     const key = assemblyItemKey(item.productId, item.sizeId, item.isBlogger === true);
     pool.set(
       key,
-      (pool.get(key) ?? 0) + Math.min(entry.collectedCount, Math.max(0, item.quantity)),
+      (pool.get(key) ?? 0) + Math.max(0, entry.collectedCount),
     );
   }
   return pool;

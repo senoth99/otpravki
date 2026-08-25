@@ -80,18 +80,52 @@ export function AssemblyPanel({
     lastInteractionRef.current = Date.now();
   }, []);
 
+  const mergeRemoteProgress = useCallback(
+    (current: AssemblyProgressState | null, remote: AssemblyProgressState): AssemblyProgressState => {
+      if (!current) return remote;
+      if (pendingPatchRef.current.size > 0) {
+        const mergedItems = { ...remote.items };
+        for (const [id, entry] of Object.entries(current.items)) {
+          const remoteEntry = mergedItems[id];
+          if (!remoteEntry || entry.collectedCount > remoteEntry.collectedCount) {
+            mergedItems[id] = entry;
+          }
+        }
+        return {
+          ...remote,
+          items: mergedItems,
+          updatedBy: current.updatedBy,
+          updatedAt: Math.max(remote.updatedAt, current.updatedAt),
+          revision: Math.max(remote.revision, current.revision),
+        };
+      }
+      if (remote.revision < current.revision) return current;
+      if (
+        remote.revision === current.revision &&
+        current.updatedBy === "local" &&
+        remote.updatedAt <= current.updatedAt
+      ) {
+        return current;
+      }
+      return remote;
+    },
+    [],
+  );
+
   const flushProgressPatch = useCallback(() => {
     const patch = [...pendingPatchRef.current.values()];
-    pendingPatchRef.current.clear();
     if (patch.length === 0) return;
     void pushAssemblyProgress(patch).then((remote) => {
+      for (const row of patch) {
+        const pending = pendingPatchRef.current.get(row.id);
+        if (pending && pending.collectedCount === row.collectedCount) {
+          pendingPatchRef.current.delete(row.id);
+        }
+      }
       if (!remote) return;
-      setProgress((current) => {
-        if (remote.revision < (current?.revision ?? 0)) return current;
-        return remote;
-      });
+      setProgress((current) => mergeRemoteProgress(current, remote));
     });
-  }, []);
+  }, [mergeRemoteProgress]);
 
   useEffect(() => {
     return () => {
@@ -178,28 +212,29 @@ export function AssemblyPanel({
     });
     const unsub = subscribeAssemblyProgress({
       onProgress: (next) => {
-        if (next.revision < (progressRef.current?.revision ?? 0)) return;
-        setProgress(next);
+        setProgress((current) => mergeRemoteProgress(current, next));
       },
     });
     return () => {
       cancelled = true;
       unsub();
     };
-  }, []);
+  }, [mergeRemoteProgress]);
 
   // После отгрузки спрос падает — чистим «собрано» по исчезнувшим/урезанным позициям.
   useEffect(() => {
-    const patch = staleAssemblyProgressPatch(assemblyItems, progress);
+    const patch = staleAssemblyProgressPatch(assemblyItems, progressRef.current);
     if (patch.length === 0) return;
     let cancelled = false;
     void pushAssemblyProgress(patch).then((remote) => {
-      if (!cancelled && remote) setProgress(remote);
+      if (!cancelled && remote) {
+        setProgress((current) => mergeRemoteProgress(current, remote));
+      }
     });
     return () => {
       cancelled = true;
     };
-  }, [assemblyItems, progress]);
+  }, [assemblyItems, mergeRemoteProgress]);
 
   const brandOrders = useMemo(
     () =>
@@ -286,7 +321,7 @@ export function AssemblyPanel({
         if (collectedCount <= 0) delete items[id];
         else items[id] = { collectedCount, collectedAt };
         return {
-          revision: current?.revision ?? 0,
+          revision: (current?.revision ?? 0) + 1,
           updatedAt: Date.now(),
           updatedBy: "local",
           items,
@@ -296,7 +331,10 @@ export function AssemblyPanel({
       if (pushTimerRef.current !== undefined) {
         window.clearTimeout(pushTimerRef.current);
       }
-      pushTimerRef.current = window.setTimeout(flushProgressPatch, 350);
+      pushTimerRef.current = window.setTimeout(() => {
+        pushTimerRef.current = undefined;
+        flushProgressPatch();
+      }, 50);
     },
     [noteInteraction, flushProgressPatch],
   );
