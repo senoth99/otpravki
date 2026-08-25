@@ -332,7 +332,7 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
   drawMeta("GTIN", fields.gtin);
   drawMeta("S/N", fields.serial);
 
-  // --- Размер: полная ширина внизу, только литера ---
+  // --- Размер: полная ширина внизу, литера по центру прямоугольника ---
   page.drawRectangle({
     x: 0,
     y: sizeBadgeY,
@@ -341,9 +341,11 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
     color: BLACK,
   });
   const sizeLetterSz = fitFontSize(bold, sizeLabel, contentW - 4, 16, 9);
+  // baseline + ascent (без descender) — иначе заглавные визуально чуть ниже центра
+  const sizeAscent = bold.heightAtSize(sizeLetterSz, { descender: false });
   page.drawText(sizeLabel, {
     x: (PAGE_W - bold.widthOfTextAtSize(sizeLabel, sizeLetterSz)) / 2,
-    y: sizeBadgeY + (sizeBadgeH - sizeLetterSz) / 2,
+    y: sizeBadgeY + (sizeBadgeH - sizeAscent) / 2,
     size: sizeLetterSz,
     font: bold,
     color: WHITE,
