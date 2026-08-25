@@ -3,7 +3,7 @@ import { readFile } from "fs/promises";
 import path from "path";
 import fontkit from "@pdf-lib/fontkit";
 import bwipjs from "bwip-js";
-import { PDFDocument, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
+import { PDFDocument, rgb, type PDFFont, type PDFImage } from "pdf-lib";
 import sharp from "sharp";
 import { getBoxLabelBrand, type BoxLabelBrandId } from "@/lib/box-label-brands";
 import { mmToPoints } from "@/lib/label-media";
@@ -15,10 +15,10 @@ export const KM_LABEL_HEIGHT_MM = 55;
 
 const PAGE_W = mmToPoints(KM_LABEL_WIDTH_MM);
 const PAGE_H = mmToPoints(KM_LABEL_HEIGHT_MM);
-/** Поля с запасом: верх SATO часто клипает. */
-const MX = mmToPoints(3.5);
-const MT = mmToPoints(6.5);
-const MB = mmToPoints(4);
+/** Боковые поля. Верх/низ — с учётом клипа WS408. */
+const MX = mmToPoints(3);
+const MT = mmToPoints(5);
+const MB = mmToPoints(2);
 const BLACK = rgb(0, 0, 0);
 const WHITE = rgb(1, 1, 1);
 
@@ -167,7 +167,7 @@ function toGs1ParenForm(cis: string): string | null {
 
 async function renderDataMatrixPng(cis: string): Promise<Buffer> {
   const opts = {
-    scale: 4,
+    scale: 5,
     includetext: false as const,
     paddingwidth: 0,
     paddingheight: 0,
@@ -185,7 +185,6 @@ async function renderDataMatrixPng(cis: string): Promise<Buffer> {
   return bwipjs.toBuffer({ bcid: "datamatrix", text: cis, ...opts });
 }
 
-/** Лого под термопечать: обрезка полей, жёсткий Ч/Б, без «вылезания». */
 async function prepareLogoPng(raw: Buffer): Promise<Buffer> {
   return sharp(raw)
     .ensureAlpha()
@@ -197,7 +196,7 @@ async function prepareLogoPng(raw: Buffer): Promise<Buffer> {
     .threshold(185)
     .resize({
       width: 720,
-      height: 240,
+      height: 200,
       fit: "inside",
       withoutEnlargement: true,
     })
@@ -205,31 +204,12 @@ async function prepareLogoPng(raw: Buffer): Promise<Buffer> {
     .toBuffer();
 }
 
-function drawLines(
-  page: PDFPage,
-  font: PDFFont,
-  lines: string[],
-  size: number,
-  lineHeight: number,
-  x: number,
-  topY: number,
-): number {
-  let y = topY;
-  for (const line of lines) {
-    page.drawText(line, { x, y: y - size, size, font, color: BLACK });
-    y -= lineHeight;
-  }
-  return y;
-}
-
 /**
- * Одежда / 60×55 / 203 dpi:
+ * Плотная одежда / 60×55 / 203 dpi — без пустот, лого не у края:
  *  [лого по центру]
  *  название
- *  ┌──────┐  GTIN
- *  │  DM  │  …
- *  └──────┘  S/N
- *  [ SIZE на всю ширину ]
+ *  [ DM ]  GTIN / S/N   ← заполняет середину
+ *  [===== размер =====] ← полоса внизу
  */
 export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
   const cis = input.cis.trim();
@@ -268,68 +248,65 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
   }
 
   const contentW = PAGE_W - MX * 2;
-  const headerTop = PAGE_H - MT;
+  const sizeBadgeH = mmToPoints(8);
+  const sizeBadgeY = MB;
+  const contentBottom = sizeBadgeY + sizeBadgeH + mmToPoints(1.5);
+  let y = PAGE_H - MT;
 
-  // --- Шапка: лого по центру (та же высота зоны) ---
-  const logoMaxW = mmToPoints(28);
-  const logoMaxH = mmToPoints(5.5);
-  const sizeBadgeH = mmToPoints(9);
-  const headerBandBottom = headerTop - sizeBadgeH;
-
+  // --- Лого по центру ---
+  const logoMaxW = mmToPoints(32);
+  const logoMaxH = mmToPoints(6);
   if (logo) {
     const scale = Math.min(logoMaxW / logo.width, logoMaxH / logo.height, contentW / logo.width);
     const lw = logo.width * scale;
     const lh = logo.height * scale;
-    const logoY = headerBandBottom + (sizeBadgeH - lh) / 2;
     page.drawImage(logo, {
       x: (PAGE_W - lw) / 2,
-      y: Math.min(logoY, headerTop - lh),
+      y: y - lh,
       width: lw,
       height: lh,
     });
+    y -= lh + mmToPoints(2);
   } else {
-    const brandSz = fitFontSize(bold, brandLabel, contentW, 10, 7);
+    const brandSz = fitFontSize(bold, brandLabel, contentW, 11, 8);
     page.drawText(brandLabel, {
       x: (PAGE_W - bold.widthOfTextAtSize(brandLabel, brandSz)) / 2,
-      y: headerBandBottom + (sizeBadgeH - brandSz) / 2,
+      y: y - brandSz,
       size: brandSz,
       font: bold,
       color: BLACK,
     });
+    y -= brandSz + mmToPoints(2);
   }
 
-  let y = headerBandBottom - mmToPoints(2.5);
-
   // --- Название ---
-  const nameSize = 8.5;
-  const nameLH = nameSize * 1.14;
+  const nameSize = 9;
+  const nameLH = nameSize * 1.12;
   const nameLines = wrapWords(bold, productName, nameSize, contentW).slice(0, 2);
-  y = drawLines(page, bold, nameLines, nameSize, nameLH, MX, y);
-  y -= mmToPoints(2.5);
+  for (const line of nameLines) {
+    page.drawText(line, { x: MX, y: y - nameSize, size: nameSize, font: bold, color: BLACK });
+    y -= nameLH;
+  }
+  y -= mmToPoints(2);
 
-  // --- DM + GTIN / S/N (без полосок и рамки, чтобы ничего не наезжало) ---
-  const dmPad = 0;
-  const rowBottom = sizeBadgeH + mmToPoints(1.5);
-  const availH = Math.max(mmToPoints(20), y - rowBottom);
-  const dmTarget = Math.min(mmToPoints(24), availH, contentW * 0.5);
+  // --- DM + GTIN/S/N: растянуть на оставшуюся высоту ---
+  const availH = Math.max(mmToPoints(18), y - contentBottom);
+  const dmTarget = Math.min(mmToPoints(26), availH, contentW * 0.5);
   const dmScale = Math.min(dmTarget / dm.width, dmTarget / dm.height);
   const dmW = dm.width * dmScale;
   const dmH = dm.height * dmScale;
-  const dmX = MX + dmPad;
-  const dmY = Math.max(rowBottom, y - dmH);
+  const dmX = MX;
+  const dmY = y - dmH;
+  page.drawImage(dm, { x: dmX, y: Math.max(contentBottom, dmY), width: dmW, height: dmH });
 
-  page.drawImage(dm, { x: dmX, y: dmY, width: dmW, height: dmH });
-
-  const metaX = dmX + dmW + mmToPoints(2.8);
+  const metaX = dmX + dmW + mmToPoints(2.5);
   const metaW = PAGE_W - MX - metaX;
-  const labelSz = 6.5;
-  const valueSz = 8;
-  const gap = 3;
-
+  const labelSz = 7;
+  const valueSz = 9;
   let metaY = y;
-  const drawMetaBlock = (label: string, value: string) => {
-    if (!value) return;
-    if (metaY - labelSz < rowBottom) return;
+
+  const drawMeta = (label: string, value: string) => {
+    if (!value || metaY - labelSz < contentBottom) return;
     page.drawText(label, {
       x: metaX,
       y: metaY - labelSz,
@@ -337,10 +314,9 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
       font: bold,
       color: BLACK,
     });
-    metaY -= labelSz + 1.4;
-    const valueLines = wrapLine(mono, value, valueSz, metaW).slice(0, 2);
-    for (const line of valueLines) {
-      if (metaY - valueSz < rowBottom) break;
+    metaY -= labelSz + 2;
+    for (const line of wrapLine(mono, value, valueSz, metaW).slice(0, 2)) {
+      if (metaY - valueSz < contentBottom) break;
       page.drawText(line, {
         x: metaX,
         y: metaY - valueSz,
@@ -348,16 +324,15 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
         font: mono,
         color: BLACK,
       });
-      metaY -= valueSz * 1.12;
+      metaY -= valueSz * 1.15;
     }
-    metaY -= gap;
+    metaY -= mmToPoints(1.5);
   };
 
-  drawMetaBlock("GTIN", fields.gtin);
-  drawMetaBlock("S/N", fields.serial);
+  drawMeta("GTIN", fields.gtin);
+  drawMeta("S/N", fields.serial);
 
-  // --- Размер: полоса внизу на всю ширину, только литера ---
-  const sizeBadgeY = 0;
+  // --- Размер: полная ширина внизу, только литера ---
   page.drawRectangle({
     x: 0,
     y: sizeBadgeY,
@@ -365,7 +340,7 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
     height: sizeBadgeH,
     color: BLACK,
   });
-  const sizeLetterSz = fitFontSize(bold, sizeLabel, contentW - 6, 14, 8);
+  const sizeLetterSz = fitFontSize(bold, sizeLabel, contentW - 4, 16, 9);
   page.drawText(sizeLabel, {
     x: (PAGE_W - bold.widthOfTextAtSize(sizeLabel, sizeLetterSz)) / 2,
     y: sizeBadgeY + (sizeBadgeH - sizeLetterSz) / 2,

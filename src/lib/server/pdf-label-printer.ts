@@ -120,13 +120,19 @@ function sleep(ms: number) {
 }
 
 /**
- * SATO WS408 записки 60×55 (A1: V=55mm H=60mm в SBPL).
- * Gap (IG1) + Tear-off (PM1): иначе continuous/sensor-off с «удлинённой»
- * страницей сбивает pitch — FEED выдаёт пачку, печать стопорится ~70%.
+ * SATO WS408 60×55 (A1: V=55mm H=60mm).
+ * Gap + Tear-off.
  *
- * saYCorrection: контент без сдвига прижимается к началу этикетки,
- * снизу остаётся пустая непечатаемая полоса (~0.4").
+ * На фото контент прижат к ведущему краю и клипает лого, низ пустой —
+ * нужен отрицательный Vertical Offset (сдвиг от начала этикетки вниз).
+ * Переопределение: SATO_Y_CORRECTION=-152
  */
+function satoYCorrection(): string {
+  const raw = process.env.SATO_Y_CORRECTION?.trim();
+  if (raw && /^-?\d+$/.test(raw)) return raw;
+  return "-152";
+}
+
 const LABEL_LP_SATO_60X55 = [
   [
     "-o",
@@ -140,7 +146,7 @@ const LABEL_LP_SATO_60X55 = [
     "-o",
     "saThreshold=Default",
     "-o",
-    "saYCorrection=81",
+    `saYCorrection=${satoYCorrection()}`,
     "-o",
     "Darkness=5",
     "-o",
@@ -160,7 +166,7 @@ const LABEL_LP_SATO_60X55 = [
     "-o",
     "saThreshold=Default",
     "-o",
-    "saYCorrection=81",
+    `saYCorrection=${satoYCorrection()}`,
     "-o",
     "Darkness=5",
   ],
@@ -172,7 +178,7 @@ const LABEL_LP_SATO_60X55 = [
     "-o",
     "saOperationMode=1",
     "-o",
-    "saYCorrection=81",
+    `saYCorrection=${satoYCorrection()}`,
   ],
   [],
 ];
