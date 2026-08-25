@@ -29,6 +29,7 @@ import {
   OtpravkiMobileFilters,
   type OtpravkiFiltersState,
 } from "./OtpravkiFilters";
+import { KirillMascot } from "./KirillMascot";
 import { OtpravkiPageHeader } from "./OtpravkiPageHeader";
 import { ShippingView } from "./ShippingView";
 
@@ -259,6 +260,16 @@ export function ShippingPanel({
     return { total: activeBrandOrders.length, critical, rush, blogger, ready };
   }, [activeBrandOrders]);
 
+  /** Единицы товара в текущем списке отправок (после фильтров). */
+  const shippingItemCount = useMemo(
+    () =>
+      filteredOrders.reduce(
+        (sum, order) => sum + order.items.reduce((lineSum, item) => lineSum + item.quantity, 0),
+        0,
+      ),
+    [filteredOrders],
+  );
+
   const offline = !isInternetOnline || !isServerReachable;
 
   const handleBrandChange = useCallback((brand: string) => {
@@ -362,6 +373,8 @@ export function ShippingPanel({
           )}
         </main>
       </div>
+
+      {tab === "shipping" ? <KirillMascot itemCount={shippingItemCount} /> : null}
     </div>
   );
 }
