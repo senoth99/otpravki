@@ -99,7 +99,7 @@ export function AdminPanel() {
     window.location.href = "/otpravki";
   };
 
-  const printTestLabel = async (kind: "brand" | "track") => {
+  const printTestLabel = async (kind: "brand" | "track" | "chestny-znak") => {
     if (busy) return;
     if (kind === "brand" && !hasBrandBarcodeTemplate(testBrand)) {
       setPrintMessage({
@@ -118,7 +118,7 @@ export function AdminPanel() {
         headers: { ...mutatingApiHeaders(), Accept: "application/json" },
         body: JSON.stringify({
           kind,
-          brand: testBrand,
+          ...(kind !== "chestny-znak" ? { brand: testBrand } : {}),
           ...(testPrinter.trim() ? { printer: testPrinter.trim() } : {}),
         }),
       });
@@ -127,15 +127,21 @@ export function AdminPanel() {
         message?: string;
         printer?: string;
         format?: string;
+        gtin?: string;
       };
       if (!res.ok || !data.ok) {
         throw new Error(data.message ?? "Не удалось напечатать");
       }
       setPrintMessage({
         ok: true,
-        text: `Тест → ${data.printer || testPrinter || "принтер"}${
-          data.format ? ` (${data.format})` : ""
-        }`,
+        text:
+          kind === "chestny-znak"
+            ? `ЧЗ тест → ${data.printer || "WS408"}${
+                data.gtin ? ` · GTIN ${data.gtin}` : ""
+              }${data.format ? ` (${data.format})` : ""}`
+            : `Тест → ${data.printer || testPrinter || "принтер"}${
+                data.format ? ` (${data.format})` : ""
+              }`,
       });
     } catch (err) {
       setPrintMessage({
@@ -388,6 +394,22 @@ export function AdminPanel() {
                   </span>
                 </span>
                 <span className="text-sm text-gray-400">Печать</span>
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void printTestLabel("chestny-znak")}
+                className="flex min-h-16 w-full items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-left shadow-sm active:scale-[0.99] disabled:opacity-50"
+              >
+                <span>
+                  <span className="block text-base font-semibold text-gray-900">
+                    Тест печати честного знака
+                  </span>
+                  <span className="mt-0.5 block text-sm text-gray-500">
+                    Data Matrix 60×55 → WS408 (сэмпл КМ)
+                  </span>
+                </span>
+                <span className="text-sm text-emerald-700">Печать</span>
               </button>
               {printMessage && (
                 <p

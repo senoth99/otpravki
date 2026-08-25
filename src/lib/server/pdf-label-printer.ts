@@ -251,21 +251,31 @@ async function tryPrintTspl(
   }
 }
 
-/** Записка 60×55 на SATO (CUPS); на TSC — через обычный 4×6 path не вызывать. */
-export async function printPdfGiftNote(
+/** Этикетка 60×55 на SATO WS408 (записки / честные знаки). */
+export async function printPdfSato60x55(
   printer: string,
   pdf: Buffer,
   workDir: string,
   stamp: string,
 ): Promise<LabelPrintFormat> {
   assertPdfBuffer(pdf);
-  const pdfPath = path.join(workDir, `note-${stamp}.pdf`);
+  const pdfPath = path.join(workDir, `sato60-${stamp}.pdf`);
   await writeFile(pdfPath, pdf);
 
   if (await printPdfViaCups(printer, pdfPath, LABEL_LP_SATO_60X55)) {
     return "pdf";
   }
-  throw new Error("Не удалось напечатать записку 60×55");
+  throw new Error("Не удалось напечатать этикетку 60×55 на SATO");
+}
+
+/** @deprecated alias — записки */
+export async function printPdfGiftNote(
+  printer: string,
+  pdf: Buffer,
+  workDir: string,
+  stamp: string,
+): Promise<LabelPrintFormat> {
+  return printPdfSato60x55(printer, pdf, workDir, stamp);
 }
 
 /** Макеты 4×6 landscape. TSPL только на TSC; иначе CUPS (SATO и др.). */

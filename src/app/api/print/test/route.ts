@@ -10,6 +10,7 @@ import {
   type TestTrackBrand,
 } from "@/lib/server/brand-barcode-label";
 import { detectBarcodePrinter, getPrinterDiagnostics } from "@/lib/server/barcode-printer";
+import { printTestKmLabel } from "@/lib/server/km-label-printer";
 
 export const maxDuration = 60;
 
@@ -18,8 +19,8 @@ function parseLegacyKind(value: unknown): TestLabelKind | null {
   return null;
 }
 
-function parsePrintKind(value: unknown): TestPrintKind | null {
-  if (value === "brand" || value === "track") return value;
+function parsePrintKind(value: unknown): TestPrintKind | "chestny-znak" | null {
+  if (value === "brand" || value === "track" || value === "chestny-znak") return value;
   return null;
 }
 
@@ -38,8 +39,43 @@ export async function POST(request: Request) {
   };
 
   const diagnostics = await getPrinterDiagnostics();
-  const requested =
-    typeof body.printer === "string" ? body.printer.trim() : "";
+  const requested = typeof body.printer === "string" ? body.printer.trim() : "";
+  const printKind = parsePrintKind(body.kind);
+
+  if (printKind === "chestny-znak") {
+    try {
+      const satoRequested =
+        requested && /ws408|sato|sepl/i.test(requested) ? requested : null;
+      const result = await printTestKmLabel(satoRequested);
+      if (!result.ok) {
+        return NextResponse.json(
+          {
+            ok: false,
+            message: result.error ?? "Не удалось напечатать честный знак",
+            printer: result.printer,
+            printers: diagnostics.printers,
+          },
+          { status: 500 },
+        );
+      }
+      return NextResponse.json({
+        ok: true,
+        kind: "chestny-znak",
+        printer: result.printer,
+        format: result.format,
+        gtin: result.gtin,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: error instanceof Error ? error.message : "Не удалось напечатать",
+        },
+        { status: 500 },
+      );
+    }
+  }
+
   let printer: string | null = null;
   if (requested) {
     if (!diagnostics.printers.includes(requested)) {
@@ -69,10 +105,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const printKind = parsePrintKind(body.kind);
     const brand = parseTestBrand(body.brand);
 
-    if (printKind && brand) {
+    if (printKind && brand && (printKind === "brand" || printKind === "track")) {
       const format = await printTestLabel(printer, printKind, brand);
       return NextResponse.json({
         ok: true,
@@ -83,7 +118,6 @@ export async function POST(request: Request) {
       });
     }
 
-    // Старый формат: { kind: "ammo" | "kurazh" | "track" }
     const legacy = parseLegacyKind(body.kind);
     if (legacy) {
       const format = await printLabelTemplate(printer, legacy);
@@ -101,7 +135,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ok: false,
-        message: "Укажи kind: brand|track и brand: casher|ammo|kurazh|shecash",
+        message: "Укажи kind: brand|track|chestny-znak и brand при необходимости",
       },
       { status: 400 },
     );
