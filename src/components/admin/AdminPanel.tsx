@@ -32,6 +32,9 @@ export function AdminPanel() {
   const [busy, setBusy] = useState(false);
   const [printMessage, setPrintMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [testBrand, setTestBrand] = useState<TestBrand>("casher");
+  const [testPrinter, setTestPrinter] = useState("");
+  const [printerOptions, setPrinterOptions] = useState<string[]>([]);
+  const [defaultPrinter, setDefaultPrinter] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,6 +50,38 @@ export function AdminPanel() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (view !== "menu") return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/print", { cache: "no-store" });
+        const data = (await res.json()) as {
+          printer?: string | null;
+          defaultPrinter?: string | null;
+          printers?: string[];
+        };
+        if (cancelled) return;
+        const list = Array.isArray(data.printers) ? data.printers : [];
+        setPrinterOptions(list);
+        setDefaultPrinter(data.printer ?? data.defaultPrinter ?? null);
+        setTestPrinter((prev) => {
+          if (prev && list.includes(prev)) return prev;
+          const preferred = data.printer ?? data.defaultPrinter ?? list[0] ?? "";
+          return preferred && list.includes(preferred) ? preferred : list[0] ?? "";
+        });
+      } catch {
+        if (!cancelled) {
+          setPrinterOptions([]);
+          setDefaultPrinter(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [view]);
 
   const leaveAdmin = async () => {
     try {
@@ -79,7 +114,11 @@ export function AdminPanel() {
         cache: "no-store",
         credentials: "same-origin",
         headers: { ...mutatingApiHeaders(), Accept: "application/json" },
-        body: JSON.stringify({ kind, brand: testBrand }),
+        body: JSON.stringify({
+          kind,
+          brand: testBrand,
+          ...(testPrinter.trim() ? { printer: testPrinter.trim() } : {}),
+        }),
       });
       const data = (await res.json()) as { ok?: boolean; message?: string; printer?: string };
       if (!res.ok || !data.ok) {
@@ -87,7 +126,7 @@ export function AdminPanel() {
       }
       setPrintMessage({
         ok: true,
-        text: `Отправлено на ${data.printer ?? "принтер"}`,
+        text: `Тест → ${data.printer || testPrinter || "принтер"}`,
       });
     } catch (err) {
       setPrintMessage({
@@ -273,6 +312,26 @@ export function AdminPanel() {
               <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
                 Тест печати 150×100
               </p>
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium text-gray-700">Принтер (только тест)</span>
+                <select
+                  value={testPrinter}
+                  disabled={busy || printerOptions.length === 0}
+                  onChange={(e) => setTestPrinter(e.target.value)}
+                  className="min-h-12 w-full rounded-2xl border border-gray-200 bg-white px-4 text-base font-semibold text-gray-900 shadow-sm disabled:opacity-50"
+                >
+                  {printerOptions.length === 0 ? (
+                    <option value="">Нет принтеров в CUPS</option>
+                  ) : (
+                    printerOptions.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                        {name === defaultPrinter ? " · авто" : ""}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </label>
               <label className="block space-y-1.5">
                 <span className="text-sm font-medium text-gray-700">Бренд</span>
                 <select

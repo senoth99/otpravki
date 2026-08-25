@@ -9,7 +9,7 @@ import {
   type TestPrintKind,
   type TestTrackBrand,
 } from "@/lib/server/brand-barcode-label";
-import { detectBarcodePrinter } from "@/lib/server/barcode-printer";
+import { detectBarcodePrinter, getPrinterDiagnostics } from "@/lib/server/barcode-printer";
 
 export const maxDuration = 60;
 
@@ -34,12 +34,36 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as {
     kind?: unknown;
     brand?: unknown;
+    printer?: unknown;
   };
 
-  const printer = await detectBarcodePrinter();
+  const diagnostics = await getPrinterDiagnostics();
+  const requested =
+    typeof body.printer === "string" ? body.printer.trim() : "";
+  let printer: string | null = null;
+  if (requested) {
+    if (!diagnostics.printers.includes(requested)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: `Принтер «${requested}» не найден в CUPS`,
+          printers: diagnostics.printers,
+        },
+        { status: 400 },
+      );
+    }
+    printer = requested;
+  } else {
+    printer = diagnostics.printer ?? (await detectBarcodePrinter());
+  }
+
   if (!printer) {
     return NextResponse.json(
-      { ok: false, message: "Принтер не настроен в CUPS" },
+      {
+        ok: false,
+        message: "Принтер не настроен в CUPS",
+        printers: diagnostics.printers,
+      },
       { status: 500 },
     );
   }
