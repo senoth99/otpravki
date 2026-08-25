@@ -4,8 +4,8 @@ import path from "path";
 import { requireMutatingAuth } from "@/lib/server/api-auth";
 import { getGiftNoteImage, type GiftNoteLayout } from "@/lib/gift-note-presets";
 import { buildGiftNotePdf } from "@/lib/server/gift-note-pdf";
-import { detectBarcodePrinter } from "@/lib/server/barcode-printer";
-import { printPdfLabel4x6 } from "@/lib/server/pdf-label-printer";
+import { detectGiftNotePrinter } from "@/lib/server/barcode-printer";
+import { printPdfGiftNote } from "@/lib/server/pdf-label-printer";
 import { renderLabelPdfToPng } from "@/lib/server/render-label-preview";
 
 export const maxDuration = 60;
@@ -73,19 +73,19 @@ export async function POST(request: Request) {
       );
     }
 
-    const printer = await detectBarcodePrinter();
+    const printer = await detectGiftNotePrinter();
     if (!printer) {
       return NextResponse.json(
-        { ok: false, message: "Принтер не настроен в CUPS" },
+        { ok: false, message: "Принтер записок (WS408) не настроен в CUPS" },
         { status: 500 },
       );
     }
 
     await mkdir(PRINT_DIR, { recursive: true });
     const stampBase = `note-${Date.now()}`;
-    let format: string = "tspl";
+    let format: string = "pdf";
     for (let i = 0; i < copies; i += 1) {
-      format = await printPdfLabel4x6(printer, pdf, PRINT_DIR, `${stampBase}-${i + 1}`);
+      format = await printPdfGiftNote(printer, pdf, PRINT_DIR, `${stampBase}-${i + 1}`);
     }
 
     return NextResponse.json({ ok: true, printer, format, copies });

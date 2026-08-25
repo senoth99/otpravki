@@ -150,7 +150,7 @@ export function GiftNoteModal({ open, onClose }: GiftNoteModalProps) {
       >
         <header className="flex shrink-0 items-center gap-2 px-3 pb-1 pt-3 sm:px-5">
           <h2 className="min-w-0 flex-1 text-base font-black tracking-tight text-gray-900">
-            Записка · 150×100
+            Записка · 60×55
           </h2>
           <button
             type="button"
@@ -163,7 +163,7 @@ export function GiftNoteModal({ open, onClose }: GiftNoteModalProps) {
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-3 pb-2 sm:px-5">
-          <div className="relative min-h-[180px] flex-[1.35] overflow-hidden rounded-xl border border-gray-200 bg-gray-50 sm:min-h-[220px]">
+          <div className="relative mx-auto min-h-[160px] w-full max-w-[280px] flex-[1.1] overflow-hidden rounded-xl border border-gray-200 bg-gray-50 sm:min-h-[200px] sm:max-w-[320px]">
             {previewUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img

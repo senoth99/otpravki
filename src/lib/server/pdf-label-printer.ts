@@ -120,16 +120,13 @@ function sleep(ms: number) {
 }
 
 /**
- * SATO WS408: те же баркодники 4×6″ (100×150), tear-off + DT.
- * Sensor off (saLabelType=2): длина подачи строго из PageSize — иначе gap часто
- * обрывает печать раньше конца этикетки. PDF 150×100 — landscape, как на TSC.
+ * SATO WS408: записки 60×55 мм (Custom.60x55mm).
+ * Sensor off — длина подачи из PageSize; DT + tear-off.
  */
-const LABEL_LP_SATO_4X6 = [
+const LABEL_LP_SATO_60X55 = [
   [
     "-o",
-    "PageSize=w288h432",
-    "-o",
-    "landscape",
+    "PageSize=Custom.60x55mm",
     "-o",
     "MediaType=1",
     "-o",
@@ -149,15 +146,13 @@ const LABEL_LP_SATO_4X6 = [
   ],
   [
     "-o",
-    "PageSize=w288h432",
-    "-o",
-    "landscape",
+    "media=Custom.60x55mm",
     "-o",
     "saLabelType=2",
     "-o",
     "fit-to-page",
   ],
-  ["-o", "PageSize=w288h432", "-o", "fit-to-page"],
+  ["-o", "PageSize=Custom.60x55mm", "-o", "fit-to-page"],
   ["-o", "fit-to-page"],
   [],
 ];
@@ -213,7 +208,7 @@ const LABEL_LP_OPTS = [
 export type LabelPrintFormat = "tspl" | "pdf" | "png";
 
 function cupsOptionSetsForPrinter(printer: string, landscape: boolean): string[][] {
-  if (isSatoPrinter(printer)) return LABEL_LP_SATO_4X6;
+  if (isSatoPrinter(printer)) return LABEL_LP_SATO_60X55;
   return landscape ? LABEL_LP_4X6_LANDSCAPE : LABEL_LP_4X6_PORTRAIT;
 }
 
@@ -248,6 +243,23 @@ async function tryPrintTspl(
   } catch {
     return false;
   }
+}
+
+/** Записка 60×55 на SATO (CUPS); на TSC — через обычный 4×6 path не вызывать. */
+export async function printPdfGiftNote(
+  printer: string,
+  pdf: Buffer,
+  workDir: string,
+  stamp: string,
+): Promise<LabelPrintFormat> {
+  assertPdfBuffer(pdf);
+  const pdfPath = path.join(workDir, `note-${stamp}.pdf`);
+  await writeFile(pdfPath, pdf);
+
+  if (await printPdfViaCups(printer, pdfPath, LABEL_LP_SATO_60X55)) {
+    return "pdf";
+  }
+  throw new Error("Не удалось напечатать записку 60×55");
 }
 
 /** Макеты 4×6 landscape. TSPL только на TSC; иначе CUPS (SATO и др.). */
@@ -311,7 +323,7 @@ export async function printPdfLabel(
     }
   }
 
-  const cupsOpts = isSatoPrinter(printer) ? LABEL_LP_SATO_4X6 : LABEL_LP_OPTS;
+  const cupsOpts = isSatoPrinter(printer) ? LABEL_LP_SATO_60X55 : LABEL_LP_OPTS;
 
   for (const opts of cupsOpts) {
     try {

@@ -10,6 +10,7 @@ import {
 } from "@/lib/server/brand-barcode-label";
 import { downloadBarcodePdf, resolveBarcodeUrl } from "@/lib/server/orders-api";
 import { printPdfLabel, printPdfLabel4x6 } from "@/lib/server/pdf-label-printer";
+import { preferredSatoQueueName } from "@/lib/server/printer-kind";
 import {
   buildTrackLabelPdf,
   trackLabelFromOrder,
@@ -23,7 +24,8 @@ const PRINT_DIR = path.join(DATA_DIR, "print");
 const LOG_FILE = path.join(DATA_DIR, "print", "log.txt");
 
 const VIRTUAL_PRINTER_RE = /pdf|fax|xps|onenote|save|virtual|document|cups-pdf/i;
-const LABEL_PRINTER_RE = /zebra|zdesigner|tsc|te-|xprinter|xp-|godex|g500|barcode|label|dp-?d|ql-|hprt|4barcode|thermal|hotlabel|munbyn|polono|knaon/i;
+const LABEL_PRINTER_RE =
+  /zebra|zdesigner|tsc|te-|xprinter|xp-|godex|g500|barcode|label|dp-?d|ql-|hprt|4barcode|thermal|hotlabel|munbyn|polono|knaon|ws408|sato|sepl/i;
 
 export { isTscTsplPrinter } from "@/lib/server/printer-kind";
 
@@ -147,6 +149,18 @@ export async function detectBarcodePrinter(): Promise<string | null> {
 
   cachedPrinter = defaultName && !isVirtualPrinter(defaultName) ? defaultName : null;
   return cachedPrinter;
+}
+
+/** Записки / смайлики → SATO WS408 (60×55), не TSC. */
+export async function detectGiftNotePrinter(): Promise<string | null> {
+  const fromEnv = process.env.GIFT_NOTE_PRINTER?.trim();
+  if (fromEnv) return fromEnv;
+
+  const printers = await listCupsPrinters();
+  const sato = preferredSatoQueueName(printers);
+  if (sato) return sato;
+
+  return detectBarcodePrinter();
 }
 
 export async function getPrinterDiagnostics(): Promise<{

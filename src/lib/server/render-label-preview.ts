@@ -3,20 +3,20 @@ import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
 import os from "os";
 import path from "path";
 import { promisify } from "util";
-import { mmToPoints, mmToPx } from "@/lib/label-media";
-import { readPdfPageSizePoints } from "@/lib/label-media";
+import { mmToPoints, readPdfPageSizePoints } from "@/lib/label-media";
 
 const execFileAsync = promisify(execFile);
 const RENDER_DPI = 150;
 
-/** PNG превью в ориентации самого PDF (альбом → горизонтально). */
+/** PNG превью в ориентации и размере самого PDF. */
 export async function renderLabelPdfToPng(pdf: Buffer): Promise<Buffer> {
   const page = readPdfPageSizePoints(pdf);
-  const landscape = page ? page.width > page.height + 2 : true;
-  const widthMm = landscape ? 150 : 100;
-  const heightMm = landscape ? 100 : 150;
+  const widthPt = page?.width ?? mmToPoints(60);
+  const heightPt = page?.height ?? mmToPoints(55);
+  const widthPx = Math.max(1, Math.round((widthPt / 72) * RENDER_DPI));
+  const heightPx = Math.max(1, Math.round((heightPt / 72) * RENDER_DPI));
 
-  const dir = await mkdtemp(path.join(os.tmpdir(), "box-label-"));
+  const dir = await mkdtemp(path.join(os.tmpdir(), "label-preview-"));
   const pdfPath = path.join(dir, "label.pdf");
   const pngPath = path.join(dir, "label.png");
 
@@ -30,11 +30,11 @@ export async function renderLabelPdfToPng(pdf: Buffer): Promise<Buffer> {
         "-dNOPAUSE",
         "-sDEVICE=pnggray",
         `-r${RENDER_DPI}`,
-        `-g${mmToPx(widthMm, RENDER_DPI)}x${mmToPx(heightMm, RENDER_DPI)}`,
+        `-g${widthPx}x${heightPx}`,
         "-dPDFFitPage",
         "-dFIXEDMEDIA",
-        `-dDEVICEWIDTHPOINTS=${mmToPoints(widthMm)}`,
-        `-dDEVICEHEIGHTPOINTS=${mmToPoints(heightMm)}`,
+        `-dDEVICEWIDTHPOINTS=${widthPt}`,
+        `-dDEVICEHEIGHTPOINTS=${heightPt}`,
         "-dFirstPage=1",
         "-dLastPage=1",
         `-sOutputFile=${pngPath}`,

@@ -5,13 +5,17 @@ import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import sharp from "sharp";
 import { getGiftNoteImage, type GiftNoteLayout } from "@/lib/gift-note-presets";
+import { mmToPoints } from "@/lib/label-media";
 
 export type { GiftNoteLayout };
 
-/** Альбом 150×100 мм — как бренд/трек/коробка. */
-const PAGE_W = 6 * 72;
-const PAGE_H = 4 * 72;
-const MARGIN = 18;
+/** Записки на SATO WS408: этикетка 60×55 мм. */
+export const GIFT_NOTE_WIDTH_MM = 60;
+export const GIFT_NOTE_HEIGHT_MM = 55;
+
+const PAGE_W = mmToPoints(GIFT_NOTE_WIDTH_MM);
+const PAGE_H = mmToPoints(GIFT_NOTE_HEIGHT_MM);
+const MARGIN = 6;
 const BLACK = rgb(0, 0, 0);
 const WHITE = rgb(1, 1, 1);
 
@@ -77,20 +81,19 @@ function wrapLine(font: PDFFont, text: string, size: number, maxWidth: number): 
     if (current) lines.push(current);
     if (font.widthOfTextAtSize(word, size) <= maxWidth) {
       current = word;
-      continue;
-    }
-    // длинное слово без пробелов — режем по символам
-    let chunk = "";
-    for (const ch of word) {
-      const next = chunk + ch;
-      if (font.widthOfTextAtSize(next, size) <= maxWidth) {
-        chunk = next;
-      } else {
-        if (chunk) lines.push(chunk);
-        chunk = ch;
+    } else {
+      let chunk = "";
+      for (const ch of word) {
+        const next = chunk + ch;
+        if (font.widthOfTextAtSize(next, size) <= maxWidth) {
+          chunk = next;
+        } else {
+          if (chunk) lines.push(chunk);
+          chunk = ch;
+        }
       }
+      current = chunk;
     }
-    current = chunk;
   }
   if (current) lines.push(current);
   return lines.length ? lines : [""];
@@ -110,19 +113,19 @@ function fitText(
   maxWidth: number,
   maxHeight: number,
   preferred: number,
-  min = 14,
+  min = 8,
 ): { size: number; lines: string[]; lineHeight: number } {
   let size = preferred;
   while (size >= min) {
     const lines = wrapText(font, text, size, maxWidth);
-    const lineHeight = size * 1.22;
+    const lineHeight = size * 1.18;
     if (lines.length * lineHeight <= maxHeight) {
       return { size, lines, lineHeight };
     }
-    size -= 1;
+    size -= 0.5;
   }
   const lines = wrapText(font, text, min, maxWidth);
-  return { size: min, lines, lineHeight: min * 1.22 };
+  return { size: min, lines, lineHeight: min * 1.18 };
 }
 
 function drawCenteredLines(
@@ -152,11 +155,10 @@ function drawCenteredLines(
 async function loadImagePng(src: string): Promise<Buffer> {
   const file = resolvePublicAsset(src);
   const raw = await readFile(file);
-  // Белый фон + апскейл: Apple emoji чётче уходят в 1-bit на TSC.
   return sharp(raw)
     .ensureAlpha()
     .flatten({ background: { r: 255, g: 255, b: 255 } })
-    .resize(640, 640, {
+    .resize(480, 480, {
       fit: "contain",
       background: { r: 255, g: 255, b: 255, alpha: 1 },
       kernel: "lanczos3",
@@ -221,8 +223,8 @@ export async function buildGiftNotePdf(input: GiftNoteInput): Promise<Buffer> {
   }
 
   if (layout === "image-top" && image && text) {
-    const imgMaxH = contentH * 0.38;
-    const imgScale = Math.min(contentW * 0.45 / image.width, imgMaxH / image.height, 1);
+    const imgMaxH = contentH * 0.42;
+    const imgScale = Math.min((contentW * 0.55) / image.width, imgMaxH / image.height, 1);
     const imgW = image.width * imgScale;
     const imgH = image.height * imgScale;
     const imgY = contentY + contentH - imgH;
@@ -232,9 +234,9 @@ export async function buildGiftNotePdf(input: GiftNoteInput): Promise<Buffer> {
       width: imgW,
       height: imgH,
     });
-    const textTop = imgY - 12;
-    const textH = textTop - contentY;
-    const fitted = fitText(bold, text, contentW, textH, 36, 16);
+    const textTop = imgY - 4;
+    const textH = Math.max(8, textTop - contentY);
+    const fitted = fitText(bold, text, contentW, textH, 16, 8);
     const blockH = fitted.lines.length * fitted.lineHeight;
     const topY = contentY + textH - Math.max(0, (textH - blockH) / 2);
     drawCenteredLines(page, bold, fitted.lines, fitted.size, fitted.lineHeight, contentX, contentW, topY);
@@ -242,7 +244,7 @@ export async function buildGiftNotePdf(input: GiftNoteInput): Promise<Buffer> {
   }
 
   if (layout === "image-left" && image && text) {
-    const imgMaxW = contentW * 0.34;
+    const imgMaxW = contentW * 0.38;
     const imgScale = Math.min(imgMaxW / image.width, contentH / image.height, 1);
     const imgW = image.width * imgScale;
     const imgH = image.height * imgScale;
@@ -252,17 +254,17 @@ export async function buildGiftNotePdf(input: GiftNoteInput): Promise<Buffer> {
       width: imgW,
       height: imgH,
     });
-    const textX = contentX + imgW + 16;
-    const textW = contentW - imgW - 16;
-    const fitted = fitText(bold, text, textW, contentH, 34, 15);
+    const gap = 5;
+    const textX = contentX + imgW + gap;
+    const textW = contentW - imgW - gap;
+    const fitted = fitText(bold, text, textW, contentH, 15, 8);
     const blockH = fitted.lines.length * fitted.lineHeight;
     const topY = contentY + contentH - Math.max(0, (contentH - blockH) / 2);
     drawCenteredLines(page, bold, fitted.lines, fitted.size, fitted.lineHeight, textX, textW, topY);
     return Buffer.from(await pdf.save());
   }
 
-  // text only
-  const fitted = fitText(bold, text || " ", contentW, contentH, 42, 16);
+  const fitted = fitText(bold, text || " ", contentW, contentH, 18, 8);
   const blockH = fitted.lines.length * fitted.lineHeight;
   const topY = contentY + contentH - Math.max(0, (contentH - blockH) / 2);
   drawCenteredLines(page, bold, fitted.lines, fitted.size, fitted.lineHeight, contentX, contentW, topY);
