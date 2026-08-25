@@ -123,6 +123,9 @@ function sleep(ms: number) {
  * SATO WS408 записки 60×55 (A1: V=55mm H=60mm в SBPL).
  * Gap (IG1) + Tear-off (PM1): иначе continuous/sensor-off с «удлинённой»
  * страницей сбивает pitch — FEED выдаёт пачку, печать стопорится ~70%.
+ *
+ * saYCorrection: контент без сдвига прижимается к началу этикетки,
+ * снизу остаётся пустая непечатаемая полоса (~0.4").
  */
 const LABEL_LP_SATO_60X55 = [
   [
@@ -137,7 +140,7 @@ const LABEL_LP_SATO_60X55 = [
     "-o",
     "saThreshold=Default",
     "-o",
-    "saYCorrection=0",
+    "saYCorrection=81",
     "-o",
     "Darkness=5",
     "-o",
@@ -157,9 +160,20 @@ const LABEL_LP_SATO_60X55 = [
     "-o",
     "saThreshold=Default",
     "-o",
+    "saYCorrection=81",
+    "-o",
     "Darkness=5",
   ],
-  ["-o", "PageSize=Custom.60x55mm", "-o", "saLabelType=1", "-o", "saOperationMode=1"],
+  [
+    "-o",
+    "PageSize=Custom.60x55mm",
+    "-o",
+    "saLabelType=1",
+    "-o",
+    "saOperationMode=1",
+    "-o",
+    "saYCorrection=81",
+  ],
   [],
 ];
 

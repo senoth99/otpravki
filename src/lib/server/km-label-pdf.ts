@@ -356,7 +356,7 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
   drawMetaBlock("GTIN", fields.gtin);
   drawMetaBlock("S/N", fields.serial);
 
-  // --- SIZE: внизу на всю ширину, та же высота ---
+  // --- Размер: полоса внизу на всю ширину, только литера ---
   const sizeBadgeY = 0;
   page.drawRectangle({
     x: 0,
@@ -365,19 +365,10 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
     height: sizeBadgeH,
     color: BLACK,
   });
-  const sizeCap = "SIZE";
-  const sizeCapSz = 5;
-  page.drawText(sizeCap, {
-    x: (PAGE_W - bold.widthOfTextAtSize(sizeCap, sizeCapSz)) / 2,
-    y: sizeBadgeY + sizeBadgeH - sizeCapSz - 1.2,
-    size: sizeCapSz,
-    font: bold,
-    color: WHITE,
-  });
-  const sizeLetterSz = fitFontSize(bold, sizeLabel, contentW - 6, 12, 7);
+  const sizeLetterSz = fitFontSize(bold, sizeLabel, contentW - 6, 14, 8);
   page.drawText(sizeLabel, {
     x: (PAGE_W - bold.widthOfTextAtSize(sizeLabel, sizeLetterSz)) / 2,
-    y: sizeBadgeY + 1.8,
+    y: sizeBadgeY + (sizeBadgeH - sizeLetterSz) / 2,
     size: sizeLetterSz,
     font: bold,
     color: WHITE,
