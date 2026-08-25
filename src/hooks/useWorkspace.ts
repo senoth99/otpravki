@@ -140,7 +140,10 @@ export function useWorkspace({
         setIsSyncing(true);
       }
       try {
-        const result = await refreshWorkspaceFromApi(brand);
+        const result = await refreshWorkspaceFromApi(brand, {
+          slim: slimForAssembly ? "assembly" : undefined,
+          fresh: !silent,
+        });
         if (requestId !== refreshRequestIdRef.current) {
           return { ok: false as const };
         }
@@ -226,6 +229,8 @@ export function useWorkspace({
       onSync: applyFromServer,
       onWorkspace: applyFromServer,
       onConnectionChange: setIsStreamConnected,
+      slim: slimForAssembly ? "assembly" : undefined,
+      revision: revisionRef.current,
     });
   }, [applyFromServer, applyWorkspaceState]);
 

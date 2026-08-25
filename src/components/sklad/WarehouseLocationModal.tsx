@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { BloggerBadge } from "@/components/otpravki/BloggerBadge";
 import type { LocationGroupEntry } from "@/components/otpravki/AssemblyItemCard";
@@ -7,6 +8,21 @@ import { formatSize } from "@/lib/format";
 import type { WarehouseCellLocation } from "@/lib/warehouse-location";
 import type { ApiStockItem, WarehouseMapConfig } from "@/types/stock";
 import { WarehouseMap } from "./WarehouseMap";
+
+const MemoWarehouseMap = memo(WarehouseMap);
+
+interface WarehouseLocationModalProps {
+  map: WarehouseMapConfig;
+  location: WarehouseCellLocation;
+  productName: string;
+  stock?: ApiStockItem[];
+  onClose: () => void;
+  onTake?: () => void;
+  takeProgress?: { done: number; total: number };
+  isBlogger?: boolean;
+  locationGroup?: LocationGroupEntry[];
+  locationGroupIndex?: number;
+}
 
 interface WarehouseLocationModalProps {
   map: WarehouseMapConfig;
@@ -34,6 +50,10 @@ export function WarehouseLocationModal({
   locationGroupIndex = 1,
 }: WarehouseLocationModalProps) {
   const rackLabel = location.furnitureLabel?.trim() || "Стеллаж";
+  const navigateTarget = useMemo(
+    () => ({ furnitureId: location.furnitureId, cellKey: location.cellKey }),
+    [location.furnitureId, location.cellKey],
+  );
 
   const modal = (
     <div
@@ -132,14 +152,11 @@ export function WarehouseLocationModal({
         )}
 
         <div className="flex min-h-[38dvh] flex-1 basis-0 flex-col px-1 py-1 sm:px-4 sm:py-3">
-          <WarehouseMap
+          <MemoWarehouseMap
             initialMap={map}
             stock={stock}
             readOnly
-            navigateTarget={{
-              furnitureId: location.furnitureId,
-              cellKey: location.cellKey,
-            }}
+            navigateTarget={navigateTarget}
           />
         </div>
 
@@ -147,8 +164,18 @@ export function WarehouseLocationModal({
           <div className="shrink-0 border-t border-gray-200 bg-white px-4 py-3 safe-bottom sm:px-5 sm:py-4">
             <button
               type="button"
-              onClick={onTake}
-              className="flex w-full min-h-[56px] items-center justify-center rounded-2xl bg-gray-900 px-6 py-4 text-lg font-bold uppercase tracking-wide text-white shadow-lg transition-transform active:scale-[0.98] active:bg-gray-800"
+              data-no-drag-scroll
+              onPointerUp={(event) => {
+                if (event.pointerType === "mouse" && event.button !== 0) return;
+                event.preventDefault();
+                onTake();
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                onTake();
+              }}
+              className="flex w-full min-h-[56px] touch-manipulation items-center justify-center rounded-2xl bg-gray-900 px-6 py-4 text-lg font-bold uppercase tracking-wide text-white shadow-lg transition-transform active:scale-[0.98] active:bg-gray-800"
             >
               Взял
               {takeProgress && takeProgress.total > 1 && (

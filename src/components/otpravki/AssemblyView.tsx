@@ -10,7 +10,11 @@ import {
 import { planAssemblyRoute } from "@/lib/assembly-route";
 import { URGENCY_LABELS } from "@/lib/urgency";
 import { resolveAssemblyScan } from "@/lib/barcode-product";
-import { findCellLocation, locationKey } from "@/lib/warehouse-location";
+import {
+  buildCellLocationIndex,
+  findCellLocationInIndex,
+  locationKey,
+} from "@/lib/warehouse-location";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { WarehouseMapConfig } from "@/types/stock";
 import { AssemblyItemCard } from "./AssemblyItemCard";
@@ -98,10 +102,11 @@ export function AssemblyView({
     return map;
   }, [allItems, urgencyMap]);
   const locationByItemId = useMemo(() => {
-    const map = new Map<string, ReturnType<typeof findCellLocation>>();
+    const map = new Map<string, ReturnType<typeof findCellLocationInIndex>>();
     if (!warehouseMap) return map;
+    const index = buildCellLocationIndex(warehouseMap);
     for (const item of allItems) {
-      const loc = findCellLocation(item, warehouseMap);
+      const loc = findCellLocationInIndex(item, index);
       if (loc) map.set(item.id, loc);
     }
     return map;
@@ -457,7 +462,6 @@ export function AssemblyView({
         <div className="space-y-4">
           {currentItem && (
             <MemoAssemblyItemCard
-              key={currentItem.id}
               item={currentItem}
               onIncrement={handleIncrement}
               onDecrement={handleDecrement}

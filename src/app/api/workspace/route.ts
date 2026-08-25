@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { toAssemblyWorkspace } from "@/lib/assembly-workspace-slim";
 import { requireMutatingAuth } from "@/lib/server/api-auth";
 import { logSync } from "@/lib/server/sync-log";
 import { applyWorkspaceUpdate, getSharedWorkspace } from "@/lib/server/workspace-store";
@@ -6,12 +7,16 @@ import type { WorkspaceState } from "@/types/workspace";
 
 const NO_CACHE = { "Cache-Control": "no-store, no-cache, must-revalidate" };
 
-export async function GET() {
+export async function GET(request: Request) {
+  const slim = new URL(request.url).searchParams.get("slim") === "assembly";
   const workspace = await getSharedWorkspace();
   if (!workspace) {
     return NextResponse.json({ workspace: null }, { headers: NO_CACHE });
   }
-  return NextResponse.json({ workspace }, { headers: NO_CACHE });
+  return NextResponse.json(
+    { workspace: slim ? toAssemblyWorkspace(workspace) : workspace },
+    { headers: NO_CACHE },
+  );
 }
 
 export async function POST(request: Request) {

@@ -14,10 +14,14 @@ interface CacheEntry {
   data: ApiProduct[];
 }
 
+let memory: CacheEntry | null = null;
+
 async function readCache(): Promise<CacheEntry | null> {
+  if (memory) return memory;
   try {
     const raw = await readFile(CACHE_FILE, "utf-8");
-    return JSON.parse(raw) as CacheEntry;
+    memory = JSON.parse(raw) as CacheEntry;
+    return memory;
   } catch {
     return null;
   }
@@ -26,6 +30,7 @@ async function readCache(): Promise<CacheEntry | null> {
 async function writeCache(data: ApiProduct[]) {
   await mkdir(CACHE_DIR, { recursive: true });
   const entry: CacheEntry = { fetchedAt: Date.now(), data };
+  memory = entry;
   await writeFile(CACHE_FILE, JSON.stringify(entry), "utf-8");
 }
 
@@ -40,6 +45,11 @@ export async function refreshProductsCache(): Promise<ApiProduct[]> {
   const products = await fetchRemote();
   await writeCache(products);
   return products;
+}
+
+export async function rememberProductsCache(products: ApiProduct[]): Promise<void> {
+  if (products.length === 0) return;
+  await writeCache(products);
 }
 
 /** Только диск — без повторного запроса в сеть */

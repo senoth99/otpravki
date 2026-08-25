@@ -41,12 +41,15 @@ export function QuantityTracker({
 
         <button
           type="button"
-          onClick={(event) => {
-            if ((event.nativeEvent as PointerEvent).pointerType === "touch") return;
+          onPointerUp={(event) => {
+            if (isComplete) return;
+            if (event.pointerType === "mouse" && event.button !== 0) return;
+            event.preventDefault();
             onIncrement();
           }}
-          onPointerUp={(event) => {
-            if (event.pointerType !== "touch" || isComplete) return;
+          onKeyDown={(event) => {
+            if (isComplete) return;
+            if (event.key !== "Enter" && event.key !== " ") return;
             event.preventDefault();
             onIncrement();
           }}

@@ -103,9 +103,10 @@ export async function applyAssemblyProgressPatch(
     writeChain = writeChain
       .then(() => persist(next))
       .catch(() => {
-        // disk write best-effort
+        // disk write best-effort — HTTP не ждёт fsync
       });
-    await writeChain;
+    // Не блокируем POST на диск: состояние уже в RAM и ушло в socket.
+    void writeChain;
 
     return next;
   });

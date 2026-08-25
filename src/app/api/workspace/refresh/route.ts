@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { toAssemblyWorkspace } from "@/lib/assembly-workspace-slim";
 import { USE_MOCK_ORDERS } from "@/lib/app-config";
 import { requireMutatingAuth } from "@/lib/server/api-auth";
 import { formatApiFetchError } from "@/lib/server/api-fetch-error";
@@ -20,13 +21,23 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = (await request.json().catch(() => ({}))) as { brand?: unknown };
+    const body = (await request.json().catch(() => ({}))) as {
+      brand?: unknown;
+      slim?: unknown;
+      fresh?: unknown;
+    };
     const brand = typeof body.brand === "string" ? body.brand.trim() : "";
+    const slim = body.slim === "assembly";
+    const bypassProductCache = body.fresh === true;
     const result = brand
-      ? await fetchAndSyncWorkspaceFromApiForBrand(brand)
-      : await fetchAndSyncWorkspaceFromApi();
+      ? await fetchAndSyncWorkspaceFromApiForBrand(brand, { bypassProductCache })
+      : await fetchAndSyncWorkspaceFromApi({ bypassProductCache });
     return NextResponse.json(
-      { ok: true, ...result },
+      {
+        ok: true,
+        ...result,
+        workspace: slim ? toAssemblyWorkspace(result.workspace) : result.workspace,
+      },
       { headers: { "Cache-Control": "no-store, must-revalidate" } },
     );
   } catch (error) {

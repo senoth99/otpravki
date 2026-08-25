@@ -211,6 +211,7 @@ export function AssemblyPanel({
       if (!cancelled && next) setProgress(next);
     });
     const unsub = subscribeAssemblyProgress({
+      query: { slim: "assembly" },
       onProgress: (next) => {
         setProgress((current) => mergeRemoteProgress(current, next));
       },
@@ -254,7 +255,7 @@ export function AssemblyPanel({
     [orders, assemblyItems, progress],
   );
 
-  const filteredAssemblyItems = useMemo(() => {
+  const filteredAssemblyBase = useMemo(() => {
     let brandAsm = assemblyItems.filter(
       (item) => matchesStoreBrand(item.brand, selectedBrand) && item.quantity > 0,
     );
@@ -292,8 +293,13 @@ export function AssemblyPanel({
       );
     }
 
-    return applyProgressToItems(brandAsm, progress);
-  }, [assemblyItems, selectedBrand, filters, filteredOrders, progress]);
+    return brandAsm;
+  }, [assemblyItems, selectedBrand, filters, filteredOrders]);
+
+  const filteredAssemblyItems = useMemo(
+    () => applyProgressToItems(filteredAssemblyBase, progress),
+    [filteredAssemblyBase, progress],
+  );
 
   const handleFindProduct = useCallback(
     (productId: string) => {

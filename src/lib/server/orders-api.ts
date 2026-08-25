@@ -266,6 +266,7 @@ async function hydrateMissingOrderItems(
 
 async function fetchBrandUnshippedOrders(brand: BrandApiConfig): Promise<ApiUnshippedOrderWithBrand[]> {
   const ordersUrl = `${ORDERS_API_BASE}${UNSHIPPED_PATH}?all=1`;
+  const processingPromise = fetchProcessingAdminOrders(brand).catch(() => [] as unknown[]);
   let res: Response;
   try {
     res = await externalFetch(ordersUrl, {
@@ -303,7 +304,7 @@ async function fetchBrandUnshippedOrders(brand: BrandApiConfig): Promise<ApiUnsh
   const have = new Set(stockOrders.map((order) => order.remoteOrderId));
   let extras: ApiUnshippedOrderWithBrand[] = [];
   try {
-    const processing = await fetchProcessingAdminOrders(brand);
+    const processing = await processingPromise;
     extras = processing
       .map((row) => mapAdminListOrder(row, brand))
       .filter((order): order is ApiUnshippedOrderWithBrand => {
@@ -314,7 +315,10 @@ async function fetchBrandUnshippedOrders(brand: BrandApiConfig): Promise<ApiUnsh
     extras = [];
   }
 
-  return mapLimit([...stockOrders, ...extras], 8, (order) => hydrateMissingOrderItems(order, brand));
+  const hydrated = await mapLimit([...stockOrders, ...extras], 16, (order) =>
+    hydrateMissingOrderItems(order, brand),
+  );
+  return hydrated;
 }
 
 export async function fetchUnshippedOrdersForBrand(

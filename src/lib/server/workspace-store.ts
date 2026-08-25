@@ -13,6 +13,7 @@ import {
 import { mergeFreshOrdersData, mergeFreshOrdersDataForBrand } from "@/lib/workspace-api-merge";
 import { logSync } from "@/lib/server/sync-log";
 import { appendSyncEvent, forwardToRemote } from "@/lib/server/sync-store";
+import { toAssemblyWorkspace } from "@/lib/assembly-workspace-slim";
 import { applyAssemblyProgressPatch, getAssemblyProgress } from "@/lib/server/assembly-progress-store";
 
 type WorkspaceListener = (state: SharedWorkspaceState) => void;
@@ -63,12 +64,29 @@ function broadcast(state: SharedWorkspaceState) {
     }
   }
 
-  const io =
-    (global as { __workspaceIo?: { emit: (event: string, data: unknown) => void } }).__workspaceIo ??
-    (globalThis as { __workspaceIo?: { emit: (event: string, data: unknown) => void } })
-      .__workspaceIo;
+  const io = (
+    (global as {
+      __workspaceIo?: {
+        emit: (event: string, data: unknown) => void;
+        except?: (room: string) => { emit: (event: string, data: unknown) => void };
+        to?: (room: string) => { emit: (event: string, data: unknown) => void };
+      };
+    }).__workspaceIo ??
+    (globalThis as {
+      __workspaceIo?: {
+        emit: (event: string, data: unknown) => void;
+        except?: (room: string) => { emit: (event: string, data: unknown) => void };
+        to?: (room: string) => { emit: (event: string, data: unknown) => void };
+      };
+    }).__workspaceIo
+  );
   if (io) {
-    io.emit("workspace:update", state);
+    if (io.except && io.to) {
+      io.except("assembly").emit("workspace:update", state);
+      io.to("assembly").emit("workspace:update", toAssemblyWorkspace(state));
+    } else {
+      io.emit("workspace:update", state);
+    }
     void logSync("broadcast.socket", {
       revision: state.revision,
       updatedBy: state.updatedBy,

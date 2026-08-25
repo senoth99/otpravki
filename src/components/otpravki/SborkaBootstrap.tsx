@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
-import { slimWorkspaceForAssembly } from "@/lib/assembly-workspace-slim";
 import { fetchSharedWorkspace, refreshWorkspaceFromApi } from "@/lib/workspace";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import { AssemblyPanel } from "./AssemblyPanel";
@@ -31,11 +30,11 @@ export function SborkaBootstrap() {
 
     void (async () => {
       try {
-        let workspace = await fetchSharedWorkspace();
+        let workspace = await fetchSharedWorkspace({ slim: "assembly" });
         if (cancelled) return;
 
         if (!workspace || ((workspace.orders?.length ?? 0) === 0 && (workspace.assemblyItems?.length ?? 0) === 0)) {
-          const refreshed = await refreshWorkspaceFromApi();
+          const refreshed = await refreshWorkspaceFromApi(undefined, { slim: "assembly", fresh: true });
           if (cancelled) return;
           if (refreshed.ok && refreshed.workspace) {
             workspace = refreshed.workspace;
@@ -50,11 +49,10 @@ export function SborkaBootstrap() {
           return;
         }
 
-        const slim = slimWorkspaceForAssembly(workspace);
-        setAssemblyItems(slim.assemblyItems);
-        setOrders(slim.orders);
-        setApiOrderIds(slim.apiOrderIds ?? []);
-        setInitialRevision(slim.revision);
+        setAssemblyItems(workspace.assemblyItems);
+        setOrders(workspace.orders);
+        setApiOrderIds(workspace.apiOrderIds ?? []);
+        setInitialRevision(workspace.revision);
         setReady(true);
       } catch (loadError) {
         if (cancelled) return;

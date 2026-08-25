@@ -40,6 +40,7 @@ function enrichAssemblyItems(items: AssemblyItem[], orders: ShippingOrder[]): As
       const key = itemPoolKey(item);
       const needed = demand.get(key) ?? 0;
       if (needed === 0) return null;
+      if (item.quantity === needed) return item;
       return { ...item, quantity: needed };
     })
     .filter((item): item is AssemblyItem => item !== null);

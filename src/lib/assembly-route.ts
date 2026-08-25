@@ -1,5 +1,10 @@
 import { sortAssemblyItemsByUrgency } from "@/lib/assembly-sort";
-import { findCellLocation, locationKey, type WarehouseCellLocation } from "@/lib/warehouse-location";
+import {
+  buildCellLocationIndex,
+  findCellLocationInIndex,
+  locationKey,
+  type WarehouseCellLocation,
+} from "@/lib/warehouse-location";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { FurnitureItem, WarehouseMapConfig } from "@/types/stock";
 
@@ -114,9 +119,10 @@ export function planAssemblyRoute(
 
   const located: RoutedItem[] = [];
   const unlocated: AssemblyItem[] = [];
+  const index = map ? buildCellLocationIndex(map) : null;
 
   for (const item of pending) {
-    const location = map ? findCellLocation(item, map) : undefined;
+    const location = index ? findCellLocationInIndex(item, index) : undefined;
     if (!location || !map) {
       unlocated.push(item);
       continue;

@@ -1,8 +1,8 @@
-import { io, type Socket } from "socket.io-client";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { SharedWorkspaceState, WorkspaceState } from "@/types/workspace";
 import { mutatingApiHeaders } from "@/lib/api-headers";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
+import { acquireRealtimeSocket, releaseRealtimeSocket } from "@/lib/realtime-socket";
 import { mergeShippedArchives } from "@/lib/shipped-archive";
 
 const CLIENT_ID_KEY = "otpravki-client-id";
@@ -43,8 +43,11 @@ function cacheBust(url: string): string {
   return `${url}${sep}_=${Date.now()}`;
 }
 
-export async function fetchSharedWorkspace(): Promise<SharedWorkspaceState | null> {
-  const res = await fetchWithTimeout(cacheBust("/api/workspace"), {
+export async function fetchSharedWorkspace(options?: {
+  slim?: "assembly";
+}): Promise<SharedWorkspaceState | null> {
+  const path = options?.slim === "assembly" ? "/api/workspace?slim=assembly" : "/api/workspace";
+  const res = await fetchWithTimeout(cacheBust(path), {
     cache: "no-store",
     timeoutMs: SYNC_TIMEOUT_MS,
   });
@@ -54,8 +57,6 @@ export async function fetchSharedWorkspace(): Promise<SharedWorkspaceState | nul
   const data = (await res.json()) as { workspace: SharedWorkspaceState | null };
   return data.workspace;
 }
-
-let activeSocket: Socket | null = null;
 
 export function logClientSync(
   type: string,
@@ -77,16 +78,23 @@ export function logClientSync(
   });
 }
 
-export async function refreshWorkspaceFromApi(brand?: string): Promise<{
+export async function refreshWorkspaceFromApi(
+  brand?: string,
+  options?: { slim?: "assembly"; fresh?: boolean },
+): Promise<{
   ok: boolean;
   workspace?: SharedWorkspaceState;
   error?: string;
 }> {
   try {
+    const payload: { brand?: string; slim?: "assembly"; fresh?: boolean } = {};
+    if (brand) payload.brand = brand;
+    if (options?.slim) payload.slim = options.slim;
+    if (options?.fresh) payload.fresh = true;
     const res = await fetchWithTimeout("/api/workspace/refresh", {
       method: "POST",
       headers: mutatingApiHeaders(),
-      body: JSON.stringify(brand ? { brand } : {}),
+      body: JSON.stringify(payload),
       cache: "no-store",
       timeoutMs: SYNC_TIMEOUT_MS,
     });
@@ -179,17 +187,18 @@ export interface WorkspaceStreamOptions {
   onWorkspace: (workspace: SharedWorkspaceState) => void;
   onSync?: (workspace: SharedWorkspaceState) => void;
   onConnectionChange?: (connected: boolean) => void;
+  slim?: "assembly";
+  revision?: number;
 }
-
-const SOCKET_RECONNECT_MS = 300;
 
 export function subscribeWorkspaceStream({
   onWorkspace,
   onSync,
   onConnectionChange,
+  slim,
+  revision,
 }: WorkspaceStreamOptions): () => void {
   let connected = false;
-  let closed = false;
 
   const setConnected = (next: boolean) => {
     if (connected === next) return;
@@ -197,38 +206,41 @@ export function subscribeWorkspaceStream({
     onConnectionChange?.(next);
   };
 
-  const apiSecret = process.env.NEXT_PUBLIC_OTPRAVKI_API_SECRET?.trim();
-  const socket = io({
-    path: "/socket.io",
-    transports: ["websocket", "polling"],
-    reconnection: true,
-    reconnectionDelay: SOCKET_RECONNECT_MS,
-    reconnectionAttempts: Infinity,
-    auth: apiSecret ? { secret: apiSecret } : undefined,
-  });
-  activeSocket = socket;
+  const query: Record<string, string> = {};
+  if (slim) query.slim = slim;
+  if (typeof revision === "number" && revision > 0) query.revision = String(revision);
 
-  socket.on("connect", () => {
+  const socket = acquireRealtimeSocket(query);
+
+  const onConnect = () => {
     setConnected(true);
     logClientSync("socket.connect", { meta: { transport: socket.io.engine.transport.name } });
-  });
-  socket.on("disconnect", (reason) => {
+  };
+  const onDisconnect = (reason: string) => {
     setConnected(false);
     logClientSync("socket.disconnect", { message: reason });
-  });
-  socket.on("workspace:sync", (workspace: SharedWorkspaceState) => {
+  };
+  const onSyncEvent = (workspace: SharedWorkspaceState) => {
     logClientSync("recv.sync", { revision: workspace?.revision });
     if (workspace) (onSync ?? onWorkspace)(workspace);
-  });
-  socket.on("workspace:update", (workspace: SharedWorkspaceState) => {
+  };
+  const onUpdateEvent = (workspace: SharedWorkspaceState) => {
     logClientSync("recv.update", { revision: workspace?.revision });
     if (workspace) onWorkspace(workspace);
-  });
+  };
+
+  socket.on("connect", onConnect);
+  socket.on("disconnect", onDisconnect);
+  socket.on("workspace:sync", onSyncEvent);
+  socket.on("workspace:update", onUpdateEvent);
+  if (socket.connected) onConnect();
 
   return () => {
-    closed = true;
-    socket.disconnect();
-    if (activeSocket === socket) activeSocket = null;
+    socket.off("connect", onConnect);
+    socket.off("disconnect", onDisconnect);
+    socket.off("workspace:sync", onSyncEvent);
+    socket.off("workspace:update", onUpdateEvent);
+    releaseRealtimeSocket();
     setConnected(false);
   };
 }

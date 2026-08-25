@@ -64,3 +64,11 @@ export function slimWorkspaceForAssembly(
     revision: workspace.revision,
   };
 }
+
+/** Полный shape workspace, но без архива и тяжёлых полей — отдаём сборке по сети. */
+export function toAssemblyWorkspace(workspace: SharedWorkspaceState): SharedWorkspaceState {
+  return {
+    ...workspace,
+    ...slimWorkspaceForAssembly(workspace),
+  };
+}

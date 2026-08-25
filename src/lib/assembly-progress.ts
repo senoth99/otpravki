@@ -1,4 +1,3 @@
-import { io, type Socket } from "socket.io-client";
 import type { AssemblyItem } from "@/types/shipping";
 import type {
   AssemblyProgressEntry,
@@ -6,26 +5,27 @@ import type {
 } from "@/types/assembly-progress";
 import { mutatingApiHeaders } from "@/lib/api-headers";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
+import { acquireRealtimeSocket, releaseRealtimeSocket } from "@/lib/realtime-socket";
 import { getClientId } from "@/lib/workspace";
 
 export type { AssemblyProgressEntry, AssemblyProgressState };
 
 const SYNC_TIMEOUT_MS = 20_000;
-let assemblySocket: Socket | null = null;
+
+function withCollected(
+  item: AssemblyItem,
+  collectedCount: number,
+  collectedAt?: number,
+): AssemblyItem {
+  if (item.collectedCount === collectedCount && item.collectedAt === collectedAt) return item;
+  return { ...item, collectedCount, collectedAt };
+}
 
 export function applyProgressToAssemblyItems(
   items: AssemblyItem[],
   progress: AssemblyProgressState | null | undefined,
 ): AssemblyItem[] {
-  if (!progress?.items) {
-    return items.map((item) => ({
-      ...item,
-      collectedCount: 0,
-      collectedAt: undefined,
-    }));
-  }
-
-  return items.map((item) => applyProgressToItem(item, progress));
+  return applyProgressToItems(items, progress);
 }
 
 export function applyProgressToItem(
@@ -34,13 +34,13 @@ export function applyProgressToItem(
 ): AssemblyItem {
   const entry = progress?.items?.[item.id];
   if (!entry || entry.collectedCount <= 0) {
-    return { ...item, collectedCount: 0, collectedAt: undefined };
+    return withCollected(item, 0, undefined);
   }
-  return {
-    ...item,
-    collectedCount: Math.max(0, Math.floor(entry.collectedCount)),
-    collectedAt: entry.collectedAt,
-  };
+  return withCollected(
+    item,
+    Math.max(0, Math.floor(entry.collectedCount)),
+    entry.collectedAt,
+  );
 }
 
 export function applyProgressToItems(
@@ -48,11 +48,10 @@ export function applyProgressToItems(
   progress: AssemblyProgressState | null | undefined,
 ): AssemblyItem[] {
   if (!progress?.items) {
-    return items.map((item) => ({
-      ...item,
-      collectedCount: 0,
-      collectedAt: undefined,
-    }));
+    if (items.every((item) => item.collectedCount === 0 && item.collectedAt === undefined)) {
+      return items;
+    }
+    return items.map((item) => withCollected(item, 0, undefined));
   }
   return items.map((item) => applyProgressToItem(item, progress));
 }
@@ -117,30 +116,31 @@ export async function pushAssemblyProgress(
 export function subscribeAssemblyProgress(options: {
   onProgress: (progress: AssemblyProgressState) => void;
   onConnectionChange?: (connected: boolean) => void;
+  query?: Record<string, string>;
 }): () => void {
-  const apiSecret = process.env.NEXT_PUBLIC_OTPRAVKI_API_SECRET?.trim();
-  const socket = io({
-    path: "/socket.io",
-    transports: ["websocket", "polling"],
-    reconnection: true,
-    reconnectionDelay: 300,
-    reconnectionAttempts: Infinity,
-    auth: apiSecret ? { secret: apiSecret } : undefined,
-  });
-  assemblySocket = socket;
+  const socket = acquireRealtimeSocket(options.query);
 
-  socket.on("connect", () => options.onConnectionChange?.(true));
-  socket.on("disconnect", () => options.onConnectionChange?.(false));
-  socket.on("assembly:sync", (progress: AssemblyProgressState) => {
+  const onConnect = () => options.onConnectionChange?.(true);
+  const onDisconnect = () => options.onConnectionChange?.(false);
+  const onSync = (progress: AssemblyProgressState) => {
     if (progress) options.onProgress(progress);
-  });
-  socket.on("assembly:update", (progress: AssemblyProgressState) => {
+  };
+  const onUpdate = (progress: AssemblyProgressState) => {
     if (progress) options.onProgress(progress);
-  });
+  };
+
+  socket.on("connect", onConnect);
+  socket.on("disconnect", onDisconnect);
+  socket.on("assembly:sync", onSync);
+  socket.on("assembly:update", onUpdate);
+  if (socket.connected) onConnect();
 
   return () => {
-    socket.disconnect();
-    if (assemblySocket === socket) assemblySocket = null;
+    socket.off("connect", onConnect);
+    socket.off("disconnect", onDisconnect);
+    socket.off("assembly:sync", onSync);
+    socket.off("assembly:update", onUpdate);
+    releaseRealtimeSocket();
     options.onConnectionChange?.(false);
   };
 }

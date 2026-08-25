@@ -14,15 +14,30 @@ function getDataDir() {
   return process.env.DATA_DIR || path.join(process.cwd(), "data");
 }
 
-async function readWorkspaceState() {
+async function readWorkspaceState(slim) {
   try {
     const host = hostname === "0.0.0.0" ? "127.0.0.1" : hostname;
-    const res = await fetch(`http://${host}:${port}/api/workspace`, {
+    const path = slim ? "/api/workspace?slim=assembly" : "/api/workspace";
+    const res = await fetch(`http://${host}:${port}${path}`, {
       headers: { "Cache-Control": "no-store" },
     });
     if (!res.ok) return null;
     const data = await res.json();
     return data.workspace ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function readAssemblyProgress() {
+  try {
+    const host = hostname === "0.0.0.0" ? "127.0.0.1" : hostname;
+    const res = await fetch(`http://${host}:${port}/api/assembly/progress`, {
+      headers: { "Cache-Control": "no-store" },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.progress ?? null;
   } catch {
     return null;
   }
@@ -58,35 +73,38 @@ function attachWorkspaceSocket(httpServer) {
       return;
     }
 
-    const workspace = await readWorkspaceState();
+    const query = socket.handshake.query || {};
+    const slim = String(query.slim ?? "") === "assembly";
+    const clientRevision = Number.parseInt(String(query.revision ?? ""), 10);
+    if (slim) socket.join("assembly");
+
+    const [workspace, progress] = await Promise.all([
+      readWorkspaceState(slim),
+      readAssemblyProgress(),
+    ]);
     void logSync("socket.connect", {
       socketId: socket.id,
       clients: io.engine.clientsCount,
       revision: workspace?.revision ?? null,
+      slim,
     });
 
-    if (workspace) {
+    const skipWorkspaceSync =
+      Number.isFinite(clientRevision) &&
+      workspace &&
+      workspace.revision <= clientRevision;
+
+    if (workspace && !skipWorkspaceSync) {
       socket.emit("workspace:sync", workspace);
       void logSync("socket.sync", {
         socketId: socket.id,
         revision: workspace.revision ?? null,
         orders: workspace.orders?.length ?? 0,
+        slim,
       });
     }
 
-    // Прогресс сборки — отдельно от workspace отправок
-    try {
-      const host = hostname === "0.0.0.0" ? "127.0.0.1" : hostname;
-      const res = await fetch(`http://${host}:${port}/api/assembly/progress`, {
-        headers: { "Cache-Control": "no-store" },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.progress) socket.emit("assembly:sync", data.progress);
-      }
-    } catch {
-      // сборка опциональна при старте
-    }
+    if (progress) socket.emit("assembly:sync", progress);
 
     socket.on("disconnect", (reason) => {
       void logSync("socket.disconnect", {

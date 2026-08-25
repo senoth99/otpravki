@@ -1,6 +1,7 @@
 import { mapUnshippedOrdersToWorkspace } from "@/lib/orders-mapper";
 import { fetchUnshippedOrders, fetchUnshippedOrdersForBrand } from "@/lib/server/orders-api";
 import { fetchAllBrandProducts } from "@/lib/server/production-api";
+import { getProductsWithCache, getStaleProductsFromCache, rememberProductsCache } from "@/lib/server/product-cache";
 import { logSync } from "@/lib/server/sync-log";
 import { ingestGtinCatalogFromOrders } from "@/lib/server/chestny-znak-gtin-catalog";
 import {
@@ -18,17 +19,40 @@ export interface WorkspaceApiSyncResult {
   apiOrdersCount: number;
 }
 
-async function fetchProductsLive(): Promise<ApiProduct[]> {
-  // Один токен = один бренд: склеиваем каталоги всех ORDERS/PRODUCTION ключей.
-  const products = await fetchAllBrandProducts();
-  if (products.length === 0) {
-    throw new Error("Товары недоступны: пустой каталог по всем брендам (api.amarix.ru)");
-  }
-  return products;
+export interface WorkspaceApiSyncOptions {
+  bypassProductCache?: boolean;
 }
 
-export async function fetchAndSyncWorkspaceFromApi(): Promise<WorkspaceApiSyncResult> {
-  const [products, apiOrders] = await Promise.all([fetchProductsLive(), fetchUnshippedOrders()]);
+async function fetchProducts(bypassCache = false): Promise<ApiProduct[]> {
+  if (!bypassCache) {
+    const cached = await getProductsWithCache();
+    if (cached.products.length > 0 && cached.source !== "empty") return cached.products;
+  }
+
+  try {
+    const products = await fetchAllBrandProducts();
+    if (products.length > 0) {
+      void rememberProductsCache(products).catch(() => undefined);
+      return products;
+    }
+  } catch (error) {
+    const stale = await getStaleProductsFromCache();
+    if (stale.length > 0) return stale;
+    throw error;
+  }
+
+  const stale = await getStaleProductsFromCache();
+  if (stale.length > 0) return stale;
+  throw new Error("Товары недоступны: пустой каталог по всем брендам (api.amarix.ru)");
+}
+
+export async function fetchAndSyncWorkspaceFromApi(
+  options?: WorkspaceApiSyncOptions,
+): Promise<WorkspaceApiSyncResult> {
+  const [products, apiOrders] = await Promise.all([
+    fetchProducts(options?.bypassProductCache),
+    fetchUnshippedOrders(),
+  ]);
 
   const fresh = {
     ...mapUnshippedOrdersToWorkspace(apiOrders, products),
@@ -58,9 +82,10 @@ export async function fetchAndSyncWorkspaceFromApi(): Promise<WorkspaceApiSyncRe
 
 export async function fetchAndSyncWorkspaceFromApiForBrand(
   brand: string,
+  options?: WorkspaceApiSyncOptions,
 ): Promise<WorkspaceApiSyncResult> {
   const [products, apiOrders] = await Promise.all([
-    fetchProductsLive(),
+    fetchProducts(options?.bypassProductCache),
     fetchUnshippedOrdersForBrand(brand),
   ]);
 

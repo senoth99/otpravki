@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { WarehouseLocationModal } from "@/components/sklad/WarehouseLocationModal";
 import { formatSize } from "@/lib/format";
 import type { WarehouseCellLocation } from "@/lib/warehouse-location";
@@ -68,6 +68,19 @@ export function AssemblyItemCard({
   const navOpen = navOpenProp ?? navOpenLocal;
   const setNavOpen = onNavOpenChange ?? setNavOpenLocal;
   const isComplete = item.collectedCount >= item.quantity;
+  const locationStock = useMemo(
+    () => [
+      {
+        productSlug: item.productId,
+        productName: item.productName,
+        brand: item.brand,
+        imageUrl: item.imageUrl,
+        sizes: [{ id: 0, size: item.size, quantity: 0 }],
+        totalQuantity: 0,
+      },
+    ],
+    [item.productId, item.productName, item.brand, item.imageUrl, item.size],
+  );
 
   return (
     <div
@@ -213,12 +226,13 @@ export function AssemblyItemCard({
         <button
           type="button"
           data-no-drag-scroll
-          onClick={(event) => {
-            if ((event.nativeEvent as PointerEvent).pointerType === "touch") return;
+          onPointerUp={(event) => {
+            if (event.pointerType === "mouse" && event.button !== 0) return;
+            event.preventDefault();
             onAutoTake();
           }}
-          onPointerUp={(event) => {
-            if (event.pointerType !== "touch") return;
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
             event.preventDefault();
             onAutoTake();
           }}
@@ -238,16 +252,7 @@ export function AssemblyItemCard({
           map={warehouseMap}
           location={cellLocation}
           productName={item.productName}
-          stock={[
-            {
-              productSlug: item.productId,
-              productName: item.productName,
-              brand: item.brand,
-              imageUrl: item.imageUrl,
-              sizes: [{ id: 0, size: item.size, quantity: 0 }],
-              totalQuantity: 0,
-            },
-          ]}
+          stock={locationStock}
           onClose={() => setNavOpen(false)}
           onTake={onAutoTake}
           takeProgress={onAutoTake ? { done: item.collectedCount, total: item.quantity } : undefined}

@@ -9,6 +9,8 @@ const MAP_BACKUP_PATH = path.join(DATA_DIR, "warehouse", "map.legacy-backup.json
 const EMPTY_CONFIG: WarehouseMapConfig = { furniture: [], updatedAt: 0 };
 const RACK_ROWS = 4;
 
+let memory: WarehouseMapConfig | null = null;
+
 function inferColsFromCells(cells: Record<string, WarehouseCell>): number {
   let maxCol = 1;
   for (const key of Object.keys(cells)) {
@@ -88,6 +90,7 @@ function migrateLegacyMap(data: { cells?: LegacyCell[] }): WarehouseMapConfig {
 }
 
 export async function getWarehouseMap(): Promise<WarehouseMapConfig> {
+  if (memory) return memory;
   try {
     const raw = await readFile(MAP_PATH, "utf-8");
     const parsed: unknown = JSON.parse(raw);
@@ -103,7 +106,7 @@ export async function getWarehouseMap(): Promise<WarehouseMapConfig> {
     }
     const typed = parsed as WarehouseMapConfig;
     if (Array.isArray(typed.furniture)) {
-      return {
+      memory = {
         ...typed,
         furniture: typed.furniture.map((item) =>
           normalizeRackItem({
@@ -115,6 +118,7 @@ export async function getWarehouseMap(): Promise<WarehouseMapConfig> {
           }),
         ),
       };
+      return memory;
     }
     return { ...EMPTY_CONFIG };
   } catch {
@@ -123,6 +127,11 @@ export async function getWarehouseMap(): Promise<WarehouseMapConfig> {
 }
 
 export async function saveWarehouseMap(config: WarehouseMapConfig): Promise<void> {
+  const normalized: WarehouseMapConfig = {
+    ...config,
+    furniture: config.furniture.map((item) => normalizeRackItem(item)),
+  };
   await mkdir(path.dirname(MAP_PATH), { recursive: true });
-  await writeFile(MAP_PATH, JSON.stringify(config, null, 2), "utf-8");
+  await writeFile(MAP_PATH, JSON.stringify(normalized, null, 2), "utf-8");
+  memory = normalized;
 }
