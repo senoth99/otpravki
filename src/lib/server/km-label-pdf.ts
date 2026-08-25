@@ -221,9 +221,9 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
   const productName = input.productName?.trim() || input.title?.trim() || "Товар";
   const sizeLabel = (input.size?.trim() || "—").toUpperCase();
 
-  const [dmPng, monoBytes, boldBytes, logoEntry] = await Promise.all([
+  const [dmPng, regularBytes, boldBytes, logoEntry] = await Promise.all([
     renderDataMatrixPng(cis),
-    readFile(resolveFont("DejaVuSansMono.ttf")),
+    readFile(resolveFont("DejaVuSans.ttf")),
     readFile(resolveFont("DejaVuSans-Bold.ttf")),
     getBrandSiteLogo(brandId).catch(() => null),
   ]);
@@ -233,7 +233,7 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
   const page = pdf.addPage([PAGE_W, PAGE_H]);
   page.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: WHITE });
 
-  const mono = await pdf.embedFont(monoBytes, { subset: true });
+  const regular = await pdf.embedFont(regularBytes, { subset: true });
   const bold = await pdf.embedFont(boldBytes, { subset: true });
   const dm = await pdf.embedPng(dmPng);
 
@@ -247,9 +247,9 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
   }
 
   const contentW = PAGE_W - MX * 2;
-  const sizeLetterSz = 14;
+  const sizeLetterSz = 20;
   const sizeBottom = MB;
-  const contentBottom = sizeBottom + sizeLetterSz + mmToPoints(2);
+  const contentBottom = sizeBottom + sizeLetterSz + mmToPoints(2.5);
   let y = PAGE_H - MT;
 
   // --- Лого по центру ---
@@ -288,9 +288,13 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
   }
   y -= mmToPoints(2);
 
-  // --- DM + GTIN/S/N ---
+  // --- DM + мета справа (тонкий высокий шрифт, не вылезает) ---
+  const rightPad = mmToPoints(3.5);
+  const gapDmMeta = mmToPoints(2);
   const availH = Math.max(mmToPoints(18), y - contentBottom);
-  const dmTarget = Math.min(mmToPoints(26), availH, contentW * 0.5);
+  const metaMaxW = contentW * 0.42;
+  const dmMaxW = contentW - metaMaxW - gapDmMeta;
+  const dmTarget = Math.min(mmToPoints(24), availH, dmMaxW);
   const dmScale = Math.min(dmTarget / dm.width, dmTarget / dm.height);
   const dmW = dm.width * dmScale;
   const dmH = dm.height * dmScale;
@@ -298,10 +302,11 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
   const dmY = y - dmH;
   page.drawImage(dm, { x: dmX, y: Math.max(contentBottom, dmY), width: dmW, height: dmH });
 
-  const metaX = dmX + dmW + mmToPoints(2.5);
-  const metaW = PAGE_W - MX - metaX;
-  const labelSz = 7;
-  const valueSz = 9;
+  const metaX = dmX + dmW + gapDmMeta;
+  const metaW = PAGE_W - rightPad - metaX;
+  // тонкий regular, крупнее по высоте; ширина подгоняется под metaW
+  const labelSz = 7.5;
+  const valueSzMax = 10;
   let metaY = y;
 
   const drawMeta = (label: string, value: string) => {
@@ -310,29 +315,31 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
       x: metaX,
       y: metaY - labelSz,
       size: labelSz,
-      font: bold,
+      font: regular,
       color: BLACK,
     });
-    metaY -= labelSz + 2;
-    for (const line of wrapLine(mono, value, valueSz, metaW).slice(0, 2)) {
-      if (metaY - valueSz < contentBottom) break;
+    metaY -= labelSz + 2.5;
+    const vSz = fitFontSize(regular, value, metaW, valueSzMax, 6.5);
+    const lines = wrapLine(regular, value, vSz, metaW).slice(0, 2);
+    for (const line of lines) {
+      if (metaY - vSz < contentBottom) break;
       page.drawText(line, {
         x: metaX,
-        y: metaY - valueSz,
-        size: valueSz,
-        font: mono,
+        y: metaY - vSz,
+        size: vSz,
+        font: regular,
         color: BLACK,
       });
-      metaY -= valueSz * 1.15;
+      metaY -= vSz * 1.2;
     }
-    metaY -= mmToPoints(1.5);
+    metaY -= mmToPoints(2);
   };
 
   drawMeta("GTIN", fields.gtin);
   drawMeta("S/N", fields.serial);
 
-  // --- Размер: просто чёрный текст по центру внизу ---
-  const sz = fitFontSize(bold, sizeLabel, contentW - 4, sizeLetterSz, 10);
+  // --- Размер: крупнее и жирнее ---
+  const sz = fitFontSize(bold, sizeLabel, contentW - 4, sizeLetterSz, 14);
   page.drawText(sizeLabel, {
     x: (PAGE_W - bold.widthOfTextAtSize(sizeLabel, sz)) / 2,
     y: sizeBottom,
