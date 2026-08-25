@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { mutatingApiHeaders } from "@/lib/api-headers";
 import {
-  GIFT_NOTE_CATEGORIES,
   GIFT_NOTE_IMAGES,
-  GIFT_NOTE_PRESETS,
+  loadSavedGiftNoteTexts,
+  removeSavedGiftNoteText,
   resolveGiftNoteLayout,
-  type GiftNoteCategory,
+  saveGiftNoteText,
+  type SavedGiftNoteText,
 } from "@/lib/gift-note-presets";
 import { KeyboardField } from "./VirtualKeyboard";
 
@@ -16,11 +17,17 @@ type GiftNoteModalProps = {
   onClose: () => void;
 };
 
+function previewLabel(text: string): string {
+  const oneLine = text.replace(/\s+/g, " ").trim();
+  if (oneLine.length <= 28) return oneLine;
+  return `${oneLine.slice(0, 27)}…`;
+}
+
 export function GiftNoteModal({ open, onClose }: GiftNoteModalProps) {
-  const [category, setCategory] = useState<GiftNoteCategory>("birthday");
-  const [text, setText] = useState(GIFT_NOTE_PRESETS[0]?.text ?? "");
-  const [imageId, setImageId] = useState<string | null>(GIFT_NOTE_PRESETS[0]?.imageId ?? "cake");
+  const [text, setText] = useState("");
+  const [imageId, setImageId] = useState<string | null>("money");
   const [copies, setCopies] = useState(1);
+  const [savedTexts, setSavedTexts] = useState<SavedGiftNoteText[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -28,11 +35,12 @@ export function GiftNoteModal({ open, onClose }: GiftNoteModalProps) {
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   const layout = useMemo(() => resolveGiftNoteLayout(text, imageId), [text, imageId]);
+  const canSave = Boolean(text.trim());
 
-  const presets = useMemo(
-    () => GIFT_NOTE_PRESETS.filter((p) => p.category === category),
-    [category],
-  );
+  useEffect(() => {
+    if (!open) return;
+    setSavedTexts(loadSavedGiftNoteTexts());
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -93,13 +101,6 @@ export function GiftNoteModal({ open, onClose }: GiftNoteModalProps) {
     };
   }, [previewUrl]);
 
-  const applyPreset = useCallback((presetId: string) => {
-    const preset = GIFT_NOTE_PRESETS.find((p) => p.id === presetId);
-    if (!preset) return;
-    setText(preset.text);
-    if (preset.imageId) setImageId(preset.imageId);
-  }, []);
-
   const printNote = async () => {
     if (busy) return;
     setBusy(true);
@@ -123,7 +124,7 @@ export function GiftNoteModal({ open, onClose }: GiftNoteModalProps) {
       }
       setMessage({
         ok: true,
-        text: `×${data.copies ?? copies} → ${data.printer ?? "принтер"}`,
+        text: `Напечатано ${data.copies ?? copies} шт. → ${data.printer ?? "принтер"}`,
       });
     } catch (err) {
       setMessage({
@@ -146,96 +147,108 @@ export function GiftNoteModal({ open, onClose }: GiftNoteModalProps) {
       onClick={onClose}
     >
       <div
-        className="flex max-h-[min(100dvh-1rem,720px)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl"
+        className="flex h-[min(96dvh,880px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <header className="flex shrink-0 items-center gap-2 px-3 pb-1 pt-2.5 sm:px-4">
-          <h2 className="min-w-0 flex-1 text-sm font-black tracking-tight text-gray-900">
+        <header className="flex shrink-0 items-center gap-2 px-3 pb-1 pt-3 sm:px-5">
+          <h2 className="min-w-0 flex-1 text-base font-black tracking-tight text-gray-900">
             Записка · 150×100
           </h2>
           <button
             type="button"
             aria-label="Закрыть"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-lg text-gray-700"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-xl text-gray-700"
           >
             ×
           </button>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-3 pb-2 sm:px-4">
-          <div className="relative h-[88px] shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 sm:h-[100px]">
+        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-3 pb-2 sm:px-5">
+          <div className="relative min-h-[180px] flex-[1.35] overflow-hidden rounded-xl border border-gray-200 bg-gray-50 sm:min-h-[220px]">
             {previewUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={previewUrl}
                 alt="Превью"
-                className="h-full w-full object-contain p-1"
+                className="h-full w-full object-contain p-2 sm:p-3"
               />
             ) : (
-              <div className="flex h-full items-center justify-center text-xs text-gray-400">
-                {previewBusy ? "…" : "Превью"}
+              <div className="flex h-full items-center justify-center text-sm text-gray-400">
+                {previewBusy ? "Собираю превью…" : "Превью"}
               </div>
             )}
+            {previewBusy && previewUrl ? (
+              <div className="absolute right-2 top-2 rounded-md bg-white/90 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-500">
+                обновляю
+              </div>
+            ) : null}
             {previewError ? (
-              <p className="absolute inset-x-0 bottom-0 bg-white/90 px-2 py-0.5 text-[10px] text-red-600">
+              <p className="absolute inset-x-0 bottom-0 bg-white/95 px-3 py-1.5 text-xs text-red-600">
                 {previewError}
               </p>
             ) : null}
           </div>
 
-          <div className="flex shrink-0 flex-wrap gap-1">
-            {GIFT_NOTE_CATEGORIES.map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => {
-                  setCategory(cat.id);
-                  if (cat.id === "custom") {
-                    setText("");
-                  } else {
-                    const first = GIFT_NOTE_PRESETS.find((p) => p.category === cat.id);
-                    if (first) {
-                      setText(first.text);
-                      if (first.imageId) setImageId(first.imageId);
-                    }
-                  }
-                }}
-                className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
-                  category === cat.id
-                    ? "border-gray-900 bg-gray-900 text-white"
-                    : "border-gray-200 bg-white text-gray-800"
-                }`}
-              >
-                {cat.label}
-              </button>
-            ))}
+          <div className="flex shrink-0 gap-2">
+            <div className="min-w-0 flex-1">
+              <KeyboardField
+                value={text}
+                onChange={setText}
+                placeholder="Напиши текст записки…"
+                title="Текст записки"
+                multiline
+                rows={3}
+                className="w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none ring-gray-900 focus:ring-2"
+              />
+            </div>
+            <button
+              type="button"
+              disabled={!canSave}
+              onClick={() => {
+                const next = saveGiftNoteText(text, savedTexts);
+                setSavedTexts(next);
+                setMessage({ ok: true, text: "Текст сохранён" });
+              }}
+              className="h-auto shrink-0 rounded-xl border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-900 disabled:opacity-40"
+            >
+              Сохранить
+              <br />
+              текст
+            </button>
           </div>
 
-          {category !== "custom" ? (
-            <div className="flex shrink-0 flex-wrap gap-1">
-              {presets.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => applyPreset(preset.id)}
-                  className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] font-medium text-gray-800 active:bg-gray-900 active:text-white"
+          {savedTexts.length > 0 ? (
+            <div className="flex shrink-0 flex-wrap gap-1.5">
+              {savedTexts.map((item) => (
+                <div
+                  key={item.id}
+                  className="inline-flex max-w-full items-center gap-0.5 rounded-lg border border-gray-200 bg-gray-50"
                 >
-                  {preset.label}
-                </button>
+                  <button
+                    type="button"
+                    title={item.text}
+                    onClick={() => setText(item.text)}
+                    className="max-w-[11rem] truncate px-2 py-1 text-left text-[11px] font-medium text-gray-800"
+                  >
+                    {previewLabel(item.text)}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Удалить сохранённый текст"
+                    onClick={() => setSavedTexts(removeSavedGiftNoteText(item.id, savedTexts))}
+                    className="flex h-7 w-7 items-center justify-center rounded-md text-sm text-gray-400 hover:bg-gray-200 hover:text-gray-800"
+                  >
+                    ×
+                  </button>
+                </div>
               ))}
             </div>
-          ) : null}
-
-          <KeyboardField
-            value={text}
-            onChange={setText}
-            placeholder="Текст записки…"
-            title="Текст записки"
-            multiline
-            rows={2}
-            className="w-full shrink-0 resize-none rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-sm text-gray-900 outline-none ring-gray-900 focus:ring-2"
-          />
+          ) : (
+            <p className="shrink-0 text-[11px] text-gray-400">
+              Сохрани текст — он появится здесь и останется на этом устройстве
+            </p>
+          )}
 
           <div className="flex shrink-0 flex-wrap gap-1">
             <button
@@ -271,22 +284,27 @@ export function GiftNoteModal({ open, onClose }: GiftNoteModalProps) {
           ) : null}
         </div>
 
-        <footer className="flex shrink-0 items-center gap-2 border-t border-gray-100 px-3 py-2 sm:px-4">
-          <div className="flex items-center gap-0.5">
-            {[1, 2, 3].map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setCopies(n)}
-                className={`flex h-10 w-8 items-center justify-center rounded-lg border text-sm font-semibold ${
-                  copies === n
-                    ? "border-gray-900 bg-gray-900 text-white"
-                    : "border-gray-200 bg-white text-gray-800"
-                }`}
-              >
-                {n}
-              </button>
-            ))}
+        <footer className="flex shrink-0 items-center gap-2 border-t border-gray-100 px-3 py-2.5 sm:px-5">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+              Копий
+            </span>
+            <div className="flex items-center gap-0.5">
+              {[1, 2, 3].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setCopies(n)}
+                  className={`flex h-10 w-9 items-center justify-center rounded-lg border text-sm font-semibold ${
+                    copies === n
+                      ? "border-gray-900 bg-gray-900 text-white"
+                      : "border-gray-200 bg-white text-gray-800"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
           </div>
           <button
             type="button"

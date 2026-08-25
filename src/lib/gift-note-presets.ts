@@ -1,14 +1,4 @@
-export type GiftNoteCategory = "birthday" | "holiday" | "fun" | "custom";
-
 export type GiftNoteLayout = "text" | "image-left" | "image-top" | "image-only";
-
-export type GiftNotePreset = {
-  id: string;
-  category: Exclude<GiftNoteCategory, "custom">;
-  label: string;
-  text: string;
-  imageId?: string;
-};
 
 export type GiftNoteImage = {
   id: string;
@@ -19,7 +9,15 @@ export type GiftNoteImage = {
   emoji: string;
 };
 
-/** Apple emoji (PNG) — угарные, хорошо читаются на термопринтере. */
+export type SavedGiftNoteText = {
+  id: string;
+  text: string;
+  savedAt: number;
+};
+
+const SAVED_TEXTS_KEY = "otpravki.gift-note.saved-texts";
+
+/** Apple emoji (PNG) — угарные + деньги, хорошо читаются на термопринтере. */
 export const GIFT_NOTE_IMAGES: GiftNoteImage[] = [
   { id: "lol", label: "Лол", src: "/gift-notes/emoji-lol.png", emoji: "😂" },
   { id: "rofl", label: "Угар", src: "/gift-notes/emoji-rofl.png", emoji: "🤣" },
@@ -31,6 +29,15 @@ export const GIFT_NOTE_IMAGES: GiftNoteImage[] = [
   { id: "cool", label: "Кул", src: "/gift-notes/emoji-cool.png", emoji: "😎" },
   { id: "party", label: "Тусовка", src: "/gift-notes/emoji-party.png", emoji: "🥳" },
   { id: "money", label: "Бабло", src: "/gift-notes/emoji-money.png", emoji: "🤑" },
+  { id: "bag", label: "Мешок $", src: "/gift-notes/emoji-bag.png", emoji: "💰" },
+  { id: "dollar", label: "Доллар", src: "/gift-notes/emoji-dollar.png", emoji: "💵" },
+  { id: "wings", label: "Улетают", src: "/gift-notes/emoji-wings.png", emoji: "💸" },
+  { id: "yen", label: "Йена", src: "/gift-notes/emoji-yen.png", emoji: "💴" },
+  { id: "euro", label: "Евро", src: "/gift-notes/emoji-euro.png", emoji: "💶" },
+  { id: "pound", label: "Фунт", src: "/gift-notes/emoji-pound.png", emoji: "💷" },
+  { id: "gem", label: "Алмаз", src: "/gift-notes/emoji-gem.png", emoji: "💎" },
+  { id: "coin", label: "Монета", src: "/gift-notes/emoji-coin.png", emoji: "🪙" },
+  { id: "heavy-dollar", label: "$$$", src: "/gift-notes/emoji-heavy-dollar.png", emoji: "💲" },
   { id: "nails", label: "Ноготочки", src: "/gift-notes/emoji-nails.png", emoji: "💅" },
   { id: "eyes", label: "Глазки", src: "/gift-notes/emoji-eyes.png", emoji: "👀" },
   { id: "skull", label: "Череп", src: "/gift-notes/emoji-skull.png", emoji: "💀" },
@@ -45,96 +52,6 @@ export const GIFT_NOTE_IMAGES: GiftNoteImage[] = [
   { id: "balloon", label: "Шарик", src: "/gift-notes/emoji-balloon.png", emoji: "🎈" },
   { id: "flower", label: "Цветок", src: "/gift-notes/emoji-flower.png", emoji: "🌸" },
   { id: "snow", label: "Снег", src: "/gift-notes/emoji-snow.png", emoji: "❄️" },
-];
-
-export const GIFT_NOTE_PRESETS: GiftNotePreset[] = [
-  {
-    id: "bday-1",
-    category: "birthday",
-    label: "С ДР",
-    text: "С днём рождения!\nПусть всё будет кайфово.",
-    imageId: "cake",
-  },
-  {
-    id: "bday-2",
-    category: "birthday",
-    label: "Тебе лично",
-    text: "С ДР!\nЭтот заказ — тебе лично.",
-    imageId: "party",
-  },
-  {
-    id: "bday-3",
-    category: "birthday",
-    label: "Happy BD",
-    text: "Happy Birthday!\nТы это заслужил(а).",
-    imageId: "balloon",
-  },
-  {
-    id: "hol-8m",
-    category: "holiday",
-    label: "8 Марта",
-    text: "С 8 Марта!\nТы прекрасна — и точка.",
-    imageId: "flower",
-  },
-  {
-    id: "hol-ny",
-    category: "holiday",
-    label: "НГ",
-    text: "С Новым годом!\nПусть следующий будет ещё жарче.",
-    imageId: "snow",
-  },
-  {
-    id: "hol-14",
-    category: "holiday",
-    label: "14 февраля",
-    text: "С 14 февраля.\nТолько для тебя.",
-    imageId: "heart",
-  },
-  {
-    id: "hol-23",
-    category: "holiday",
-    label: "23 февраля",
-    text: "С 23 февраля!\nКрепкого тебе вайба.",
-    imageId: "fire",
-  },
-  {
-    id: "fun-secret",
-    category: "fun",
-    label: "Секрет",
-    text: "Секретная посылка.\nНе открывать при свидетелях.",
-    imageId: "eyes",
-  },
-  {
-    id: "fun-magic",
-    category: "fun",
-    label: "Магия",
-    text: "Ты заказал — мы доставили.\nМагия.",
-    imageId: "cool",
-  },
-  {
-    id: "fun-vibe",
-    category: "fun",
-    label: "Вайб",
-    text: "Внутри — вайб.\nОбращаться бережно.",
-    imageId: "fire",
-  },
-  {
-    id: "fun-tape",
-    category: "fun",
-    label: "Скотч",
-    text: "Отправили с любовью\n(и скотчем).",
-    imageId: "hearts",
-  },
-];
-
-export const GIFT_NOTE_CATEGORIES: Array<{
-  id: GiftNoteCategory;
-  label: string;
-}> = [
-  { id: "birthday", label: "ДР" },
-  { id: "holiday", label: "Праздники" },
-  { id: "fun", label: "Приколы" },
-  { id: "custom", label: "Своё" },
 ];
 
 export function getGiftNoteImage(id: string | null | undefined): GiftNoteImage | undefined {
@@ -152,4 +69,58 @@ export function resolveGiftNoteLayout(
   if (hasImage && hasText) return "image-left";
   if (hasImage) return "image-only";
   return "text";
+}
+
+export function loadSavedGiftNoteTexts(): SavedGiftNoteText[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(SAVED_TEXTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (item): item is SavedGiftNoteText =>
+          Boolean(item) &&
+          typeof item === "object" &&
+          typeof (item as SavedGiftNoteText).id === "string" &&
+          typeof (item as SavedGiftNoteText).text === "string",
+      )
+      .map((item) => ({
+        id: item.id,
+        text: item.text,
+        savedAt: typeof item.savedAt === "number" ? item.savedAt : Date.now(),
+      }))
+      .sort((a, b) => b.savedAt - a.savedAt);
+  } catch {
+    return [];
+  }
+}
+
+export function persistSavedGiftNoteTexts(items: SavedGiftNoteText[]): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(SAVED_TEXTS_KEY, JSON.stringify(items.slice(0, 24)));
+}
+
+export function saveGiftNoteText(text: string, existing: SavedGiftNoteText[]): SavedGiftNoteText[] {
+  const trimmed = text.trim();
+  if (!trimmed) return existing;
+  const withoutDup = existing.filter(
+    (item) => item.text.trim().toLowerCase() !== trimmed.toLowerCase(),
+  );
+  const next: SavedGiftNoteText[] = [
+    { id: `t-${Date.now()}`, text: trimmed, savedAt: Date.now() },
+    ...withoutDup,
+  ];
+  persistSavedGiftNoteTexts(next);
+  return next;
+}
+
+export function removeSavedGiftNoteText(
+  id: string,
+  existing: SavedGiftNoteText[],
+): SavedGiftNoteText[] {
+  const next = existing.filter((item) => item.id !== id);
+  persistSavedGiftNoteTexts(next);
+  return next;
 }
