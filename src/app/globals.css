@@ -118,7 +118,8 @@ body.otpravki-monitor {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
-  touch-action: pan-y;
+  /* manipulation: тапы без задержки; pan-y на контейнере ломает click на кнопках */
+  touch-action: manipulation;
 }
 
 .sborka-scroll button,

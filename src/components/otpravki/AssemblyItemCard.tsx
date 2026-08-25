@@ -71,6 +71,7 @@ export function AssemblyItemCard({
 
   return (
     <div
+      data-no-drag-scroll
       className={`relative flex w-full flex-col gap-3 rounded-2xl border p-3 transition-all sm:flex-row sm:items-center sm:gap-4 sm:p-4 ${
         emphasize
           ? "border-gray-900 bg-white shadow-lg ring-2 ring-gray-900"
@@ -211,8 +212,9 @@ export function AssemblyItemCard({
       {onAutoTake && !isComplete && (
         <button
           type="button"
+          data-no-drag-scroll
           onClick={onAutoTake}
-          className="flex w-full min-h-[52px] items-center justify-center rounded-2xl bg-gray-900 px-6 py-3.5 text-base font-bold uppercase tracking-wide text-white shadow-md transition-transform active:scale-[0.98] active:bg-gray-800 sm:min-h-[48px] sm:w-36 sm:shrink-0"
+          className="flex w-full min-h-[52px] touch-manipulation items-center justify-center rounded-2xl bg-gray-900 px-6 py-3.5 text-base font-bold uppercase tracking-wide text-white shadow-md transition-transform active:scale-[0.98] active:bg-gray-800 sm:min-h-[48px] sm:w-36 sm:shrink-0"
         >
           Взял
           {item.quantity > 1 && (

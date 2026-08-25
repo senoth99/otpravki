@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHardwareScanner } from "@/hooks/useHardwareScanner";
 import type { AssemblyViewSections } from "@/lib/assembly-demand";
 import {
@@ -52,24 +52,7 @@ function itemFromMap(map: Map<string, AssemblyItem>, id: string): AssemblyItem |
   return map.get(id);
 }
 
-const MemoAssemblyItemCard = memo(AssemblyItemCard, (prev, next) => {
-  return (
-    prev.item.id === next.item.id &&
-    prev.item.collectedCount === next.item.collectedCount &&
-    prev.item.quantity === next.item.quantity &&
-    prev.emphasize === next.emphasize &&
-    prev.dimmed === next.dimmed &&
-    prev.locked === next.locked &&
-    prev.findActive === next.findActive &&
-    prev.stepNumber === next.stepNumber &&
-    prev.navOpen === next.navOpen &&
-    prev.showBrandMark === next.showBrandMark &&
-    prev.cellLocation === next.cellLocation &&
-    prev.urgency === next.urgency &&
-    prev.onIncrement === next.onIncrement &&
-    prev.onDecrement === next.onDecrement
-  );
-});
+const MemoAssemblyItemCard = memo(AssemblyItemCard);
 
 export function AssemblyView({
   sections,
@@ -124,7 +107,6 @@ export function AssemblyView({
   const [scanError, setScanError] = useState<string | null>(null);
   const [visiblePendingCount, setVisiblePendingCount] = useState(24);
   const [visibleCompletedCount, setVisibleCompletedCount] = useState(16);
-  const [, startCollectTransition] = useTransition();
   const totalStepsRef = useRef(0);
   const findProductKey = findProductIds.join("|");
   const totals = useMemo(
@@ -187,13 +169,11 @@ export function AssemblyView({
   const setCollectedCount = useCallback(
     (targetId: string, nextCount: number) => {
       const clamped = Math.max(0, nextCount);
-      startCollectTransition(() => {
-        onItemCollectChange(
-          targetId,
-          clamped,
-          clamped > 0 ? Date.now() : undefined,
-        );
-      });
+      onItemCollectChange(
+        targetId,
+        clamped,
+        clamped > 0 ? Date.now() : undefined,
+      );
     },
     [onItemCollectChange],
   );

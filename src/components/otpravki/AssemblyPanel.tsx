@@ -85,7 +85,11 @@ export function AssemblyPanel({
     pendingPatchRef.current.clear();
     if (patch.length === 0) return;
     void pushAssemblyProgress(patch).then((remote) => {
-      if (remote) setProgress(remote);
+      if (!remote) return;
+      setProgress((current) => {
+        if (remote.revision < (current?.revision ?? 0)) return current;
+        return remote;
+      });
     });
   }, []);
 
