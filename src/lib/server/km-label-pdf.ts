@@ -15,15 +15,18 @@ export const KM_LABEL_HEIGHT_MM = 55;
 
 const PAGE_W = mmToPoints(KM_LABEL_WIDTH_MM);
 const PAGE_H = mmToPoints(KM_LABEL_HEIGHT_MM);
-const MARGIN = 4;
+/** Поля: сверху больше — WS408 часто срезает край. */
+const MARGIN_X = 5;
+const MARGIN_TOP = 9;
+const MARGIN_BOTTOM = 7;
 const BLACK = rgb(0, 0, 0);
 const WHITE = rgb(1, 1, 1);
 
-/** Data Matrix ~18 мм — компактно, место под текст. */
-const DM_MAX_MM = 18;
-/** Лого сверху: было ~7 мм, уменьшили в 1.5 раза. */
-const LOGO_MAX_H_MM = 7 / 1.5;
-const LOGO_MAX_W_RATIO = 0.52;
+/** Компактный DM — место под текст, без пустого низа. */
+const DM_MAX_MM = 15;
+/** Лого маленькое, чтобы не обрезалось. */
+const LOGO_MAX_H_MM = 3.5;
+const LOGO_MAX_W_RATIO = 0.4;
 
 export type KmLabelInput = {
   cis: string;
@@ -237,11 +240,12 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
     }
   }
 
-  const textWidth = PAGE_W - MARGIN * 2;
-  const gapLogoDm = 2.5;
-  const gapDmText = 3;
+  const textWidth = PAGE_W - MARGIN_X * 2;
+  const gapLogoDm = 3;
+  const gapDmText = 3.5;
+  const gapNameMeta = 2;
 
-  // --- размеры блоков ---
+  // Фиксированные компактные размеры — без «раздувания» DM в пустоту
   let logoW = 0;
   let logoH = 0;
   if (logo) {
@@ -251,110 +255,38 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
     logoW = logo.width * scale;
     logoH = logo.height * scale;
   } else {
-    logoH = 8;
+    logoH = 7;
   }
 
   const dmMax = mmToPoints(DM_MAX_MM);
-  let dmScale = Math.min(dmMax / dm.width, dmMax / dm.height);
-  let dmW = dm.width * dmScale;
-  let dmH = dm.height * dmScale;
+  const dmScale = Math.min(dmMax / dm.width, dmMax / dm.height, (textWidth * 0.55) / dm.width);
+  const dmW = dm.width * dmScale;
+  const dmH = dm.height * dmScale;
 
-  let nameSize = 6.5;
-  let metaSize = 5.5;
-  let nameLines = wrapWords(mono, productName, nameSize, textWidth);
-  let metaLines: string[] = [];
-  const rebuildMeta = (size: number) => {
-    const lines: string[] = [];
-    if (fields.gtin) lines.push(...wrapLine(mono, `GTIN ${fields.gtin}`, size, textWidth));
-    if (fields.serial) lines.push(...wrapLine(mono, `S/N  ${fields.serial}`, size, textWidth));
-    if (fields.key91) lines.push(...wrapLine(mono, `91   ${fields.key91}`, size, textWidth));
-    if (fields.crypto92) lines.push(...wrapLine(mono, `92   ${fields.crypto92}`, size, textWidth));
-    return lines;
-  };
-  metaLines = rebuildMeta(metaSize);
+  const nameSize = 6.2;
+  const metaSize = 5.2;
+  const nameLines = wrapWords(mono, productName, nameSize, textWidth);
+  const metaLines: string[] = [];
+  if (fields.gtin) metaLines.push(...wrapLine(mono, `GTIN ${fields.gtin}`, metaSize, textWidth));
+  if (fields.serial) metaLines.push(...wrapLine(mono, `S/N  ${fields.serial}`, metaSize, textWidth));
+  if (fields.key91) metaLines.push(...wrapLine(mono, `91   ${fields.key91}`, metaSize, textWidth));
+  if (fields.crypto92) metaLines.push(...wrapLine(mono, `92   ${fields.crypto92}`, metaSize, textWidth));
 
-  const textBlockH = (sizes: { name: number; meta: number; names: string[]; metas: string[] }) => {
-    const nameLH = sizes.name * 1.22;
-    const metaLH = sizes.meta * 1.2;
-    const gap = sizes.names.length && sizes.metas.length ? 2.5 : 0;
-    return sizes.names.length * nameLH + gap + sizes.metas.length * metaLH;
-  };
+  const nameLH = nameSize * 1.2;
+  const metaLH = metaSize * 1.18;
+  const textH =
+    nameLines.length * nameLH +
+    (nameLines.length && metaLines.length ? gapNameMeta : 0) +
+    metaLines.length * metaLH;
 
-  let textH = textBlockH({
-    name: nameSize,
-    meta: metaSize,
-    names: nameLines,
-    metas: metaLines,
-  });
+  const stackH = logoH + gapLogoDm + dmH + gapDmText + textH;
+  const safeTop = PAGE_H - MARGIN_TOP;
+  const safeBottom = MARGIN_BOTTOM;
+  const safeH = safeTop - safeBottom;
 
-  const fixedTop = logoH + gapLogoDm + dmH + gapDmText;
-  let used = fixedTop + textH;
-  const budget = PAGE_H - MARGIN * 2;
-
-  // Если снизу пусто — чуть увеличиваем DM и/или шрифт, чтобы заполнить этикетку.
-  if (used < budget - 6) {
-    let spare = budget - used;
-    // до половины запаса — в Data Matrix (но не больше 22 мм)
-    const dmBoost = Math.min(spare * 0.45, mmToPoints(22) - dmH);
-    if (dmBoost > 1) {
-      const target = dmH + dmBoost;
-      dmScale = Math.min(target / dm.height, (textWidth * 0.7) / dm.width);
-      dmW = dm.width * dmScale;
-      dmH = dm.height * dmScale;
-      spare = budget - (logoH + gapLogoDm + dmH + gapDmText + textH);
-    }
-    // остаток — в межстрочный интервал текста (визуально «ровнее» заполняет низ)
-    if (spare > 2) {
-      const lineCount = nameLines.length + metaLines.length;
-      const bump = Math.min(1.4, spare / Math.max(1, lineCount));
-      nameSize = Math.min(7.5, nameSize + bump * 0.15);
-      metaSize = Math.min(6.5, metaSize + bump * 0.12);
-      nameLines = wrapWords(mono, productName, nameSize, textWidth);
-      metaLines = rebuildMeta(metaSize);
-      textH = textBlockH({
-        name: nameSize,
-        meta: metaSize,
-        names: nameLines,
-        metas: metaLines,
-      });
-    }
-  }
-
-  // Если не влезает — ужимаем DM, потом meta
-  used = logoH + gapLogoDm + dmH + gapDmText + textH;
-  if (used > budget) {
-    const overflow = used - budget;
-    const shrink = Math.min(overflow, dmH * 0.35);
-    if (shrink > 0.5) {
-      const target = dmH - shrink;
-      dmScale = Math.min(target / dm.height, dmMax / dm.width);
-      dmW = dm.width * dmScale;
-      dmH = dm.height * dmScale;
-    }
-    used = logoH + gapLogoDm + dmH + gapDmText + textH;
-    if (used > budget) {
-      const scale = Math.max(0.82, (budget - (logoH + gapLogoDm + dmH + gapDmText)) / textH);
-      nameSize *= Math.max(0.9, scale);
-      metaSize *= scale;
-      nameLines = wrapWords(mono, productName, nameSize, textWidth);
-      metaLines = rebuildMeta(metaSize);
-      textH = textBlockH({
-        name: nameSize,
-        meta: metaSize,
-        names: nameLines,
-        metas: metaLines,
-      });
-    }
-  }
-
-  // Финальная раскладка сверху вниз с равномерным «дыханием» остатка
-  used = logoH + gapLogoDm + dmH + gapDmText + textH;
-  const spareFinal = Math.max(0, budget - used);
-  const padAfterLogo = gapLogoDm + spareFinal * 0.25;
-  const padAfterDm = gapDmText + spareFinal * 0.35;
-  // 0.4 spare уходит под низ как нижний отступ (не липнем к краю)
-
-  let cursorY = PAGE_H - MARGIN;
+  // Весь блок по центру безопасной зоны — лого не у края, низ не пустой
+  const stackTop = safeBottom + (safeH + stackH) / 2;
+  let cursorY = Math.min(safeTop, stackTop);
 
   if (logo) {
     cursorY -= logoH;
@@ -366,7 +298,7 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
     });
   } else {
     const brandLabel = brandId.toUpperCase();
-    const size = 7;
+    const size = 6.5;
     const tw = mono.widthOfTextAtSize(brandLabel, size);
     cursorY -= size;
     page.drawText(brandLabel, {
@@ -378,7 +310,7 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
     });
   }
 
-  cursorY -= padAfterLogo + dmH;
+  cursorY -= gapLogoDm + dmH;
   page.drawImage(dm, {
     x: (PAGE_W - dmW) / 2,
     y: cursorY,
@@ -386,12 +318,10 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
     height: dmH,
   });
 
-  cursorY -= padAfterDm;
-  const nameLH = nameSize * 1.22;
-  const metaLH = metaSize * 1.2;
-  cursorY = drawLeftLines(page, mono, nameLines, nameSize, nameLH, MARGIN, cursorY);
-  if (nameLines.length && metaLines.length) cursorY -= 2.5;
-  drawLeftLines(page, mono, metaLines, metaSize, metaLH, MARGIN, cursorY);
+  cursorY -= gapDmText;
+  cursorY = drawLeftLines(page, mono, nameLines, nameSize, nameLH, MARGIN_X, cursorY);
+  if (nameLines.length && metaLines.length) cursorY -= gapNameMeta;
+  drawLeftLines(page, mono, metaLines, metaSize, metaLH, MARGIN_X, cursorY);
 
   return Buffer.from(await pdf.save());
 }
