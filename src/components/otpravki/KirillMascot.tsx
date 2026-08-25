@@ -34,15 +34,9 @@ export function KirillMascot({ itemCount }: KirillMascotProps) {
         aria-label="Кирилл"
         aria-expanded={open}
         onClick={() => setOpen(true)}
-        className="fixed bottom-4 right-4 z-40 flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-2 border-gray-900 bg-white shadow-lg transition-transform active:scale-95 sm:bottom-6 sm:right-6 sm:h-16 sm:w-16"
+        className="fixed bottom-4 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border-2 border-gray-900 bg-white text-2xl font-black text-gray-900 shadow-lg transition-transform active:scale-95 sm:bottom-6 sm:right-6 sm:h-14 sm:w-14"
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/mascots/kirill.png"
-          alt=""
-          className="h-[130%] w-[130%] object-cover object-[50%_12%]"
-          draggable={false}
-        />
+        ?
       </button>
 
       {open ? (
@@ -78,7 +72,7 @@ export function KirillMascot({ itemCount }: KirillMascotProps) {
             <img
               src="/mascots/kirill.png"
               alt="Кирилл"
-              className="pointer-events-none h-auto w-[min(72vw,280px)] select-none drop-shadow-2xl sm:w-[320px]"
+              className="pointer-events-none h-auto w-[min(72vw,280px)] -scale-x-100 select-none drop-shadow-2xl sm:w-[320px]"
               draggable={false}
             />
           </div>

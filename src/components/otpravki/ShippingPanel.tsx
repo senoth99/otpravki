@@ -260,14 +260,16 @@ export function ShippingPanel({
     return { total: activeBrandOrders.length, critical, rush, blogger, ready };
   }, [activeBrandOrders]);
 
-  /** Единицы товара в текущем списке отправок (после фильтров). */
+  /** Единицы товара ко всем неотправленным заказам по всем брендам (как пришло из API). */
   const shippingItemCount = useMemo(
     () =>
-      filteredOrders.reduce(
-        (sum, order) => sum + order.items.reduce((lineSum, item) => lineSum + item.quantity, 0),
-        0,
-      ),
-    [filteredOrders],
+      orders
+        .filter((order) => !order.barcodePrinted)
+        .reduce(
+          (sum, order) => sum + order.items.reduce((lineSum, item) => lineSum + item.quantity, 0),
+          0,
+        ),
+    [orders],
   );
 
   const offline = !isInternetOnline || !isServerReachable;
