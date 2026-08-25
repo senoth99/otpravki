@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
-import { fetchSharedWorkspace, refreshWorkspaceFromApi } from "@/lib/workspace";
+import { fetchSharedWorkspace } from "@/lib/workspace";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import { AssemblyPanel } from "./AssemblyPanel";
 
@@ -24,22 +24,17 @@ export function SborkaBootstrap() {
   const [orders, setOrders] = useState<ShippingOrder[]>([]);
   const [apiOrderIds, setApiOrderIds] = useState<string[]>([]);
   const [initialRevision, setInitialRevision] = useState(0);
+  /** Пустой кэш — панель сразу тянет Casher в фоне, полоска загрузки не ждёт. */
+  const [needsImmediateSync, setNeedsImmediateSync] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     void (async () => {
       try {
-        let workspace = await fetchSharedWorkspace({ slim: "assembly" });
+        // Только быстрый GET из памяти сервера — без POST /refresh на полоске.
+        const workspace = await fetchSharedWorkspace({ slim: "assembly" });
         if (cancelled) return;
-
-        if (!workspace || ((workspace.orders?.length ?? 0) === 0 && (workspace.assemblyItems?.length ?? 0) === 0)) {
-          const refreshed = await refreshWorkspaceFromApi(undefined, { slim: "assembly", fresh: true });
-          if (cancelled) return;
-          if (refreshed.ok && refreshed.workspace) {
-            workspace = refreshed.workspace;
-          }
-        }
 
         if (!workspace) {
           setError({
@@ -49,10 +44,14 @@ export function SborkaBootstrap() {
           return;
         }
 
+        const empty =
+          (workspace.orders?.length ?? 0) === 0 && (workspace.assemblyItems?.length ?? 0) === 0;
+
         setAssemblyItems(workspace.assemblyItems);
         setOrders(workspace.orders);
         setApiOrderIds(workspace.apiOrderIds ?? []);
         setInitialRevision(workspace.revision);
+        setNeedsImmediateSync(empty);
         setReady(true);
       } catch (loadError) {
         if (cancelled) return;
@@ -83,6 +82,7 @@ export function SborkaBootstrap() {
       apiOrderIds={apiOrderIds}
       shippedArchive={[]}
       initialRevision={initialRevision}
+      syncImmediately={needsImmediateSync}
     />
   );
 }

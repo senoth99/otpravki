@@ -44,6 +44,8 @@ interface AssemblyPanelProps {
   shippedArchive?: ShippingOrder[];
   initialRevision?: number;
   warehouseMap?: WarehouseMapConfig;
+  /** Холодный старт без кэша — сразу тянем Casher, не ждём 15с */
+  syncImmediately?: boolean;
 }
 
 const KNOWN_BRANDS = ["CASHER", "SHECASH", "AMMO", "KURAZHDVIZH"] as const;
@@ -59,6 +61,7 @@ export function AssemblyPanel({
   shippedArchive: initialShippedArchive = [],
   initialRevision = 0,
   warehouseMap: warehouseMapProp,
+  syncImmediately = false,
 }: AssemblyPanelProps) {
   const [selectedBrand, setSelectedBrand] = useState<string>(ALL_BRANDS);
   const [filters, setFilters] = useState<OtpravkiFiltersState>(DEFAULT_FILTERS);
@@ -142,17 +145,21 @@ export function AssemblyPanel({
       return;
     }
     let cancelled = false;
-    void fetch("/api/warehouse-map", { cache: "no-store" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { data?: WarehouseMapConfig } | null) => {
-        if (cancelled) return;
-        setWarehouseMap(data?.data ?? { furniture: [], updatedAt: 0 });
-      })
-      .catch(() => {
-        if (!cancelled) setWarehouseMap({ furniture: [], updatedAt: 0 });
-      });
+    // Карта склада не блокирует первый кадр списка.
+    const timer = window.setTimeout(() => {
+      void fetch("/api/warehouse-map", { cache: "no-store" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: { data?: WarehouseMapConfig } | null) => {
+          if (cancelled) return;
+          setWarehouseMap(data?.data ?? { furniture: [], updatedAt: 0 });
+        })
+        .catch(() => {
+          if (!cancelled) setWarehouseMap({ furniture: [], updatedAt: 0 });
+        });
+    }, 0);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [warehouseMapProp]);
 
@@ -173,37 +180,30 @@ export function AssemblyPanel({
 
   useOtpravkiNoSwipe("tablet");
 
-  // Полный pull Casher — не сразу при открытии (убивает планшет), а с задержкой + реже.
+  // Полный pull Casher — не на полоске загрузки; сразу только если кэш пустой.
   useEffect(() => {
     let cancelled = false;
     let timer: number | undefined;
 
     const run = () => {
       if (cancelled || document.visibilityState !== "visible" || !navigator.onLine) return;
-      // Не дёргаем API сразу после тапа — иначе UI залипает на планшете.
       if (Date.now() - lastInteractionRef.current < 12_000) return;
       noteClientAction("sborka:sync");
       void refreshFromApi(undefined, { silent: true });
     };
 
-    // Первый sync через 15с — сначала отрисовать список из кэша.
+    const firstDelayMs = syncImmediately ? 400 : 15_000;
     const startTimer = window.setTimeout(() => {
       run();
       timer = window.setInterval(run, Math.max(ORDERS_API_POLL_MS, 90_000));
-    }, 15_000);
+    }, firstDelayMs);
 
-    const onVisible = () => {
-      if (document.visibilityState !== "visible") return;
-      // Не дёргаем API при каждом возврате на вкладку — socket уже пушит.
-    };
-    document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
       window.clearTimeout(startTimer);
       if (timer !== undefined) window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [refreshFromApi]);
+  }, [refreshFromApi, syncImmediately]);
 
   useEffect(() => {
     let cancelled = false;

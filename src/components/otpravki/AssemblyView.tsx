@@ -58,6 +58,9 @@ function itemFromMap(map: Map<string, AssemblyItem>, id: string): AssemblyItem |
 
 const MemoAssemblyItemCard = memo(AssemblyItemCard);
 
+/** Сколько SKU рисуем за раз — планшет не тянет сотни карточек. */
+const PAGE_SIZE = 15;
+
 export function AssemblyView({
   sections,
   allItems,
@@ -87,39 +90,14 @@ export function AssemblyView({
   const displayItemsByIdRef = useRef(displayItemsById);
   const currentItemRef = useRef<AssemblyItem | undefined>(undefined);
   const urgencySource = urgencyOrders ?? orders;
-  const urgencyMap = useMemo(
-    () => buildAssemblyUrgencyMap(urgencySource),
-    [urgencySource],
-  );
-  const urgencyByItemId = useMemo(() => {
-    const map = new Map<string, { label: string; className: string }>();
-    for (const item of allItems) {
-      map.set(
-        item.id,
-        URGENCY_LABELS[resolveAssemblyItemUrgencyFromMap(item, urgencyMap)],
-      );
-    }
-    return map;
-  }, [allItems, urgencyMap]);
-  const locationByItemId = useMemo(() => {
-    const map = new Map<string, ReturnType<typeof findCellLocationInIndex>>();
-    if (!warehouseMap) return map;
-    const index = buildCellLocationIndex(warehouseMap);
-    for (const item of allItems) {
-      const loc = findCellLocationInIndex(item, index);
-      if (loc) map.set(item.id, loc);
-    }
-    return map;
-  }, [allItems, warehouseMap]);
-  const findProductSet = useMemo(() => new Set(findProductIds), [findProductIds]);
   const [autoMode, setAutoMode] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [navDismissedFor, setNavDismissedFor] = useState<string | null>(null);
   const [stepsDone, setStepsDone] = useState(0);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
-  const [visiblePendingCount, setVisiblePendingCount] = useState(24);
-  const [visibleCompletedCount, setVisibleCompletedCount] = useState(16);
+  const [visiblePendingCount, setVisiblePendingCount] = useState(PAGE_SIZE);
+  const [visibleCompletedCount, setVisibleCompletedCount] = useState(PAGE_SIZE);
   const totalStepsRef = useRef(0);
   const findProductKey = findProductIds.join("|");
   const totals = useMemo(
@@ -131,8 +109,8 @@ export function AssemblyView({
   );
 
   useEffect(() => {
-    setVisiblePendingCount(24);
-    setVisibleCompletedCount(16);
+    setVisiblePendingCount(PAGE_SIZE);
+    setVisibleCompletedCount(PAGE_SIZE);
   }, [sections.pending.length, sections.completed.length, findProductKey]);
 
   const route = useMemo(() => {
@@ -159,6 +137,50 @@ export function AssemblyView({
   allItemsByIdRef.current = allItemsById;
   displayItemsByIdRef.current = displayItemsById;
   currentItemRef.current = currentItem;
+
+  const visibleForMeta = useMemo(() => {
+    const list: AssemblyItem[] = [...pendingVisible, ...completedVisible];
+    if (currentItem && !list.some((row) => row.id === currentItem.id)) {
+      list.push(currentItem);
+    }
+    if (autoMode) {
+      for (const row of route.slice(0, PAGE_SIZE + 1)) {
+        if (!list.some((item) => item.id === row.id)) list.push(row);
+      }
+    }
+    return list;
+  }, [pendingVisible, completedVisible, currentItem, autoMode, route]);
+
+  // Срочность — только видимые карточки; ячейки в AUTO — по всему маршруту (группа ячейки).
+  const urgencyMap = useMemo(
+    () => buildAssemblyUrgencyMap(urgencySource),
+    [urgencySource],
+  );
+  const urgencyByItemId = useMemo(() => {
+    const map = new Map<string, { label: string; className: string }>();
+    for (const item of visibleForMeta) {
+      map.set(
+        item.id,
+        URGENCY_LABELS[resolveAssemblyItemUrgencyFromMap(item, urgencyMap)],
+      );
+    }
+    return map;
+  }, [visibleForMeta, urgencyMap]);
+  const locationByItemId = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof findCellLocationInIndex>>();
+    if (!warehouseMap) return map;
+    const index = buildCellLocationIndex(warehouseMap);
+    const source = autoMode ? [...route, ...completedVisible] : visibleForMeta;
+    const seen = new Set<string>();
+    for (const item of source) {
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+      const loc = findCellLocationInIndex(item, index);
+      if (loc) map.set(item.id, loc);
+    }
+    return map;
+  }, [autoMode, route, completedVisible, visibleForMeta, warehouseMap]);
+  const findProductSet = useMemo(() => new Set(findProductIds), [findProductIds]);
   const currentLocation = currentItem ? locationByItemId.get(currentItem.id) : undefined;
   const currentLocationKey = currentLocation ? locationKey(currentLocation) : null;
 
@@ -350,7 +372,8 @@ export function AssemblyView({
     return map;
   }, [route]);
 
-  const upcomingRoute = route.slice(1);
+  const upcomingRoute = route.slice(1, 1 + PAGE_SIZE);
+  const upcomingHidden = Math.max(0, route.length - 1 - upcomingRoute.length);
   const stepNumber = stepsDone + 1;
   const totalSteps = totalStepsRef.current || route.length;
 
@@ -498,7 +521,6 @@ export function AssemblyView({
                       onIncrement={handleIncrement}
                       onDecrement={handleDecrement}
                       cellLocation={locationByItemId.get(fresh.id)}
-                      warehouseMap={warehouseMap}
                       dimmed
                       locked
                       stepNumber={routeStepById.get(item.id)}
@@ -509,6 +531,9 @@ export function AssemblyView({
                     />
                   );
                 })}
+                {upcomingHidden > 0 ? (
+                  <p className="px-1 text-xs text-gray-400">ещё {upcomingHidden} по маршруту…</p>
+                ) : null}
               </div>
             </div>
           )}
@@ -527,7 +552,6 @@ export function AssemblyView({
                     onIncrement={handleIncrement}
                     onDecrement={handleDecrement}
                     cellLocation={locationByItemId.get(item.id)}
-                    warehouseMap={warehouseMap}
                     dimmed
                     locked
                     showBrandMark={showBrandMark}
@@ -539,7 +563,7 @@ export function AssemblyView({
                 {hasMoreCompleted ? (
                   <button
                     type="button"
-                    onClick={() => setVisibleCompletedCount((n) => n + 16)}
+                    onClick={() => setVisibleCompletedCount((n) => n + PAGE_SIZE)}
                     className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-800 active:bg-gray-50"
                   >
                     Показать собранные ({sections.completed.length - visibleCompletedCount})
@@ -570,7 +594,7 @@ export function AssemblyView({
               {hasMorePending ? (
                 <button
                   type="button"
-                  onClick={() => setVisiblePendingCount((n) => n + 24)}
+                  onClick={() => setVisiblePendingCount((n) => n + PAGE_SIZE)}
                   className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-800 active:bg-gray-50"
                 >
                   Показать ещё ({sections.pending.length - visiblePendingCount})
@@ -593,7 +617,6 @@ export function AssemblyView({
                     onIncrement={handleIncrement}
                     onDecrement={handleDecrement}
                     cellLocation={locationByItemId.get(item.id)}
-                    warehouseMap={warehouseMap}
                     showBrandMark={showBrandMark}
                     onFindProduct={onFindProduct}
                     findActive={Boolean(item.productId && findProductSet.has(item.productId))}
@@ -603,7 +626,7 @@ export function AssemblyView({
                 {hasMoreCompleted ? (
                   <button
                     type="button"
-                    onClick={() => setVisibleCompletedCount((n) => n + 16)}
+                    onClick={() => setVisibleCompletedCount((n) => n + PAGE_SIZE)}
                     className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-800 active:bg-gray-50"
                   >
                     Показать собранные ({sections.completed.length - visibleCompletedCount})
