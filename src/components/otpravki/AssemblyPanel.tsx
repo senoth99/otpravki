@@ -15,6 +15,7 @@ import {
   type AssemblyProgressState,
 } from "@/lib/assembly-progress";
 import { getAssemblyViewSections } from "@/lib/assembly-demand";
+import { partiallyCollectedOrderIds } from "@/lib/assembly-status";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import {
   ALL_BRANDS,
@@ -268,10 +269,22 @@ export function AssemblyPanel({
     });
   };
 
-  const assemblySections = useMemo(
-    () => getAssemblyViewSections(filteredAssemblyItems, filteredOrders, false, undefined, brandOrders),
-    [filteredAssemblyItems, filteredOrders, brandOrders],
+  const partialOrderIds = useMemo(
+    () => partiallyCollectedOrderIds(orders, syncedAssemblyItems),
+    [orders, syncedAssemblyItems],
   );
+
+  const assemblySections = useMemo(() => {
+    const withoutPartial = (list: ShippingOrder[]) =>
+      list.filter((order) => !partialOrderIds.has(order.id));
+    return getAssemblyViewSections(
+      filteredAssemblyItems,
+      withoutPartial(filteredOrders),
+      false,
+      undefined,
+      withoutPartial(brandOrders),
+    );
+  }, [filteredAssemblyItems, filteredOrders, brandOrders, partialOrderIds]);
 
   const brandOptions = useMemo(
     () =>

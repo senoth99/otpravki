@@ -16,7 +16,7 @@ import {
   subscribeAssemblyProgress,
   type AssemblyProgressState,
 } from "@/lib/assembly-progress";
-import { collectedVisibleOrderIds } from "@/lib/assembly-status";
+import { collectedReadyOrderIds, partiallyCollectedOrderIds } from "@/lib/assembly-status";
 import { ALL_BRANDS, formatBrandLabel, getStoreBrand, matchesStoreBrand } from "@/lib/store-brand";
 import type { AssemblyItem, ShippingOrder, ShippingTab } from "@/types/shipping";
 import { ArchiveView } from "./ArchiveView";
@@ -159,7 +159,12 @@ export function ShippingPanel({
   );
 
   const assembledOrderIds = useMemo(
-    () => collectedVisibleOrderIds(orders, syncedAssemblyItems),
+    () => collectedReadyOrderIds(orders, syncedAssemblyItems),
+    [orders, syncedAssemblyItems],
+  );
+
+  const partialOrderIds = useMemo(
+    () => partiallyCollectedOrderIds(orders, syncedAssemblyItems),
     [orders, syncedAssemblyItems],
   );
 
@@ -174,10 +179,11 @@ export function ShippingPanel({
           query: "",
         },
         { assembledOrderIds },
-      ),
+      ).filter((order) => !partialOrderIds.has(order.id)),
     [
       activeBrandOrders,
       assembledOrderIds,
+      partialOrderIds,
       filters.urgency,
       filters.kind,
       filters.scan,

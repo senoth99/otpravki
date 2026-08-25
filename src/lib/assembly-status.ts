@@ -134,28 +134,16 @@ export function isPartiallyCollectedOrder(
   return missing.some((row) => row.have > 0);
 }
 
-/**
- * Заказы для отправок при фильтре «Только со сборки»:
- * полностью собранные + частично собранные.
- */
-export function collectedVisibleOrderIds(
+/** Id заказов, собранных не полностью (кнопка «Собрано»). */
+export function partiallyCollectedOrderIds(
   orders: ShippingOrder[],
   assemblyItems: AssemblyItem[],
 ): Set<string> {
   const allocation = buildCollectedAssemblyAllocation(orders, assemblyItems);
   const ids = new Set<string>();
-
   for (const order of orders) {
-    if (order.barcodePrinted) continue;
-    if (allocation.readyByOrderId.get(order.id)) {
-      ids.add(order.id);
-      continue;
-    }
-    if (isPartiallyCollectedOrder(order, allocation)) {
-      ids.add(order.id);
-    }
+    if (isPartiallyCollectedOrder(order, allocation)) ids.add(order.id);
   }
-
   return ids;
 }
 
