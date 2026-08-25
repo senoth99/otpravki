@@ -120,24 +120,24 @@ function sleep(ms: number) {
 }
 
 /**
- * SATO WS408: записки 60×55 мм.
- * Подача 60×75 continuous — этикетка доезжает до отрыва (~20 мм запас).
- * saThreshold=Default — dither 1-bit, серое не пропадает как при threshold 50%.
+ * SATO WS408 записки 60×55 (A1: V=55mm H=60mm в SBPL).
+ * Gap (IG1) + Tear-off (PM1): иначе continuous/sensor-off с «удлинённой»
+ * страницей сбивает pitch — FEED выдаёт пачку, печать стопорится ~70%.
  */
 const LABEL_LP_SATO_60X55 = [
   [
     "-o",
-    "PageSize=Custom.60x75mm",
+    "PageSize=Custom.60x55mm",
     "-o",
     "MediaType=1",
     "-o",
-    "saLabelType=2",
+    "saLabelType=1",
     "-o",
-    "saOperationMode=0",
+    "saOperationMode=1",
     "-o",
     "saThreshold=Default",
     "-o",
-    "saYCorrection=-20",
+    "saYCorrection=0",
     "-o",
     "Darkness=5",
     "-o",
@@ -149,17 +149,17 @@ const LABEL_LP_SATO_60X55 = [
   ],
   [
     "-o",
-    "PageSize=Custom.60x75mm",
+    "PageSize=Custom.60x55mm",
     "-o",
-    "saLabelType=2",
+    "saLabelType=1",
     "-o",
-    "saOperationMode=5",
+    "saOperationMode=1",
     "-o",
     "saThreshold=Default",
     "-o",
     "Darkness=5",
   ],
-  ["-o", "PageSize=Custom.60x75mm", "-o", "saOperationMode=0"],
+  ["-o", "PageSize=Custom.60x55mm", "-o", "saLabelType=1", "-o", "saOperationMode=1"],
   [],
 ];
 
