@@ -120,40 +120,45 @@ function sleep(ms: number) {
 }
 
 /**
- * SATO WS408: записки 60×55 мм (Custom.60x55mm).
- * Sensor off — длина подачи из PageSize; DT + tear-off.
+ * SATO WS408: записки 60×55 мм.
+ * Continuous + sensor off: tear-off/backfeed давал поздний старт и обрыв подачи.
+ * Page чуть длиннее этикетки (60×58), без fit-to-page — снизу запас, этикетка выезжает.
+ * saYCorrection=-20 (~−0.1″) — печать ближе к началу этикетки.
  */
 const LABEL_LP_SATO_60X55 = [
   [
     "-o",
-    "PageSize=Custom.60x55mm",
+    "PageSize=Custom.60x58mm",
     "-o",
     "MediaType=1",
     "-o",
     "saLabelType=2",
     "-o",
-    "saOperationMode=1",
+    "saOperationMode=0",
     "-o",
-    "Darkness=4",
+    "saYCorrection=-20",
     "-o",
-    "saPrintSpeed=4",
+    "Darkness=5",
+    "-o",
+    "saPrintSpeed=3",
     "-o",
     "Resolution=203dpi",
-    "-o",
-    "fit-to-page",
     "-o",
     "print-color-mode=monochrome",
   ],
   [
     "-o",
-    "media=Custom.60x55mm",
+    "PageSize=Custom.60x55mm",
     "-o",
     "saLabelType=2",
     "-o",
-    "fit-to-page",
+    "saOperationMode=0",
+    "-o",
+    "saYCorrection=-20",
+    "-o",
+    "print-color-mode=monochrome",
   ],
-  ["-o", "PageSize=Custom.60x55mm", "-o", "fit-to-page"],
-  ["-o", "fit-to-page"],
+  ["-o", "PageSize=Custom.60x55mm", "-o", "saOperationMode=0"],
   [],
 ];
 

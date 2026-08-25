@@ -15,7 +15,7 @@ export const GIFT_NOTE_HEIGHT_MM = 55;
 
 const PAGE_W = mmToPoints(GIFT_NOTE_WIDTH_MM);
 const PAGE_H = mmToPoints(GIFT_NOTE_HEIGHT_MM);
-const MARGIN = 6;
+const MARGIN = 4;
 const BLACK = rgb(0, 0, 0);
 const WHITE = rgb(1, 1, 1);
 
