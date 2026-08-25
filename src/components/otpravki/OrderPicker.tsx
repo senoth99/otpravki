@@ -19,7 +19,7 @@ interface OrderPickerProps {
 function tabClass(active: boolean, partial?: boolean): string {
   if (active) {
     if (partial) {
-      return "border-amber-600 bg-amber-700 text-white shadow-sm";
+      return "border-gray-500 bg-gray-600 text-white shadow-sm";
     }
     return "border-gray-900 bg-gray-900 text-white shadow-sm";
   }

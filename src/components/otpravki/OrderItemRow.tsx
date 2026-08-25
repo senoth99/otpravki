@@ -68,7 +68,7 @@ export function OrderItemRow({
     <div
       className={`rounded-xl border p-3 transition-colors ${
         missingAssembly
-          ? "border-amber-300/80 bg-amber-50/30 opacity-60 saturate-75"
+          ? "border-gray-100 bg-gray-50/40 opacity-45"
           : isComplete
             ? "border-green-200 bg-green-50/60"
             : isPartial
@@ -100,12 +100,12 @@ export function OrderItemRow({
             </p>
             <p className="mt-0.5 text-xs text-gray-600">
               <span className="font-medium">{formatSize(item.size)}</span>
+              {missingAssembly && assemblyMissing ? (
+                <span className="ml-1.5 text-gray-400">
+                  · сборка {assemblyMissing.have}/{assemblyMissing.need}
+                </span>
+              ) : null}
             </p>
-            {missingAssembly && assemblyMissing && (
-              <p className="mt-1 text-xs font-medium text-amber-800">
-                Не собрано: {assemblyMissing.have} / {assemblyMissing.need}
-              </p>
-            )}
           </div>
         </div>
 

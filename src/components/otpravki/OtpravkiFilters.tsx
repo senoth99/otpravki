@@ -467,7 +467,7 @@ function FromAssemblyToggle({
       <AdminPinPopup
         open={pinOpen}
         title="Код доступа"
-        description="Чтобы показать заказы, которые ещё не собрали в приложении сборки"
+        description="Чтобы показать заказы без отметок сборки (не собранные и не частично собранные)"
         verifyUrl="/api/guides/unlock"
         onClose={() => setPinOpen(false)}
         onSuccess={() => onChange(false)}

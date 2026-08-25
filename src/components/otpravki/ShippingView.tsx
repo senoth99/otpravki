@@ -1027,11 +1027,7 @@ export function ShippingView({
               <OrderComments order={displayOrder} />
             </div>
           ) : (
-            <div
-              className={`space-y-4 transition-opacity ${
-                isDisplayPartialAssembly ? "opacity-70 saturate-75" : ""
-              }`}
-            >
+            <div className="space-y-4 transition-opacity">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -1047,7 +1043,7 @@ export function ShippingView({
                       </span>
                     )}
                     {isDisplayPartialAssembly && (
-                      <span className="inline-flex items-center rounded-lg bg-amber-100 px-2 py-0.5 text-xs font-medium leading-none text-amber-900">
+                      <span className="inline-flex items-center rounded-lg bg-gray-100 px-2 py-0.5 text-xs font-medium leading-none text-gray-600">
                         {ORDER_STATUS_LABEL["partial-assembly"]}
                       </span>
                     )}
@@ -1074,23 +1070,6 @@ export function ShippingView({
                   </p>
                 </div>
               </div>
-
-              {isDisplayPartialAssembly && displayMissingAssembly.length > 0 && (
-                <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">
-                    Не хватает в сборке
-                  </p>
-                  <ul className="mt-1.5 space-y-1">
-                    {displayMissingAssembly.map((row) => (
-                      <li key={`${row.productId}-${row.sizeId}`} className="text-sm text-amber-950">
-                        {row.productName}
-                        <span className="text-amber-800"> · {row.size}</span>
-                        <span className="font-medium"> — {row.have} / {row.need}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
 
               <OrderComments order={displayOrder} />
 

@@ -169,8 +169,15 @@ export function ShippingPanel({
     [orders, syncedAssemblyItems],
   );
 
+  /** «Только со сборки» = полностью + частично собранные (браслет Luxe Club и т.п.). */
+  const fromAssemblyOrderIds = useMemo(() => {
+    const ids = new Set(assembledOrderIds);
+    for (const id of partialOrderIds) ids.add(id);
+    return ids;
+  }, [assembledOrderIds, partialOrderIds]);
+
   const filteredOrders = useMemo(() => {
-    const list = applyOrderFilters(
+    return applyOrderFilters(
       activeBrandOrders,
       {
         ...filters,
@@ -178,15 +185,12 @@ export function ShippingPanel({
         // ShippingView сам прыгает к совпадению по searchQuery.
         query: "",
       },
-      { assembledOrderIds },
+      { assembledOrderIds: filters.fromAssembly ? fromAssemblyOrderIds : assembledOrderIds },
     );
-    // Без «Только со сборки» — ручная отправка, частично собранные не прячем.
-    if (!filters.fromAssembly) return list;
-    return list.filter((order) => !partialOrderIds.has(order.id));
   }, [
       activeBrandOrders,
       assembledOrderIds,
-      partialOrderIds,
+      fromAssemblyOrderIds,
       filters.urgency,
       filters.kind,
       filters.scan,
