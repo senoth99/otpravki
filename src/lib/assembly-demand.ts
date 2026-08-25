@@ -39,7 +39,14 @@ function enrichAssemblyItems(items: AssemblyItem[], orders: ShippingOrder[]): As
     .map((item) => {
       const key = itemPoolKey(item);
       const needed = demand.get(key) ?? 0;
-      if (needed === 0) return null;
+      const collected = Math.max(0, item.collectedCount ?? 0);
+      // Спрос мог обнулиться (частичный заказ вычли из demand) — собранное
+      // всё равно держим в «Собрано», пока заказ не отправят / прогресс не снимут.
+      if (needed <= 0) {
+        if (collected <= 0) return null;
+        if (item.quantity === collected) return item;
+        return { ...item, quantity: collected };
+      }
       if (item.quantity === needed) return item;
       return { ...item, quantity: needed };
     })
