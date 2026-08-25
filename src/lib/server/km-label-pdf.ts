@@ -36,7 +36,10 @@ type CisFields = {
 };
 
 const SAMPLE_PRODUCTS: Record<BoxLabelBrandId, { name: string; size: string }> = {
-  casher: { name: "Футболка Oversize Black", size: "M" },
+  casher: {
+    name: "Футболка Oversize Heavyweight Black Limited Edition Premium Cotton",
+    size: "M",
+  },
   kurazh: { name: "Худи Classic Grey", size: "L" },
   ammo: { name: "Кепка Logo Cap", size: "ONE" },
   shecash: { name: "Сумка Mini Cross", size: "—" },
@@ -203,12 +206,31 @@ async function prepareLogoPng(raw: Buffer): Promise<Buffer> {
     .toBuffer();
 }
 
+function ellipsizeLines(
+  font: PDFFont,
+  text: string,
+  size: number,
+  maxWidth: number,
+  maxLines: number,
+): string[] {
+  const lines = wrapWords(font, text, size, maxWidth);
+  if (lines.length <= maxLines) return lines;
+  const kept = lines.slice(0, maxLines);
+  const last = kept[maxLines - 1] ?? "";
+  const ell = "…";
+  let trimmed = last;
+  while (trimmed.length > 1 && font.widthOfTextAtSize(trimmed + ell, size) > maxWidth) {
+    trimmed = trimmed.slice(0, -1).trimEnd();
+  }
+  kept[maxLines - 1] = `${trimmed}${ell}`;
+  return kept;
+}
+
 /**
  * Одежда / 60×55 / 203 dpi:
  *  [лого по центру]
- *  название
+ *  название + размер
  *  [ DM ]  GTIN / S/N
- *  размер чёрным текстом (без плашки)
  */
 export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
   const cis = input.cis.trim();
@@ -220,6 +242,7 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
   const brandLabel = (brand?.label ?? brandId).toUpperCase();
   const productName = input.productName?.trim() || input.title?.trim() || "Товар";
   const sizeLabel = (input.size?.trim() || "—").toUpperCase();
+  const title = `${productName}  ${sizeLabel}`;
 
   const [dmPng, regularBytes, boldBytes, logoEntry] = await Promise.all([
     renderDataMatrixPng(cis),
@@ -247,9 +270,7 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
   }
 
   const contentW = PAGE_W - MX * 2;
-  const sizeLetterSz = 20;
-  const sizeBottom = MB;
-  const contentBottom = sizeBottom + sizeLetterSz + mmToPoints(2.5);
+  const contentBottom = MB;
   let y = PAGE_H - MT;
 
   // --- Лого по центру ---
@@ -278,35 +299,33 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
     y -= brandSz + mmToPoints(2);
   }
 
-  // --- Название ---
-  const nameSize = 9;
-  const nameLH = nameSize * 1.12;
-  const nameLines = wrapWords(bold, productName, nameSize, contentW).slice(0, 2);
+  // --- Название + размер (до 3 строк, длинное режется «…») ---
+  const nameSize = 8.5;
+  const nameLH = nameSize * 1.14;
+  const nameLines = ellipsizeLines(bold, title, nameSize, contentW, 3);
   for (const line of nameLines) {
     page.drawText(line, { x: MX, y: y - nameSize, size: nameSize, font: bold, color: BLACK });
     y -= nameLH;
   }
-  y -= mmToPoints(2);
+  y -= mmToPoints(2.5);
 
-  // --- DM + мета справа (тонкий высокий шрифт, не вылезает) ---
-  const rightPad = mmToPoints(3.5);
-  const gapDmMeta = mmToPoints(2);
+  // --- DM + мета: код не шире 42%, мета строго в оставшейся колонке ---
+  const rightPad = mmToPoints(4);
+  const gapDmMeta = mmToPoints(2.2);
   const availH = Math.max(mmToPoints(18), y - contentBottom);
-  const metaMaxW = contentW * 0.42;
-  const dmMaxW = contentW - metaMaxW - gapDmMeta;
-  const dmTarget = Math.min(mmToPoints(24), availH, dmMaxW);
+  const dmMaxW = contentW * 0.42;
+  const dmTarget = Math.min(mmToPoints(22), availH, dmMaxW);
   const dmScale = Math.min(dmTarget / dm.width, dmTarget / dm.height);
   const dmW = dm.width * dmScale;
   const dmH = dm.height * dmScale;
   const dmX = MX;
-  const dmY = y - dmH;
-  page.drawImage(dm, { x: dmX, y: Math.max(contentBottom, dmY), width: dmW, height: dmH });
+  const dmY = Math.max(contentBottom, y - dmH);
+  page.drawImage(dm, { x: dmX, y: dmY, width: dmW, height: dmH });
 
   const metaX = dmX + dmW + gapDmMeta;
-  const metaW = PAGE_W - rightPad - metaX;
-  // тонкий regular, крупнее по высоте; ширина подгоняется под metaW
-  const labelSz = 7.5;
-  const valueSzMax = 10;
+  const metaW = Math.max(8, PAGE_W - rightPad - metaX);
+  const labelSz = 6.5;
+  const valueSzMax = 8.5;
   let metaY = y;
 
   const drawMeta = (label: string, value: string) => {
@@ -318,9 +337,10 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
       font: regular,
       color: BLACK,
     });
-    metaY -= labelSz + 2.5;
-    const vSz = fitFontSize(regular, value, metaW, valueSzMax, 6.5);
-    const lines = wrapLine(regular, value, vSz, metaW).slice(0, 2);
+    metaY -= labelSz + 2;
+    const vSz = fitFontSize(regular, value, metaW, valueSzMax, 5.5);
+    // длинные номера режем по символам под ширину колонки
+    const lines = wrapLine(regular, value, vSz, metaW).slice(0, 3);
     for (const line of lines) {
       if (metaY - vSz < contentBottom) break;
       page.drawText(line, {
@@ -330,23 +350,13 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
         font: regular,
         color: BLACK,
       });
-      metaY -= vSz * 1.2;
+      metaY -= vSz * 1.18;
     }
-    metaY -= mmToPoints(2);
+    metaY -= mmToPoints(1.8);
   };
 
   drawMeta("GTIN", fields.gtin);
   drawMeta("S/N", fields.serial);
-
-  // --- Размер: крупнее и жирнее ---
-  const sz = fitFontSize(bold, sizeLabel, contentW - 4, sizeLetterSz, 14);
-  page.drawText(sizeLabel, {
-    x: (PAGE_W - bold.widthOfTextAtSize(sizeLabel, sz)) / 2,
-    y: sizeBottom,
-    size: sz,
-    font: bold,
-    color: BLACK,
-  });
 
   return Buffer.from(await pdf.save());
 }
