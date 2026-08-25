@@ -37,9 +37,6 @@ interface AssemblyItemCardProps {
   locationGroupIndex?: number;
   /** Показать логотип бренда (режим «Все бренды») */
   showBrandMark?: boolean;
-  /** Тап по фото — отфильтровать сборку по этому товару */
-  onFindProduct?: (productId: string) => void;
-  findActive?: boolean;
   /** Бейдж срочности (как в отправках) */
   urgency?: { label: string; className: string };
 }
@@ -60,8 +57,6 @@ export function AssemblyItemCard({
   locationGroup,
   locationGroupIndex,
   showBrandMark = false,
-  onFindProduct,
-  findActive = false,
   urgency,
 }: AssemblyItemCardProps) {
   const [navOpenLocal, setNavOpenLocal] = useState(false);
@@ -104,9 +99,7 @@ export function AssemblyItemCard({
       )}
       <div className="flex min-w-0 items-start gap-3 sm:flex-1">
         <div
-          className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-gray-100 sm:h-20 sm:w-20 ${
-            findActive ? "ring-2 ring-violet-500 ring-offset-1" : ""
-          }`}
+          className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-gray-100 sm:h-20 sm:w-20`}
         >
           <ProductImage
             src={item.imageUrl}
@@ -114,12 +107,6 @@ export function AssemblyItemCard({
             productName={item.productName}
             className={`object-cover transition-opacity ${isComplete ? "opacity-60" : ""}`}
             sizes="(max-width: 640px) 64px, 80px"
-            onFind={
-              onFindProduct && item.productId
-                ? () => onFindProduct(item.productId)
-                : undefined
-            }
-            findLabel={findActive ? "Сбросить фильтр" : "Найти этот товар"}
           />
           {showBrandMark ? (
             <div className="pointer-events-none absolute bottom-1 right-1 z-[1]">

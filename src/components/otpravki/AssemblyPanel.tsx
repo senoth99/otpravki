@@ -319,22 +319,6 @@ export function AssemblyPanel({
     [assemblySectionsBase, progress],
   );
 
-  const handleFindProduct = useCallback(
-    (productId: string) => {
-      const id = productId.trim();
-      if (!id) return;
-      noteInteraction();
-      setFilters((prev) => {
-        const onlyThis = prev.productIds.length === 1 && prev.productIds[0] === id;
-        return {
-          ...prev,
-          productIds: onlyThis ? [] : [id],
-        };
-      });
-    },
-    [noteInteraction],
-  );
-
   const handleItemCollectChange = useCallback(
     (id: string, collectedCount: number, collectedAt?: number) => {
       noteInteraction();
@@ -503,8 +487,6 @@ export function AssemblyPanel({
             resetCollectedBusy={resetCollectedBusy}
             onResetCollected={handleResetCollected}
             showBrandMark={isAllBrands(selectedBrand)}
-            onFindProduct={handleFindProduct}
-            findProductIds={filters.productIds}
           />
         </main>
       </div>

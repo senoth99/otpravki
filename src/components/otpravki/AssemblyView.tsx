@@ -37,9 +37,6 @@ interface AssemblyViewProps {
   resetCollectedBusy?: boolean;
   onResetCollected?: () => void;
   showBrandMark?: boolean;
-  /** Тап по фото — фильтр по товару (как «Вещи» в отправках) */
-  onFindProduct?: (productId: string) => void;
-  findProductIds?: readonly string[];
 }
 
 function totalUnits(sections: AssemblyViewSections) {
@@ -72,8 +69,6 @@ export function AssemblyView({
   resetCollectedBusy = false,
   onResetCollected,
   showBrandMark = false,
-  onFindProduct,
-  findProductIds = [],
 }: AssemblyViewProps) {
   const allItemsById = useMemo(
     () => new Map(allItems.map((item) => [item.id, item])),
@@ -101,7 +96,6 @@ export function AssemblyView({
   /** Мгновенный UI на «Взял» — не ждём пересчёт родителя. */
   const [localCounts, setLocalCounts] = useState<Map<string, number>>(() => new Map());
   const totalStepsRef = useRef(0);
-  const findProductKey = findProductIds.join("|");
   const totals = useMemo(
     () => ({
       units: totalUnits(sections),
@@ -113,7 +107,7 @@ export function AssemblyView({
   useEffect(() => {
     setVisiblePendingCount(PAGE_SIZE);
     setVisibleCompletedCount(PAGE_SIZE);
-  }, [sections.pending.length, sections.completed.length, findProductKey]);
+  }, [sections.pending.length, sections.completed.length]);
 
   useEffect(() => {
     setLocalCounts((prev) => {
@@ -208,7 +202,6 @@ export function AssemblyView({
     }
     return map;
   }, [autoMode, route, completedVisible, visibleForMeta, warehouseMap]);
-  const findProductSet = useMemo(() => new Set(findProductIds), [findProductIds]);
   const currentLocation = currentItem ? locationByItemId.get(currentItem.id) : undefined;
   const currentLocationKey = currentLocation ? locationKey(currentLocation) : null;
 
@@ -425,24 +418,8 @@ export function AssemblyView({
                 : "Сканируйте штрихкод или отмечайте вручную"}
             </p>
           </div>
-          {(canResetCollected || !isEmpty || findProductIds.length > 0) && (
+          {(canResetCollected || !isEmpty) && (
             <div className="flex flex-wrap items-center gap-2 self-start">
-              {findProductIds.length > 0 && onFindProduct ? (
-                <button
-                  type="button"
-                  data-no-drag-scroll
-                  onClick={() => {
-                    const id = findProductIds[0];
-                    if (id) onFindProduct(id);
-                  }}
-                  className="inline-flex min-h-11 touch-manipulation items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 text-sm font-medium text-violet-800 active:bg-violet-100"
-                >
-                  Фильтр по фото
-                  <span aria-hidden className="text-violet-500">
-                    ×
-                  </span>
-                </button>
-              ) : null}
               {canResetCollected && onResetCollected ? (
                 <button
                   type="button"
@@ -534,10 +511,6 @@ export function AssemblyView({
               locationGroup={locationGroup.length > 1 ? locationGroup : undefined}
               locationGroupIndex={locationGroupIndex}
               showBrandMark={showBrandMark}
-              onFindProduct={onFindProduct}
-              findActive={Boolean(
-                currentItem.productId && findProductSet.has(currentItem.productId),
-              )}
               urgency={urgencyByItemId.get(currentItem.id)}
             />
           )}
@@ -561,8 +534,6 @@ export function AssemblyView({
                       locked
                       stepNumber={routeStepById.get(item.id)}
                       showBrandMark={showBrandMark}
-                      onFindProduct={onFindProduct}
-                      findActive={Boolean(item.productId && findProductSet.has(item.productId))}
                       urgency={urgencyByItemId.get(fresh.id)}
                     />
                   );
@@ -591,8 +562,6 @@ export function AssemblyView({
                     dimmed
                     locked
                     showBrandMark={showBrandMark}
-                    onFindProduct={onFindProduct}
-                    findActive={Boolean(item.productId && findProductSet.has(item.productId))}
                     urgency={urgencyByItemId.get(item.id)}
                   />
                 ))}
@@ -622,8 +591,6 @@ export function AssemblyView({
                   cellLocation={locationByItemId.get(item.id)}
                   warehouseMap={warehouseMap}
                   showBrandMark={showBrandMark}
-                  onFindProduct={onFindProduct}
-                  findActive={Boolean(item.productId && findProductSet.has(item.productId))}
                   urgency={urgencyByItemId.get(item.id)}
                 />
               ))}
@@ -654,8 +621,6 @@ export function AssemblyView({
                     onDecrement={handleDecrement}
                     cellLocation={locationByItemId.get(item.id)}
                     showBrandMark={showBrandMark}
-                    onFindProduct={onFindProduct}
-                    findActive={Boolean(item.productId && findProductSet.has(item.productId))}
                     urgency={urgencyByItemId.get(item.id)}
                   />
                 ))}
