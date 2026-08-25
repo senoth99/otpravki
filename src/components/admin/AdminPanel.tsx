@@ -122,13 +122,20 @@ export function AdminPanel() {
           ...(testPrinter.trim() ? { printer: testPrinter.trim() } : {}),
         }),
       });
-      const data = (await res.json()) as { ok?: boolean; message?: string; printer?: string };
+      const data = (await res.json()) as {
+        ok?: boolean;
+        message?: string;
+        printer?: string;
+        format?: string;
+      };
       if (!res.ok || !data.ok) {
         throw new Error(data.message ?? "Не удалось напечатать");
       }
       setPrintMessage({
         ok: true,
-        text: `Тест → ${data.printer || testPrinter || "принтер"}`,
+        text: `Тест → ${data.printer || testPrinter || "принтер"}${
+          data.format ? ` (${data.format})` : ""
+        }`,
       });
     } catch (err) {
       setPrintMessage({

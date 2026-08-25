@@ -12,6 +12,7 @@ import {
   labelWidthPx,
   pdfNeedsQuarterTurn,
 } from "@/lib/label-media";
+import { isTscTsplPrinter } from "@/lib/server/printer-kind";
 
 const execFileAsync = promisify(execFile);
 
@@ -281,13 +282,35 @@ async function sendRawDevice(devicePath: string, data: Buffer): Promise<void> {
   await writeFile(devicePath, data);
 }
 
-async function resolveUsbDevice(): Promise<string | null> {
+async function resolveTscUsbDevice(): Promise<string | null> {
   const fromEnv = process.env.BARCODE_DEVICE?.trim();
   if (fromEnv) return fromEnv;
 
+  // lp0 = TSC (vid 1203), lp1 = SATO (vid 0828) на складе — не слать TSPL на SATO.
   for (const dev of ["/dev/usb/lp0", "/dev/usb/lp1"]) {
     try {
       await access(dev);
+      const uevent = await readFile(
+        `/sys/class/usbmisc/${path.basename(dev)}/device/uevent`,
+        "utf8",
+      ).catch(() => "");
+      if (/PRODUCT=1203\//i.test(uevent) || /v1203p/i.test(uevent)) {
+        return dev;
+      }
+    } catch {
+      // next
+    }
+  }
+
+  // fallback: единственный lp*, если SATO нет
+  for (const dev of ["/dev/usb/lp0", "/dev/usb/lp1"]) {
+    try {
+      await access(dev);
+      const uevent = await readFile(
+        `/sys/class/usbmisc/${path.basename(dev)}/device/uevent`,
+        "utf8",
+      ).catch(() => "");
+      if (/PRODUCT=828\//i.test(uevent) || /v0828p/i.test(uevent)) continue;
       return dev;
     } catch {
       // next
@@ -297,18 +320,22 @@ async function resolveUsbDevice(): Promise<string | null> {
   return null;
 }
 
-/** TSPL raw: сначала USB, иначе CUPS lp -o raw */
+/** TSPL raw: USB только для TSC-очередей, иначе lp -d <printer> -o raw */
 export async function sendRawTspl(printer: string, filePath: string, data?: Buffer): Promise<void> {
   const payload = data ?? (await readFile(filePath));
-  const usb = await resolveUsbDevice();
-  if (usb) {
-    try {
-      await sendRawDevice(usb, payload);
-      return;
-    } catch {
-      // fallback to lp raw
+
+  if (isTscTsplPrinter(printer)) {
+    const usb = await resolveTscUsbDevice();
+    if (usb) {
+      try {
+        await sendRawDevice(usb, payload);
+        return;
+      } catch {
+        // fallback to lp raw
+      }
     }
   }
+
   await sendRawLp(printer, filePath);
 }
 

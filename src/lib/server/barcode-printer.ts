@@ -25,6 +25,8 @@ const LOG_FILE = path.join(DATA_DIR, "print", "log.txt");
 const VIRTUAL_PRINTER_RE = /pdf|fax|xps|onenote|save|virtual|document|cups-pdf/i;
 const LABEL_PRINTER_RE = /zebra|zdesigner|tsc|te-|xprinter|xp-|godex|g500|barcode|label|dp-?d|ql-|hprt|4barcode|thermal|hotlabel|munbyn|polono|knaon/i;
 
+export { isTscTsplPrinter } from "@/lib/server/printer-kind";
+
 let cachedPrinter: string | null | undefined;
 
 function isVirtualPrinter(name: string) {

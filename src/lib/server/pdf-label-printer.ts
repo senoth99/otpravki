@@ -10,6 +10,7 @@ import {
   labelWidthPoints,
   labelWidthPx,
 } from "@/lib/label-media";
+import { isTscTsplPrinter } from "@/lib/server/printer-kind";
 import { printTsplLabel } from "@/lib/server/tspl-label-printer";
 
 const execFileAsync = promisify(execFile);
@@ -134,6 +135,12 @@ const LABEL_LP_4X6_LANDSCAPE = [
   ],
   ["-o", "media=w4h6", "-o", "orientation-requested=4", "-o", "fit-to-page", "-o", "Resolution=300dpi"],
   ["-o", "PageSize=w4h6", "-o", "fit-to-page", "-o", "Resolution=300dpi"],
+  // SATO WS408 и generic CUPS
+  ["-o", "PageSize=w288h432", "-o", "fit-to-page"],
+  ["-o", "PageSize=w288h360", "-o", "fit-to-page"],
+  ["-o", `media=${labelMediaOption()}`, "-o", "fit-to-page"],
+  ["-o", "fit-to-page"],
+  [],
 ];
 
 /** Портрет 4×6 (100×150) — этикетка трека. */
@@ -149,7 +156,10 @@ const LABEL_LP_4X6_PORTRAIT = [
     "Resolution=300dpi",
   ],
   ["-o", "media=w4h6", "-o", "fit-to-page", "-o", "Resolution=300dpi"],
+  ["-o", "PageSize=w288h432", "-o", "fit-to-page"],
   ["-o", `media=${labelMediaOption()}`, "-o", "fit-to-page"],
+  ["-o", "fit-to-page"],
+  [],
 ];
 
 const LABEL_LP_OPTS = [
@@ -178,7 +188,23 @@ async function printPdfViaCups(
   return false;
 }
 
-/** Макеты 4×6 landscape. TSPL первым — чёткий 1-bit на TSC без мыла CUPS. */
+async function tryPrintTspl(
+  printer: string,
+  pdfPath: string,
+  workDir: string,
+  stamp: string,
+): Promise<boolean> {
+  if (!isTscTsplPrinter(printer)) return false;
+  try {
+    await printTsplLabel(printer, pdfPath, workDir, stamp);
+    await sleep(POST_SPOOL_MS);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Макеты 4×6 landscape. TSPL только на TSC; иначе CUPS (SATO и др.). */
 export async function printPdfLabel4x6(
   printer: string,
   pdf: Buffer,
@@ -189,14 +215,7 @@ export async function printPdfLabel4x6(
   const pdfPath = path.join(workDir, `label-${stamp}.pdf`);
   await writeFile(pdfPath, pdf);
 
-  try {
-    await printTsplLabel(printer, pdfPath, workDir, stamp);
-    await sleep(POST_SPOOL_MS);
-    return "tspl";
-  } catch {
-    // fallback CUPS
-  }
-
+  if (await tryPrintTspl(printer, pdfPath, workDir, stamp)) return "tspl";
   if (await printPdfViaCups(printer, pdfPath, LABEL_LP_4X6_LANDSCAPE)) return "pdf";
   throw new Error("Не удалось напечатать этикетку 4×6");
 }
@@ -212,15 +231,7 @@ export async function printPdfLabelPortrait4x6(
   const pdfPath = path.join(workDir, `label-${stamp}.pdf`);
   await writeFile(pdfPath, pdf);
 
-  // TSPL сначала — размер PDF уже = этикетка, без лишних полей CUPS
-  try {
-    await printTsplLabel(printer, pdfPath, workDir, stamp);
-    await sleep(POST_SPOOL_MS);
-    return "tspl";
-  } catch {
-    // fallback CUPS
-  }
-
+  if (await tryPrintTspl(printer, pdfPath, workDir, stamp)) return "tspl";
   if (await printPdfViaCups(printer, pdfPath, LABEL_LP_4X6_PORTRAIT)) return "pdf";
   throw new Error("Не удалось напечатать этикетку трека");
 }
@@ -240,12 +251,14 @@ export async function printPdfLabel(
 
   let lastError: Error | null = null;
 
-  try {
-    await printTsplLabel(printer, pdfPath, workDir, stamp);
-    await sleep(POST_SPOOL_MS);
-    return "tspl";
-  } catch (error) {
-    lastError = error instanceof Error ? error : new Error("tspl failed");
+  if (isTscTsplPrinter(printer)) {
+    try {
+      await printTsplLabel(printer, pdfPath, workDir, stamp);
+      await sleep(POST_SPOOL_MS);
+      return "tspl";
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error("tspl failed");
+    }
   }
 
   for (const opts of LABEL_LP_OPTS) {
