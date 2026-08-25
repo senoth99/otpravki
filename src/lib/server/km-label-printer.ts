@@ -36,6 +36,8 @@ async function resolveKmPrinter(requested?: string | null): Promise<string | nul
 export async function printKmLabel(km: {
   cis: string;
   gtin?: string;
+  productName?: string;
+  brandId?: string;
   title?: string;
   printer?: string | null;
 }): Promise<{ ok: boolean; printer?: string | null; format?: string; error?: string }> {
@@ -47,11 +49,21 @@ export async function printKmLabel(km: {
   await mkdir(PRINT_DIR, { recursive: true });
   const stamp = `km-${Date.now()}`;
 
+  const brandId =
+    km.brandId === "casher" ||
+    km.brandId === "ammo" ||
+    km.brandId === "kurazh" ||
+    km.brandId === "shecash"
+      ? km.brandId
+      : undefined;
+
   if (isSatoPrinter(printer) || !isTscTsplPrinter(printer)) {
     try {
       const pdf = await buildKmLabelPdf({
         cis: km.cis,
         gtin: km.gtin,
+        productName: km.productName,
+        brandId,
         title: km.title,
       });
       const format = await printPdfSato60x55(printer, pdf, PRINT_DIR, stamp);
@@ -64,7 +76,6 @@ export async function printKmLabel(km: {
           error: error instanceof Error ? error.message : "Ошибка печати PDF на SATO",
         };
       }
-      // не SATO и не TSC — пробуем raw ниже
     }
   }
 

@@ -17,6 +17,7 @@ import { upsertGtinProduct } from "@/lib/server/chestny-znak-gtin-catalog";
 import { invalidateChestnyZnakRemainingCache } from "@/lib/server/chestny-znak-remaining";
 import { isChestnyZnakPackingEnabled } from "@/lib/server/chestny-znak-settings";
 import { printKmLabel } from "@/lib/server/km-label-printer";
+import { boxLabelBrandIdFromStoreBrand } from "@/lib/box-label-brands";
 
 function isFreeMatch(row: KmRecord, gtin: string, used: Set<string>, requireGtin: boolean) {
   if (!row.cis || used.has(row.cis)) return false;
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
     productId?: string;
     productName?: string;
     size?: string;
+    storeBrand?: string;
   };
 
   const gtin = toGtin14(body.gtin ?? "");
@@ -104,7 +106,12 @@ export async function POST(request: Request) {
     claimedCis = km.cis;
     invalidateChestnyZnakRemainingCache();
 
-    const printed = await printKmLabel({ cis: km.cis, gtin: km.gtin ?? gtin });
+    const printed = await printKmLabel({
+      cis: km.cis,
+      gtin: km.gtin ?? gtin,
+      productName: body.productName,
+      brandId: boxLabelBrandIdFromStoreBrand(body.storeBrand) ?? undefined,
+    });
     if (!printed.ok) {
       await releaseCis(km.cis);
       claimedCis = null;

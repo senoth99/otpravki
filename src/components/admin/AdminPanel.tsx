@@ -406,7 +406,7 @@ export function AdminPanel() {
                     Тест печати честного знака
                   </span>
                   <span className="mt-0.5 block text-sm text-gray-500">
-                    Data Matrix 60×55 → WS408 (сэмпл КМ)
+                    Лого · Data Matrix · название и поля КМ · 60×55 → WS408
                   </span>
                 </span>
                 <span className="text-sm text-emerald-700">Печать</span>
