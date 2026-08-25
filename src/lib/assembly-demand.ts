@@ -7,7 +7,8 @@ import type { AssemblyProgressEntry } from "@/types/assembly-progress";
 import type { AssemblyItem, ShippingOrder, ShippingOrderItem } from "@/types/shipping";
 
 export function assemblyItemKey(productId: string, sizeId: number, isBlogger = false): string {
-  const base = `${productId}-${sizeId}`;
+  const sid = typeof sizeId === "number" && Number.isFinite(sizeId) ? sizeId : 0;
+  const base = `${productId}-${sid}`;
   return isBlogger ? `${base}-blogger` : base;
 }
 
@@ -37,16 +38,14 @@ function enrichAssemblyItems(items: AssemblyItem[], orders: ShippingOrder[]): As
 
   return items
     .map((item) => {
-      const key = itemPoolKey(item);
-      const needed = demand.get(key) ?? 0;
       const collected = Math.max(0, item.collectedCount ?? 0);
-      // Спрос мог обнулиться (частичный заказ вычли из demand) — собранное
-      // всё равно держим в «Собрано», пока заказ не отправят / прогресс не снимут.
-      if (needed <= 0) {
-        if (collected <= 0) return null;
-        if (item.quantity === collected) return item;
-        return { ...item, quantity: collected };
-      }
+      if (item.quantity <= 0 && collected <= 0) return null;
+
+      const needed = demand.get(itemPoolKey(item));
+      // Нет ключа в спросе — не прячем строку (рассинхрон sizeId / частичный заказ).
+      // Иначе «собрал штаны → пропала майка с того же заказа».
+      if (needed === undefined) return item;
+      if (needed <= 0) return item;
       if (item.quantity === needed) return item;
       return { ...item, quantity: needed };
     })

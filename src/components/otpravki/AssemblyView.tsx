@@ -98,6 +98,8 @@ export function AssemblyView({
   const [scanError, setScanError] = useState<string | null>(null);
   const [visiblePendingCount, setVisiblePendingCount] = useState(PAGE_SIZE);
   const [visibleCompletedCount, setVisibleCompletedCount] = useState(PAGE_SIZE);
+  /** Мгновенный UI на «Взял» — не ждём пересчёт родителя. */
+  const [localCounts, setLocalCounts] = useState<Map<string, number>>(() => new Map());
   const totalStepsRef = useRef(0);
   const findProductKey = findProductIds.join("|");
   const totals = useMemo(
@@ -113,27 +115,53 @@ export function AssemblyView({
     setVisibleCompletedCount(PAGE_SIZE);
   }, [sections.pending.length, sections.completed.length, findProductKey]);
 
+  useEffect(() => {
+    setLocalCounts((prev) => {
+      if (prev.size === 0) return prev;
+      let changed = false;
+      const next = new Map(prev);
+      for (const [id, count] of prev) {
+        const item = allItemsById.get(id);
+        if (!item || item.collectedCount === count) {
+          next.delete(id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [allItemsById]);
+
+  const withLocalCount = useCallback(
+    (item: AssemblyItem): AssemblyItem => {
+      const local = localCounts.get(item.id);
+      if (local === undefined || local === item.collectedCount) return item;
+      return { ...item, collectedCount: local };
+    },
+    [localCounts],
+  );
+
   const route = useMemo(() => {
     if (!autoMode) return [];
     return planAssemblyRoute(allItems, orders, warehouseMap);
   }, [autoMode, allItems, orders, warehouseMap]);
 
   const pendingVisible = useMemo(
-    () => sections.pending.slice(0, visiblePendingCount),
-    [sections.pending, visiblePendingCount],
+    () => sections.pending.slice(0, visiblePendingCount).map(withLocalCount),
+    [sections.pending, visiblePendingCount, withLocalCount],
   );
   const completedVisible = useMemo(
-    () => sections.completed.slice(0, visibleCompletedCount),
-    [sections.completed, visibleCompletedCount],
+    () => sections.completed.slice(0, visibleCompletedCount).map(withLocalCount),
+    [sections.completed, visibleCompletedCount, withLocalCount],
   );
   const hasMorePending = sections.pending.length > visiblePendingCount;
   const hasMoreCompleted = sections.completed.length > visibleCompletedCount;
 
   const currentRouteItem = route[0];
-  const currentItem = currentRouteItem
+  const currentItemRaw = currentRouteItem
     ? (displayItemsById.get(currentRouteItem.id) ??
       itemFromMap(allItemsById, currentRouteItem.id))
     : undefined;
+  const currentItem = currentItemRaw ? withLocalCount(currentItemRaw) : undefined;
   allItemsByIdRef.current = allItemsById;
   displayItemsByIdRef.current = displayItemsById;
   currentItemRef.current = currentItem;
@@ -208,6 +236,11 @@ export function AssemblyView({
   const setCollectedCount = useCallback(
     (targetId: string, nextCount: number) => {
       const clamped = Math.max(0, nextCount);
+      setLocalCounts((prev) => {
+        const next = new Map(prev);
+        next.set(targetId, clamped);
+        return next;
+      });
       onItemCollectChange(
         targetId,
         clamped,
@@ -273,9 +306,11 @@ export function AssemblyView({
 
   const applyCollect = useCallback(
     (targetId: string) => {
-      const visible =
+      const raw =
         displayItemsByIdRef.current.get(targetId) ?? allItemsByIdRef.current.get(targetId);
-      if (!visible || visible.collectedCount >= visible.quantity) return false;
+      if (!raw) return false;
+      const visible = withLocalCount(raw);
+      if (visible.collectedCount >= visible.quantity) return false;
 
       const willComplete = visible.collectedCount + 1 >= visible.quantity;
       const isCurrent = autoMode && currentItemRef.current?.id === targetId;
@@ -310,6 +345,7 @@ export function AssemblyView({
       setCollectedCount,
       advanceRoute,
       exitAutoMode,
+      withLocalCount,
     ],
   );
 

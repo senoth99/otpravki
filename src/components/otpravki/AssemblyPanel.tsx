@@ -300,9 +300,23 @@ export function AssemblyPanel({
     return brandAsm;
   }, [assemblyItems, selectedBrand, filters, filteredOrders]);
 
+  // Тяжёлый enrich+sort — только когда сменился состав позиций, НЕ на каждый «Взял».
+  const assemblySectionsBase = useMemo(
+    () => getAssemblyViewSections(filteredAssemblyBase, brandOrders, false, undefined, brandOrders),
+    [filteredAssemblyBase, brandOrders],
+  );
+
   const filteredAssemblyItems = useMemo(
     () => applyProgressToItems(filteredAssemblyBase, progress),
     [filteredAssemblyBase, progress],
+  );
+
+  const assemblySections = useMemo(
+    () => ({
+      pending: applyProgressToItems(assemblySectionsBase.pending, progress),
+      completed: applyProgressToItems(assemblySectionsBase.completed, progress),
+    }),
+    [assemblySectionsBase, progress],
   );
 
   const handleFindProduct = useCallback(
@@ -339,18 +353,13 @@ export function AssemblyPanel({
       if (pushTimerRef.current !== undefined) {
         window.clearTimeout(pushTimerRef.current);
       }
+      // Чуть дольше батчим тапы — UI уже обновлён локально.
       pushTimerRef.current = window.setTimeout(() => {
         pushTimerRef.current = undefined;
         flushProgressPatch();
-      }, 120);
+      }, 280);
     },
     [noteInteraction, flushProgressPatch],
-  );
-
-  // Карточки остаются на месте (settled=false) — «Взял» не роняет вниз в «Собрано».
-  const assemblySections = useMemo(
-    () => getAssemblyViewSections(filteredAssemblyItems, filteredOrders, false, undefined, brandOrders),
-    [filteredAssemblyItems, filteredOrders, brandOrders],
   );
 
   const brandOptions = useMemo(
