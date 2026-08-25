@@ -26,7 +26,6 @@ function previewLabel(text: string): string {
 export function GiftNoteModal({ open, onClose }: GiftNoteModalProps) {
   const [text, setText] = useState("");
   const [imageId, setImageId] = useState<string | null>("money");
-  const [copies, setCopies] = useState(1);
   const [savedTexts, setSavedTexts] = useState<SavedGiftNoteText[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
@@ -111,20 +110,19 @@ export function GiftNoteModal({ open, onClose }: GiftNoteModalProps) {
         cache: "no-store",
         credentials: "same-origin",
         headers: { ...mutatingApiHeaders(), Accept: "application/json" },
-        body: JSON.stringify({ text, imageId, layout, copies }),
+        body: JSON.stringify({ text, imageId, layout, copies: 1 }),
       });
       const data = (await res.json()) as {
         ok?: boolean;
         message?: string;
         printer?: string;
-        copies?: number;
       };
       if (!res.ok || !data.ok) {
         throw new Error(data.message ?? "Не удалось напечатать");
       }
       setMessage({
         ok: true,
-        text: `Напечатано ${data.copies ?? copies} шт. → ${data.printer ?? "принтер"}`,
+        text: `Отправлено на ${data.printer ?? "принтер"}`,
       });
     } catch (err) {
       setMessage({
@@ -285,31 +283,10 @@ export function GiftNoteModal({ open, onClose }: GiftNoteModalProps) {
         </div>
 
         <footer className="flex shrink-0 items-center gap-2 border-t border-gray-100 px-3 py-2.5 sm:px-5">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-              Копий
-            </span>
-            <div className="flex items-center gap-0.5">
-              {[1, 2, 3].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setCopies(n)}
-                  className={`flex h-10 w-9 items-center justify-center rounded-lg border text-sm font-semibold ${
-                    copies === n
-                      ? "border-gray-900 bg-gray-900 text-white"
-                      : "border-gray-200 bg-white text-gray-800"
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-          </div>
           <button
             type="button"
             onClick={onClose}
-            className="h-10 rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-800"
+            className="h-10 flex-1 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-800"
           >
             Закрыть
           </button>
@@ -317,7 +294,7 @@ export function GiftNoteModal({ open, onClose }: GiftNoteModalProps) {
             type="button"
             disabled={busy}
             onClick={() => void printNote()}
-            className="h-10 min-w-0 flex-1 rounded-xl bg-gray-900 text-sm font-semibold text-white disabled:opacity-60"
+            className="h-10 min-w-0 flex-[1.4] rounded-xl bg-gray-900 text-sm font-semibold text-white disabled:opacity-60"
           >
             {busy ? "…" : "Печать"}
           </button>
