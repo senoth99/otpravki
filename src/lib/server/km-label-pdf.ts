@@ -15,11 +15,9 @@ export const KM_LABEL_HEIGHT_MM = 55;
 
 const PAGE_W = mmToPoints(KM_LABEL_WIDTH_MM);
 const PAGE_H = mmToPoints(KM_LABEL_HEIGHT_MM);
-/** Боковые поля. Верх/низ — с учётом клипа WS408. */
 const MX = mmToPoints(3);
-/** Чуть больше сверху — WS408 при раннем старте клипает лого. */
 const MT = mmToPoints(7);
-const MB = mmToPoints(2);
+const MB = mmToPoints(4);
 const BLACK = rgb(0, 0, 0);
 const WHITE = rgb(1, 1, 1);
 
@@ -206,11 +204,12 @@ async function prepareLogoPng(raw: Buffer): Promise<Buffer> {
 }
 
 /**
- * Плотная одежда / 60×55 / 203 dpi — без пустот, лого не у края:
- *  [лого по центру]
+ * Одежда / 60×55 / 203 dpi — блок по центру, без плашек:
+ *  лого
  *  название
- *  [ DM ]  GTIN / S/N   ← заполняет середину
- *  [===== размер =====] ← полоса внизу
+ *  р-р L
+ *  Data Matrix
+ *  GTIN / S/N
  */
 export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
   const cis = input.cis.trim();
@@ -249,110 +248,132 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
   }
 
   const contentW = PAGE_W - MX * 2;
-  // Прямоугольник размера по центру внизу (не тонкая линия на всю ширину)
-  const sizeBadgeH = mmToPoints(11);
-  const sizeBadgeW = mmToPoints(28);
-  const sizeBadgeX = (PAGE_W - sizeBadgeW) / 2;
-  const sizeBadgeY = MB + mmToPoints(1);
-  const contentBottom = sizeBadgeY + sizeBadgeH + mmToPoints(2);
-  let y = PAGE_H - MT;
-
-  // --- Лого по центру ---
-  const logoMaxW = mmToPoints(32);
+  const logoMaxW = mmToPoints(30);
   const logoMaxH = mmToPoints(6);
+  const nameSize = 8.5;
+  const nameLH = nameSize * 1.12;
+  const sizeLine = `р-р ${sizeLabel}`;
+  const sizeSz = fitFontSize(bold, sizeLine, contentW, 12, 8);
+  const metaLabelSz = 6.5;
+  const metaValueSz = 8;
+  const gap = mmToPoints(1.6);
+
+  const nameLines = wrapWords(bold, productName, nameSize, contentW).slice(0, 2);
+
+  let logoW = 0;
+  let logoH = 0;
+  let brandSz = 10;
   if (logo) {
     const scale = Math.min(logoMaxW / logo.width, logoMaxH / logo.height, contentW / logo.width);
-    const lw = logo.width * scale;
-    const lh = logo.height * scale;
-    page.drawImage(logo, {
-      x: (PAGE_W - lw) / 2,
-      y: y - lh,
-      width: lw,
-      height: lh,
-    });
-    y -= lh + mmToPoints(2);
+    logoW = logo.width * scale;
+    logoH = logo.height * scale;
   } else {
-    const brandSz = fitFontSize(bold, brandLabel, contentW, 11, 8);
+    brandSz = fitFontSize(bold, brandLabel, contentW, 10, 7);
+    logoH = brandSz;
+  }
+
+  const dmTarget = mmToPoints(22);
+  const dmScale = Math.min(dmTarget / dm.width, dmTarget / dm.height);
+  const dmW = dm.width * dmScale;
+  const dmH = dm.height * dmScale;
+
+  const metaBlockH =
+    (fields.gtin ? metaLabelSz + 1.2 + metaValueSz + gap : 0) +
+    (fields.serial ? metaLabelSz + 1.2 + metaValueSz : 0);
+
+  const blockH =
+    logoH +
+    gap +
+    nameLines.length * nameLH +
+    gap +
+    sizeSz +
+    gap +
+    dmH +
+    gap +
+    metaBlockH;
+
+  const usableTop = PAGE_H - MT;
+  const usableBottom = MB;
+  let y = usableBottom + (usableTop - usableBottom + blockH) / 2;
+  if (y > usableTop) y = usableTop;
+  if (y - blockH < usableBottom) y = usableBottom + blockH;
+
+  const cx = (text: string, size: number, font: PDFFont) =>
+    (PAGE_W - font.widthOfTextAtSize(text, size)) / 2;
+
+  if (logo) {
+    page.drawImage(logo, {
+      x: (PAGE_W - logoW) / 2,
+      y: y - logoH,
+      width: logoW,
+      height: logoH,
+    });
+  } else {
     page.drawText(brandLabel, {
-      x: (PAGE_W - bold.widthOfTextAtSize(brandLabel, brandSz)) / 2,
+      x: cx(brandLabel, brandSz, bold),
       y: y - brandSz,
       size: brandSz,
       font: bold,
       color: BLACK,
     });
-    y -= brandSz + mmToPoints(2);
   }
+  y -= logoH + gap;
 
-  // --- Название ---
-  const nameSize = 9;
-  const nameLH = nameSize * 1.12;
-  const nameLines = wrapWords(bold, productName, nameSize, contentW).slice(0, 2);
   for (const line of nameLines) {
-    page.drawText(line, { x: MX, y: y - nameSize, size: nameSize, font: bold, color: BLACK });
-    y -= nameLH;
-  }
-  y -= mmToPoints(2);
-
-  // --- DM + GTIN/S/N: растянуть на оставшуюся высоту ---
-  const availH = Math.max(mmToPoints(18), y - contentBottom);
-  const dmTarget = Math.min(mmToPoints(26), availH, contentW * 0.5);
-  const dmScale = Math.min(dmTarget / dm.width, dmTarget / dm.height);
-  const dmW = dm.width * dmScale;
-  const dmH = dm.height * dmScale;
-  const dmX = MX;
-  const dmY = y - dmH;
-  page.drawImage(dm, { x: dmX, y: Math.max(contentBottom, dmY), width: dmW, height: dmH });
-
-  const metaX = dmX + dmW + mmToPoints(2.5);
-  const metaW = PAGE_W - MX - metaX;
-  const labelSz = 7;
-  const valueSz = 9;
-  let metaY = y;
-
-  const drawMeta = (label: string, value: string) => {
-    if (!value || metaY - labelSz < contentBottom) return;
-    page.drawText(label, {
-      x: metaX,
-      y: metaY - labelSz,
-      size: labelSz,
+    page.drawText(line, {
+      x: cx(line, nameSize, bold),
+      y: y - nameSize,
+      size: nameSize,
       font: bold,
       color: BLACK,
     });
-    metaY -= labelSz + 2;
-    for (const line of wrapLine(mono, value, valueSz, metaW).slice(0, 2)) {
-      if (metaY - valueSz < contentBottom) break;
+    y -= nameLH;
+  }
+  y -= gap;
+
+  // Размер текстом, без плашки: «р-р L»
+  page.drawText(sizeLine, {
+    x: cx(sizeLine, sizeSz, bold),
+    y: y - sizeSz,
+    size: sizeSz,
+    font: bold,
+    color: BLACK,
+  });
+  y -= sizeSz + gap;
+
+  page.drawImage(dm, {
+    x: (PAGE_W - dmW) / 2,
+    y: y - dmH,
+    width: dmW,
+    height: dmH,
+  });
+  y -= dmH + gap;
+
+  const drawMetaCentered = (label: string, value: string) => {
+    if (!value) return;
+    page.drawText(label, {
+      x: cx(label, metaLabelSz, bold),
+      y: y - metaLabelSz,
+      size: metaLabelSz,
+      font: bold,
+      color: BLACK,
+    });
+    y -= metaLabelSz + 1.2;
+    for (const line of wrapLine(mono, value, metaValueSz, contentW).slice(0, 2)) {
       page.drawText(line, {
-        x: metaX,
-        y: metaY - valueSz,
-        size: valueSz,
+        x: cx(line, metaValueSz, mono),
+        y: y - metaValueSz,
+        size: metaValueSz,
         font: mono,
         color: BLACK,
       });
-      metaY -= valueSz * 1.15;
+      y -= metaValueSz * 1.12;
     }
-    metaY -= mmToPoints(1.5);
+    y -= gap;
   };
 
-  drawMeta("GTIN", fields.gtin);
-  drawMeta("S/N", fields.serial);
-
-  // --- Размер: прямоугольник по центру, литера по центру внутри ---
-  page.drawRectangle({
-    x: sizeBadgeX,
-    y: sizeBadgeY,
-    width: sizeBadgeW,
-    height: sizeBadgeH,
-    color: BLACK,
-  });
-  const sizeLetterSz = fitFontSize(bold, sizeLabel, sizeBadgeW - mmToPoints(3), 18, 10);
-  const sizeAscent = bold.heightAtSize(sizeLetterSz, { descender: false });
-  page.drawText(sizeLabel, {
-    x: sizeBadgeX + (sizeBadgeW - bold.widthOfTextAtSize(sizeLabel, sizeLetterSz)) / 2,
-    y: sizeBadgeY + (sizeBadgeH - sizeAscent) / 2,
-    size: sizeLetterSz,
-    font: bold,
-    color: WHITE,
-  });
+  drawMetaCentered("GTIN", fields.gtin);
+  drawMetaCentered("S/N", fields.serial);
 
   return Buffer.from(await pdf.save());
 }
