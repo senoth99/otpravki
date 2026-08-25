@@ -10,7 +10,7 @@ import {
   labelWidthPoints,
   labelWidthPx,
 } from "@/lib/label-media";
-import { isTscTsplPrinter } from "@/lib/server/printer-kind";
+import { isSatoPrinter, isTscTsplPrinter } from "@/lib/server/printer-kind";
 import { printTsplLabel } from "@/lib/server/tspl-label-printer";
 
 const execFileAsync = promisify(execFile);
@@ -119,6 +119,25 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** SATO WS408: 4×6, direct thermal, gap, tear-off. */
+const LABEL_LP_SATO_4X6 = [
+  [
+    "-o",
+    "PageSize=w288h432",
+    "-o",
+    "MediaType=1",
+    "-o",
+    "saLabelType=1",
+    "-o",
+    "saOperationMode=1",
+    "-o",
+    "fit-to-page",
+  ],
+  ["-o", "PageSize=w288h432", "-o", "fit-to-page"],
+  ["-o", "fit-to-page"],
+  [],
+];
+
 /** TSC TE300: 4×6, без полей, вписать по ширине, альбом. */
 const LABEL_LP_4X6_LANDSCAPE = [
   [
@@ -135,9 +154,7 @@ const LABEL_LP_4X6_LANDSCAPE = [
   ],
   ["-o", "media=w4h6", "-o", "orientation-requested=4", "-o", "fit-to-page", "-o", "Resolution=300dpi"],
   ["-o", "PageSize=w4h6", "-o", "fit-to-page", "-o", "Resolution=300dpi"],
-  // SATO WS408 и generic CUPS
   ["-o", "PageSize=w288h432", "-o", "fit-to-page"],
-  ["-o", "PageSize=w288h360", "-o", "fit-to-page"],
   ["-o", `media=${labelMediaOption()}`, "-o", "fit-to-page"],
   ["-o", "fit-to-page"],
   [],
@@ -170,6 +187,11 @@ const LABEL_LP_OPTS = [
 ];
 
 export type LabelPrintFormat = "tspl" | "pdf" | "png";
+
+function cupsOptionSetsForPrinter(printer: string, landscape: boolean): string[][] {
+  if (isSatoPrinter(printer)) return LABEL_LP_SATO_4X6;
+  return landscape ? LABEL_LP_4X6_LANDSCAPE : LABEL_LP_4X6_PORTRAIT;
+}
 
 async function printPdfViaCups(
   printer: string,
@@ -216,7 +238,9 @@ export async function printPdfLabel4x6(
   await writeFile(pdfPath, pdf);
 
   if (await tryPrintTspl(printer, pdfPath, workDir, stamp)) return "tspl";
-  if (await printPdfViaCups(printer, pdfPath, LABEL_LP_4X6_LANDSCAPE)) return "pdf";
+  if (await printPdfViaCups(printer, pdfPath, cupsOptionSetsForPrinter(printer, true))) {
+    return "pdf";
+  }
   throw new Error("Не удалось напечатать этикетку 4×6");
 }
 
@@ -232,7 +256,9 @@ export async function printPdfLabelPortrait4x6(
   await writeFile(pdfPath, pdf);
 
   if (await tryPrintTspl(printer, pdfPath, workDir, stamp)) return "tspl";
-  if (await printPdfViaCups(printer, pdfPath, LABEL_LP_4X6_PORTRAIT)) return "pdf";
+  if (await printPdfViaCups(printer, pdfPath, cupsOptionSetsForPrinter(printer, false))) {
+    return "pdf";
+  }
   throw new Error("Не удалось напечатать этикетку трека");
 }
 
@@ -261,7 +287,9 @@ export async function printPdfLabel(
     }
   }
 
-  for (const opts of LABEL_LP_OPTS) {
+  const cupsOpts = isSatoPrinter(printer) ? LABEL_LP_SATO_4X6 : LABEL_LP_OPTS;
+
+  for (const opts of cupsOpts) {
     try {
       await runLp(printer, pdfPath, opts);
       await sleep(POST_SPOOL_MS);
@@ -273,7 +301,7 @@ export async function printPdfLabel(
 
   try {
     await renderPdfToPng(pdfPath, pngPath);
-    for (const opts of LABEL_LP_OPTS) {
+    for (const opts of cupsOpts) {
       try {
         await runLp(printer, pngPath, opts);
         await sleep(POST_SPOOL_MS);

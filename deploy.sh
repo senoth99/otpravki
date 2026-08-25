@@ -68,10 +68,14 @@ reset_mock_workspace
 
 if ! command -v lp &>/dev/null; then
   echo "==> Устанавливаю CUPS для печати..."
-  as_root apt-get install -y cups cups-client poppler-utils ghostscript imagemagick
+  as_root apt-get install -y cups cups-client libcupsimage2 poppler-utils ghostscript imagemagick
 elif ! command -v pdftoppm &>/dev/null || ! command -v gs &>/dev/null; then
   echo "==> Устанавливаю утилиты для PDF-этикеток..."
   as_root apt-get install -y poppler-utils ghostscript imagemagick
+fi
+# SATO rastertosbpl нужен libcupsimage.so.2
+if ! ldconfig -p 2>/dev/null | grep -q 'libcupsimage\.so\.2'; then
+  as_root apt-get install -y libcupsimage2
 fi
 as_root systemctl enable cups 2>/dev/null || true
 as_root systemctl start cups 2>/dev/null || true
