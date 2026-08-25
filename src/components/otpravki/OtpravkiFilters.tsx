@@ -707,6 +707,7 @@ export function OtpravkiMobileFilters({
   collapsible = false,
   defaultExpanded = true,
   showFromAssembly = true,
+  showInStock = true,
 }: {
   filters: OtpravkiFiltersState;
   onChange: (next: OtpravkiFiltersState) => void;
@@ -722,6 +723,7 @@ export function OtpravkiMobileFilters({
   collapsible?: boolean;
   defaultExpanded?: boolean;
   showFromAssembly?: boolean;
+  showInStock?: boolean;
 }) {
   const [productsOpen, setProductsOpen] = useState(false);
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -763,17 +765,21 @@ export function OtpravkiMobileFilters({
     </FilterSection>
   ) : (
     <>
-      <FilterSection title="Наличие">
-        <div className="space-y-2">
-          <InStockToggle value={filters.inStock} onChange={(next) => set("inStock", next)} />
-          {showFromAssembly ? (
-            <FromAssemblyToggle
-              value={filters.fromAssembly}
-              onChange={(next) => set("fromAssembly", next)}
-            />
-          ) : null}
-        </div>
-      </FilterSection>
+      {(showInStock || showFromAssembly) && (
+        <FilterSection title="Наличие">
+          <div className="space-y-2">
+            {showInStock ? (
+              <InStockToggle value={filters.inStock} onChange={(next) => set("inStock", next)} />
+            ) : null}
+            {showFromAssembly ? (
+              <FromAssemblyToggle
+                value={filters.fromAssembly}
+                onChange={(next) => set("fromAssembly", next)}
+              />
+            ) : null}
+          </div>
+        </FilterSection>
+      )}
 
       <FilterSection title="Поиск">
         <KeyboardField

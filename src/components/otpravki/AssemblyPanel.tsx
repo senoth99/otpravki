@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
@@ -15,7 +15,6 @@ import {
   type AssemblyProgressState,
 } from "@/lib/assembly-progress";
 import { getAssemblyViewSections } from "@/lib/assembly-demand";
-import { partiallyCollectedOrderIdsFromProgress } from "@/lib/assembly-status";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import {
   ALL_BRANDS,
@@ -64,9 +63,13 @@ export function AssemblyPanel({
   syncImmediately = false,
 }: AssemblyPanelProps) {
   const [selectedBrand, setSelectedBrand] = useState<string>(ALL_BRANDS);
-  const [filters, setFilters] = useState<OtpravkiFiltersState>(DEFAULT_FILTERS);
+  // Сборка: не режем «только в наличии» — иначе пропадают SKU из неготовых заказов (майка и т.п.).
+  const [filters, setFilters] = useState<OtpravkiFiltersState>({
+    ...DEFAULT_FILTERS,
+    inStock: false,
+    fromAssembly: false,
+  });
   const [reloading, setReloading] = useState(false);
-  const [filterPending, startFilterTransition] = useTransition();
   const [progress, setProgress] = useState<AssemblyProgressState | null>(null);
   const [resetCollectedBusy, setResetCollectedBusy] = useState(false);
   const [warehouseMap, setWarehouseMap] = useState<WarehouseMapConfig | undefined>(warehouseMapProp);
@@ -246,13 +249,14 @@ export function AssemblyPanel({
   );
 
   const filteredOrders = useMemo(
-    () => applyOrderFilters(brandOrders, { ...filters, scan: "all" }),
+    () =>
+      applyOrderFilters(brandOrders, {
+        ...filters,
+        scan: "all",
+        inStock: false,
+        fromAssembly: false,
+      }),
     [brandOrders, filters],
-  );
-
-  const partialOrderIds = useMemo(
-    () => partiallyCollectedOrderIdsFromProgress(orders, assemblyItems, progress),
-    [orders, assemblyItems, progress],
   );
 
   const filteredAssemblyBase = useMemo(() => {
@@ -306,14 +310,12 @@ export function AssemblyPanel({
       const id = productId.trim();
       if (!id) return;
       noteInteraction();
-      startFilterTransition(() => {
-        setFilters((prev) => {
-          const onlyThis = prev.productIds.length === 1 && prev.productIds[0] === id;
-          return {
-            ...prev,
-            productIds: onlyThis ? [] : [id],
-          };
-        });
+      setFilters((prev) => {
+        const onlyThis = prev.productIds.length === 1 && prev.productIds[0] === id;
+        return {
+          ...prev,
+          productIds: onlyThis ? [] : [id],
+        };
       });
     },
     [noteInteraction],
@@ -340,22 +342,16 @@ export function AssemblyPanel({
       pushTimerRef.current = window.setTimeout(() => {
         pushTimerRef.current = undefined;
         flushProgressPatch();
-      }, 50);
+      }, 120);
     },
     [noteInteraction, flushProgressPatch],
   );
 
-  const assemblySections = useMemo(() => {
-    const withoutPartial = (list: ShippingOrder[]) =>
-      list.filter((order) => !partialOrderIds.has(order.id));
-    return getAssemblyViewSections(
-      filteredAssemblyItems,
-      withoutPartial(filteredOrders),
-      true,
-      undefined,
-      withoutPartial(brandOrders),
-    );
-  }, [filteredAssemblyItems, filteredOrders, brandOrders, partialOrderIds]);
+  // Карточки остаются на месте (settled=false) — «Взял» не роняет вниз в «Собрано».
+  const assemblySections = useMemo(
+    () => getAssemblyViewSections(filteredAssemblyItems, filteredOrders, false, undefined, brandOrders),
+    [filteredAssemblyItems, filteredOrders, brandOrders],
+  );
 
   const brandOptions = useMemo(
     () =>
@@ -370,11 +366,28 @@ export function AssemblyPanel({
   );
 
   const products = useMemo(() => {
-    const fromOrders = collectFilterProducts(brandOrders);
-    if (fromOrders.length > 0) return fromOrders;
-    return collectFilterProductsFromAssembly(
+    // Список «Вещи» = позиции сборки + строки заказов (майка не пропадает, если нет в ready).
+    const byId = new Map<string, ReturnType<typeof collectFilterProducts>[number]>();
+    for (const row of collectFilterProducts(brandOrders)) {
+      byId.set(row.productId, row);
+    }
+    for (const row of collectFilterProductsFromAssembly(
       assemblyItems.filter((item) => matchesStoreBrand(item.brand, selectedBrand)),
-    );
+    )) {
+      const prev = byId.get(row.productId);
+      if (!prev) {
+        byId.set(row.productId, row);
+        continue;
+      }
+      byId.set(row.productId, {
+        ...prev,
+        productName: prev.productName || row.productName,
+        imageUrl: prev.imageUrl || row.imageUrl,
+        quantity: Math.max(prev.quantity, row.quantity),
+        orderCount: Math.max(prev.orderCount, row.orderCount),
+      });
+    }
+    return [...byId.values()].sort((a, b) => a.productName.localeCompare(b.productName, "ru"));
   }, [brandOrders, assemblyItems, selectedBrand]);
 
   const offline = !isInternetOnline || !isServerReachable;
@@ -383,17 +396,17 @@ export function AssemblyPanel({
     const next = brand.trim();
     if (!next || next === selectedBrand) return;
     noteClientAction(`brand-filter:${next}`);
-    startFilterTransition(() => {
-      setSelectedBrand(next);
-      // «В наличии» оставляем как выбрал пользователь; остальное сбрасываем.
-      setFilters((prev) => ({ ...DEFAULT_FILTERS, inStock: prev.inStock }));
-    });
+    setSelectedBrand(next);
+    setFilters((prev) => ({
+      ...DEFAULT_FILTERS,
+      inStock: false,
+      fromAssembly: false,
+      // сохраняем выбранные вещи только если бренд тот же — при смене бренда сброс
+    }));
   };
 
   const handleFiltersChange = (next: OtpravkiFiltersState) => {
-    startFilterTransition(() => {
-      setFilters(next);
-    });
+    setFilters({ ...next, inStock: false, fromAssembly: false });
   };
 
   const canResetCollected = useMemo(
@@ -450,7 +463,7 @@ export function AssemblyPanel({
         offline={offline}
         offlineMessage={!isInternetOnline ? "Нет интернета" : "Сервер недоступен"}
       >
-        <div data-no-drag-scroll className={filterPending ? "opacity-60" : undefined}>
+        <div data-no-drag-scroll>
           <OtpravkiMobileFilters
             filters={filters}
             onChange={handleFiltersChange}
@@ -463,6 +476,7 @@ export function AssemblyPanel({
             collapsible
             defaultExpanded={false}
             showFromAssembly={false}
+            showInStock={false}
           />
         </div>
       </OtpravkiPageHeader>
