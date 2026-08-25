@@ -119,7 +119,7 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** SATO WS408: 4×6, direct thermal, gap, tear-off. */
+/** SATO WS408: те же баркодники 4×6″ (100×150), gap + tear-off + DT, как на TSC. */
 const LABEL_LP_SATO_4X6 = [
   [
     "-o",
@@ -131,7 +131,13 @@ const LABEL_LP_SATO_4X6 = [
     "-o",
     "saOperationMode=1",
     "-o",
+    "Darkness=4",
+    "-o",
+    "saPrintSpeed=4",
+    "-o",
     "fit-to-page",
+    "-o",
+    "print-color-mode=monochrome",
   ],
   ["-o", "PageSize=w288h432", "-o", "fit-to-page"],
   ["-o", "fit-to-page"],
