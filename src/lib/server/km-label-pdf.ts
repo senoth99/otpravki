@@ -5,7 +5,7 @@ import fontkit from "@pdf-lib/fontkit";
 import bwipjs from "bwip-js";
 import { PDFDocument, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import sharp from "sharp";
-import { type BoxLabelBrandId } from "@/lib/box-label-brands";
+import { getBoxLabelBrand, type BoxLabelBrandId } from "@/lib/box-label-brands";
 import { mmToPoints } from "@/lib/label-media";
 import { getBrandSiteLogo } from "@/lib/server/brand-site-logo";
 
@@ -15,26 +15,20 @@ export const KM_LABEL_HEIGHT_MM = 55;
 
 const PAGE_W = mmToPoints(KM_LABEL_WIDTH_MM);
 const PAGE_H = mmToPoints(KM_LABEL_HEIGHT_MM);
-/** Поля: сверху больше — WS408 часто срезает край. */
-const MARGIN_X = 5;
-const MARGIN_TOP = 9;
-const MARGIN_BOTTOM = 7;
+const MX = 5;
+const MT = 7;
+const MB = 5;
 const BLACK = rgb(0, 0, 0);
 const WHITE = rgb(1, 1, 1);
-
-/** Компактный DM — место под текст, без пустого низа. */
-const DM_MAX_MM = 15;
-/** Лого маленькое, чтобы не обрезалось. */
-const LOGO_MAX_H_MM = 3.5;
-const LOGO_MAX_W_RATIO = 0.4;
+const GRAY = rgb(0.25, 0.25, 0.25);
 
 export type KmLabelInput = {
   cis: string;
   gtin?: string;
-  /** Название вещи */
   productName?: string;
   brandId?: BoxLabelBrandId;
   title?: string;
+  size?: string;
 };
 
 type CisFields = {
@@ -42,6 +36,13 @@ type CisFields = {
   serial: string;
   key91: string;
   crypto92: string;
+};
+
+const SAMPLE_PRODUCTS: Record<BoxLabelBrandId, { name: string; size: string }> = {
+  casher: { name: "Футболка Oversize Black", size: "M" },
+  kurazh: { name: "Худи Classic Grey", size: "L" },
+  ammo: { name: "Кепка Logo Cap", size: "ONE" },
+  shecash: { name: "Сумка Mini Cross", size: "—" },
 };
 
 function labelsDirCandidates(): string[] {
@@ -83,14 +84,12 @@ function parseCisFields(cis: string, gtinFallback?: string): CisFields {
 function wrapLine(font: PDFFont, text: string, size: number, maxWidth: number): string[] {
   if (!text) return [];
   if (font.widthOfTextAtSize(text, size) <= maxWidth) return [text];
-
   const lines: string[] = [];
   let current = "";
   for (const ch of text) {
     const test = current + ch;
-    if (font.widthOfTextAtSize(test, size) <= maxWidth) {
-      current = test;
-    } else {
+    if (font.widthOfTextAtSize(test, size) <= maxWidth) current = test;
+    else {
       if (current) lines.push(current);
       current = ch;
     }
@@ -102,7 +101,6 @@ function wrapLine(font: PDFFont, text: string, size: number, maxWidth: number): 
 function wrapWords(font: PDFFont, text: string, size: number, maxWidth: number): string[] {
   if (!text.trim()) return [];
   if (font.widthOfTextAtSize(text, size) <= maxWidth) return [text];
-
   const words = text.split(/\s+/);
   const lines: string[] = [];
   let current = "";
@@ -113,9 +111,8 @@ function wrapWords(font: PDFFont, text: string, size: number, maxWidth: number):
       continue;
     }
     if (current) lines.push(current);
-    if (font.widthOfTextAtSize(word, size) <= maxWidth) {
-      current = word;
-    } else {
+    if (font.widthOfTextAtSize(word, size) <= maxWidth) current = word;
+    else {
       lines.push(...wrapLine(font, word, size, maxWidth));
       current = "";
     }
@@ -124,10 +121,11 @@ function wrapWords(font: PDFFont, text: string, size: number, maxWidth: number):
   return lines;
 }
 
-/** Сэмпл КМ для тест-печати (не из ЦРПТ). */
-export function buildSampleKmCis(): KmLabelInput {
+/** Сэмпл КМ для тест-печати под выбранный бренд. */
+export function buildSampleKmCis(brandId: BoxLabelBrandId = "casher"): KmLabelInput {
   const gtin = "04604341401012";
   const serial = `T${Date.now().toString(36).toUpperCase().slice(-10)}`;
+  const sample = SAMPLE_PRODUCTS[brandId] ?? SAMPLE_PRODUCTS.casher;
   const cis = [
     `01${gtin}`,
     `21${serial}`,
@@ -139,8 +137,9 @@ export function buildSampleKmCis(): KmLabelInput {
   return {
     cis,
     gtin,
-    productName: "Футболка Oversize Black / M",
-    brandId: "casher",
+    productName: sample.name,
+    size: sample.size,
+    brandId,
   };
 }
 
@@ -162,7 +161,7 @@ function toGs1ParenForm(cis: string): string | null {
 
 async function renderDataMatrixPng(cis: string): Promise<Buffer> {
   const opts = {
-    scale: 2,
+    scale: 3,
     includetext: false as const,
     paddingwidth: 0,
     paddingheight: 0,
@@ -192,7 +191,7 @@ async function prepareLogoPng(raw: Buffer): Promise<Buffer> {
     .toBuffer();
 }
 
-function drawLeftLines(
+function drawLines(
   page: PDFPage,
   font: PDFFont,
   lines: string[],
@@ -200,26 +199,41 @@ function drawLeftLines(
   lineHeight: number,
   x: number,
   topY: number,
+  color = BLACK,
 ): number {
   let y = topY;
   for (const line of lines) {
-    page.drawText(line, { x, y: y - size, size, font, color: BLACK });
+    page.drawText(line, { x, y: y - size, size, font, color });
     y -= lineHeight;
   }
   return y;
 }
 
+/**
+ * Макет 60×55:
+ *  [лого]                    ЧЗ
+ *  название вещи
+ *  ┌─────┐  GTIN / S/N / 91
+ *  │ DM  │  92…
+ *  └─────┘
+ *  ─────────────────────────
+ *  BRAND · size
+ */
 export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
   const cis = input.cis.trim();
   if (!cis) throw new Error("Пустой код маркировки");
 
   const fields = parseCisFields(cis, input.gtin);
-  const productName = input.productName?.trim() || input.title?.trim() || "Товар";
   const brandId = input.brandId ?? "casher";
+  const brand = getBoxLabelBrand(brandId);
+  const brandLabel = (brand?.label ?? brandId).toUpperCase();
+  const productName = input.productName?.trim() || input.title?.trim() || "Товар";
+  const sizeLabel = input.size?.trim() || "";
 
-  const [dmPng, monoBytes, logoEntry] = await Promise.all([
+  const [dmPng, monoBytes, boldBytes, logoEntry] = await Promise.all([
     renderDataMatrixPng(cis),
     readFile(resolveFont("DejaVuSansMono.ttf")),
+    readFile(resolveFont("DejaVuSans-Bold.ttf")),
     getBrandSiteLogo(brandId).catch(() => null),
   ]);
 
@@ -229,6 +243,7 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
   page.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: WHITE });
 
   const mono = await pdf.embedFont(monoBytes, { subset: true });
+  const bold = await pdf.embedFont(boldBytes, { subset: true });
   const dm = await pdf.embedPng(dmPng);
 
   let logo: PDFImage | null = null;
@@ -240,88 +255,130 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
     }
   }
 
-  const textWidth = PAGE_W - MARGIN_X * 2;
-  const gapLogoDm = 3;
-  const gapDmText = 3.5;
-  const gapNameMeta = 2;
+  const contentW = PAGE_W - MX * 2;
+  let y = PAGE_H - MT;
 
-  // Фиксированные компактные размеры — без «раздувания» DM в пустоту
-  let logoW = 0;
-  let logoH = 0;
+  // --- Шапка: лого слева + «ЧЗ» справа ---
+  const headerH = mmToPoints(5);
   if (logo) {
-    const logoMaxW = textWidth * LOGO_MAX_W_RATIO;
-    const logoMaxH = mmToPoints(LOGO_MAX_H_MM);
-    const scale = Math.min(logoMaxW / logo.width, logoMaxH / logo.height);
-    logoW = logo.width * scale;
-    logoH = logo.height * scale;
-  } else {
-    logoH = 7;
-  }
-
-  const dmMax = mmToPoints(DM_MAX_MM);
-  const dmScale = Math.min(dmMax / dm.width, dmMax / dm.height, (textWidth * 0.55) / dm.width);
-  const dmW = dm.width * dmScale;
-  const dmH = dm.height * dmScale;
-
-  const nameSize = 6.2;
-  const metaSize = 5.2;
-  const nameLines = wrapWords(mono, productName, nameSize, textWidth);
-  const metaLines: string[] = [];
-  if (fields.gtin) metaLines.push(...wrapLine(mono, `GTIN ${fields.gtin}`, metaSize, textWidth));
-  if (fields.serial) metaLines.push(...wrapLine(mono, `S/N  ${fields.serial}`, metaSize, textWidth));
-  if (fields.key91) metaLines.push(...wrapLine(mono, `91   ${fields.key91}`, metaSize, textWidth));
-  if (fields.crypto92) metaLines.push(...wrapLine(mono, `92   ${fields.crypto92}`, metaSize, textWidth));
-
-  const nameLH = nameSize * 1.2;
-  const metaLH = metaSize * 1.18;
-  const textH =
-    nameLines.length * nameLH +
-    (nameLines.length && metaLines.length ? gapNameMeta : 0) +
-    metaLines.length * metaLH;
-
-  const stackH = logoH + gapLogoDm + dmH + gapDmText + textH;
-  const safeTop = PAGE_H - MARGIN_TOP;
-  const safeBottom = MARGIN_BOTTOM;
-  const safeH = safeTop - safeBottom;
-
-  // Весь блок по центру безопасной зоны — лого не у края, низ не пустой
-  const stackTop = safeBottom + (safeH + stackH) / 2;
-  let cursorY = Math.min(safeTop, stackTop);
-
-  if (logo) {
-    cursorY -= logoH;
+    const scale = Math.min((contentW * 0.38) / logo.width, headerH / logo.height);
+    const lw = logo.width * scale;
+    const lh = logo.height * scale;
     page.drawImage(logo, {
-      x: (PAGE_W - logoW) / 2,
-      y: cursorY,
-      width: logoW,
-      height: logoH,
+      x: MX,
+      y: y - lh,
+      width: lw,
+      height: lh,
     });
   } else {
-    const brandLabel = brandId.toUpperCase();
-    const size = 6.5;
-    const tw = mono.widthOfTextAtSize(brandLabel, size);
-    cursorY -= size;
     page.drawText(brandLabel, {
-      x: (PAGE_W - tw) / 2,
-      y: cursorY,
-      size,
-      font: mono,
+      x: MX,
+      y: y - 7,
+      size: 7,
+      font: bold,
       color: BLACK,
     });
   }
+  const czMark = "ЧЗ";
+  const czSize = 7;
+  page.drawText(czMark, {
+    x: PAGE_W - MX - bold.widthOfTextAtSize(czMark, czSize),
+    y: y - czSize,
+    size: czSize,
+    font: bold,
+    color: BLACK,
+  });
+  y -= headerH + 2;
 
-  cursorY -= gapLogoDm + dmH;
-  page.drawImage(dm, {
-    x: (PAGE_W - dmW) / 2,
-    y: cursorY,
-    width: dmW,
-    height: dmH,
+  // тонкая линия под шапкой
+  page.drawRectangle({
+    x: MX,
+    y: y - 0.6,
+    width: contentW,
+    height: 0.6,
+    color: BLACK,
+  });
+  y -= 4;
+
+  // --- Название вещи на всю ширину ---
+  const nameSize = 6.5;
+  const nameLH = nameSize * 1.18;
+  const nameLines = wrapWords(mono, productName, nameSize, contentW).slice(0, 2);
+  y = drawLines(page, mono, nameLines, nameSize, nameLH, MX, y);
+  y -= 3;
+
+  // --- Ряд: крупный DM слева + поля справа (заполняет пустоту) ---
+  const rowBottom = MB + 14; // место под футер
+  const rowH = Math.max(40, y - rowBottom);
+  const dmTarget = Math.min(mmToPoints(22), rowH, contentW * 0.48);
+  const dmScale = Math.min(dmTarget / dm.width, dmTarget / dm.height);
+  const dmW = dm.width * dmScale;
+  const dmH = dm.height * dmScale;
+  const dmX = MX;
+  const dmY = y - dmH;
+  page.drawImage(dm, { x: dmX, y: dmY, width: dmW, height: dmH });
+
+  // Рамка вокруг кода — акцент «на видном месте»
+  page.drawRectangle({
+    x: dmX - 1.2,
+    y: dmY - 1.2,
+    width: dmW + 2.4,
+    height: dmH + 2.4,
+    borderColor: BLACK,
+    borderWidth: 0.7,
   });
 
-  cursorY -= gapDmText;
-  cursorY = drawLeftLines(page, mono, nameLines, nameSize, nameLH, MARGIN_X, cursorY);
-  if (nameLines.length && metaLines.length) cursorY -= gapNameMeta;
-  drawLeftLines(page, mono, metaLines, metaSize, metaLH, MARGIN_X, cursorY);
+  const metaX = dmX + dmW + 4;
+  const metaW = PAGE_W - MX - metaX;
+  const metaSize = 5;
+  const metaLH = metaSize * 1.22;
+  const metaLines: string[] = [];
+  if (fields.gtin) metaLines.push(...wrapLine(mono, `GTIN`, metaSize, metaW));
+  if (fields.gtin) metaLines.push(...wrapLine(mono, fields.gtin, metaSize, metaW));
+  if (fields.serial) {
+    metaLines.push(...wrapLine(mono, `S/N`, metaSize, metaW));
+    metaLines.push(...wrapLine(mono, fields.serial, metaSize, metaW));
+  }
+  if (fields.key91) metaLines.push(...wrapLine(mono, `91 ${fields.key91}`, metaSize, metaW));
+  if (fields.crypto92) {
+    metaLines.push(...wrapLine(mono, `92`, metaSize, metaW));
+    metaLines.push(...wrapLine(mono, fields.crypto92, metaSize, metaW));
+  }
+
+  // Растягиваем мета-строки по высоте DM, если места больше чем текста
+  const metaNeeded = metaLines.length * metaLH;
+  const metaPad = metaNeeded < dmH - 2 ? (dmH - 2 - metaNeeded) / Math.max(1, metaLines.length) : 0;
+  const metaLHUse = metaLH + metaPad;
+  drawLines(page, mono, metaLines, metaSize, metaLHUse, metaX, y, GRAY);
+
+  y = Math.min(dmY, y - metaNeeded) - 3;
+
+  // --- Футер: линия + бренд · размер ---
+  const footerY = MB + 2;
+  page.drawRectangle({
+    x: MX,
+    y: footerY + 9,
+    width: contentW,
+    height: 0.55,
+    color: BLACK,
+  });
+  const footerLeft = `ЧЕСТНЫЙ ЗНАК`;
+  const footerRight = sizeLabel ? `${brandLabel} · ${sizeLabel}` : brandLabel;
+  page.drawText(footerLeft, {
+    x: MX,
+    y: footerY,
+    size: 5,
+    font: bold,
+    color: BLACK,
+  });
+  const frW = mono.widthOfTextAtSize(footerRight, 5);
+  page.drawText(footerRight, {
+    x: PAGE_W - MX - frW,
+    y: footerY,
+    size: 5,
+    font: mono,
+    color: BLACK,
+  });
 
   return Buffer.from(await pdf.save());
 }

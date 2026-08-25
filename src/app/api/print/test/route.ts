@@ -46,7 +46,8 @@ export async function POST(request: Request) {
     try {
       const satoRequested =
         requested && /ws408|sato|sepl/i.test(requested) ? requested : null;
-      const result = await printTestKmLabel(satoRequested);
+      const brand = parseTestBrand(body.brand);
+      const result = await printTestKmLabel(satoRequested, brand);
       if (!result.ok) {
         return NextResponse.json(
           {
@@ -61,6 +62,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         ok: true,
         kind: "chestny-znak",
+        brand: result.brandId,
         printer: result.printer,
         format: result.format,
         gtin: result.gtin,

@@ -118,7 +118,7 @@ export function AdminPanel() {
         headers: { ...mutatingApiHeaders(), Accept: "application/json" },
         body: JSON.stringify({
           kind,
-          ...(kind !== "chestny-znak" ? { brand: testBrand } : {}),
+          brand: testBrand,
           ...(testPrinter.trim() ? { printer: testPrinter.trim() } : {}),
         }),
       });
@@ -128,6 +128,7 @@ export function AdminPanel() {
         printer?: string;
         format?: string;
         gtin?: string;
+        brand?: string;
       };
       if (!res.ok || !data.ok) {
         throw new Error(data.message ?? "Не удалось напечатать");
@@ -137,8 +138,10 @@ export function AdminPanel() {
         text:
           kind === "chestny-znak"
             ? `ЧЗ тест → ${data.printer || "WS408"}${
-                data.gtin ? ` · GTIN ${data.gtin}` : ""
-              }${data.format ? ` (${data.format})` : ""}`
+                data.brand ? ` · ${data.brand}` : ""
+              }${data.gtin ? ` · GTIN ${data.gtin}` : ""}${
+                data.format ? ` (${data.format})` : ""
+              }`
             : `Тест → ${data.printer || testPrinter || "принтер"}${
                 data.format ? ` (${data.format})` : ""
               }`,
@@ -406,7 +409,7 @@ export function AdminPanel() {
                     Тест печати честного знака
                   </span>
                   <span className="mt-0.5 block text-sm text-gray-500">
-                    Лого · Data Matrix · название и поля КМ · 60×55 → WS408
+                    Лого выбранного бренда · DM + поля · 60×55 → WS408
                   </span>
                 </span>
                 <span className="text-sm text-emerald-700">Печать</span>

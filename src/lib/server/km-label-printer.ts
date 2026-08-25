@@ -39,6 +39,7 @@ export async function printKmLabel(km: {
   productName?: string;
   brandId?: string;
   title?: string;
+  size?: string;
   printer?: string | null;
 }): Promise<{ ok: boolean; printer?: string | null; format?: string; error?: string }> {
   const printer = await resolveKmPrinter(km.printer);
@@ -65,6 +66,7 @@ export async function printKmLabel(km: {
         productName: km.productName,
         brandId,
         title: km.title,
+        size: km.size,
       });
       const format = await printPdfSato60x55(printer, pdf, PRINT_DIR, stamp);
       return { ok: true, printer, format };
@@ -101,17 +103,28 @@ export async function printKmLabel(km: {
 }
 
 /** Тест-печать сгенерированного КМ на принтер записок/ЧЗ (WS408). */
-export async function printTestKmLabel(printer?: string | null): Promise<{
+export async function printTestKmLabel(
+  printer?: string | null,
+  brandId?: string | null,
+): Promise<{
   ok: boolean;
   printer?: string | null;
   format?: string;
   gtin?: string;
+  brandId?: string;
   error?: string;
 }> {
-  const sample = buildSampleKmCis();
+  const brand =
+    brandId === "casher" ||
+    brandId === "ammo" ||
+    brandId === "kurazh" ||
+    brandId === "shecash"
+      ? brandId
+      : "casher";
+  const sample = buildSampleKmCis(brand);
   const result = await printKmLabel({
     ...sample,
     printer,
   });
-  return { ...result, gtin: sample.gtin };
+  return { ...result, gtin: sample.gtin, brandId: brand };
 }

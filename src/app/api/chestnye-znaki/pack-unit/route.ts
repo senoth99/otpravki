@@ -110,6 +110,7 @@ export async function POST(request: Request) {
       cis: km.cis,
       gtin: km.gtin ?? gtin,
       productName: body.productName,
+      size: body.size,
       brandId: boxLabelBrandIdFromStoreBrand(body.storeBrand) ?? undefined,
     });
     if (!printed.ok) {
