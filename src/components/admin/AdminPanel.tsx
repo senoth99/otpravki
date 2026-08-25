@@ -7,6 +7,7 @@ import { BoxLabelEditor } from "@/components/admin/BoxLabelEditor";
 import { PinNumpad } from "@/components/chestnye-znaki/PinNumpad";
 import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
+import { usePointerDragScroll } from "@/hooks/usePointerDragScroll";
 import { mutatingApiHeaders } from "@/lib/api-headers";
 
 type TestBrand = "casher" | "ammo" | "kurazh" | "shecash";
@@ -25,7 +26,8 @@ function hasBrandBarcodeTemplate(brand: TestBrand): brand is "ammo" | "kurazh" {
 type AdminView = "loading" | "pin" | "menu" | "extras" | "box-labels";
 
 export function AdminPanel() {
-  useOtpravkiNoSwipe();
+  useOtpravkiNoSwipe("monitor");
+  usePointerDragScroll(true);
   const [view, setView] = useState<AdminView>("loading");
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -164,7 +166,7 @@ export function AdminPanel() {
   };
 
   return (
-    <div className="otpravki-shell flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-gray-50">
+    <div className="otpravki-shell otpravki-shell-monitor flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-gray-50">
       <header className="safe-top shrink-0 border-b border-gray-200 bg-white px-3 py-3 sm:px-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -200,7 +202,7 @@ export function AdminPanel() {
         </div>
       </header>
 
-      <main className="min-h-0 flex-1 touch-scroll-y overflow-y-auto p-3 sm:p-4">
+      <main className="min-h-0 flex-1 touch-scroll-y overflow-y-auto overscroll-contain p-3 pb-10 sm:p-4 sm:pb-12">
         {view === "loading" && <StageLoadingScreen variant="fullscreen" className="!min-h-[50dvh]" />}
 
         {view === "pin" && (
@@ -222,7 +224,7 @@ export function AdminPanel() {
         )}
 
         {view === "menu" && (
-          <div className="mx-auto grid w-full max-w-lg gap-3 py-6">
+          <div className="mx-auto grid w-full max-w-lg gap-3 py-2 sm:py-4">
             <a
               href="/chestnye-znaki"
               className="flex min-h-20 items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 text-left shadow-sm active:scale-[0.99]"

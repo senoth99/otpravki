@@ -140,7 +140,9 @@ function AuthShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isOtpravkiMonitor =
     pathname === "/otpravki" || Boolean(pathname?.startsWith("/otpravki/"));
-  usePointerDragScroll(isOtpravkiMonitor);
+  const isAdminScroll =
+    pathname === "/admin" || Boolean(pathname?.startsWith("/admin/"));
+  usePointerDragScroll(isOtpravkiMonitor || isAdminScroll);
   const isEmbedded = useIsEmbedded();
   const {
     loading,
