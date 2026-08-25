@@ -119,15 +119,21 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** SATO WS408: те же баркодники 4×6″ (100×150), gap + tear-off + DT, как на TSC. */
+/**
+ * SATO WS408: те же баркодники 4×6″ (100×150), tear-off + DT.
+ * Sensor off (saLabelType=2): длина подачи строго из PageSize — иначе gap часто
+ * обрывает печать раньше конца этикетки. PDF 150×100 — landscape, как на TSC.
+ */
 const LABEL_LP_SATO_4X6 = [
   [
     "-o",
     "PageSize=w288h432",
     "-o",
+    "landscape",
+    "-o",
     "MediaType=1",
     "-o",
-    "saLabelType=1",
+    "saLabelType=2",
     "-o",
     "saOperationMode=1",
     "-o",
@@ -135,9 +141,21 @@ const LABEL_LP_SATO_4X6 = [
     "-o",
     "saPrintSpeed=4",
     "-o",
+    "Resolution=203dpi",
+    "-o",
     "fit-to-page",
     "-o",
     "print-color-mode=monochrome",
+  ],
+  [
+    "-o",
+    "PageSize=w288h432",
+    "-o",
+    "landscape",
+    "-o",
+    "saLabelType=2",
+    "-o",
+    "fit-to-page",
   ],
   ["-o", "PageSize=w288h432", "-o", "fit-to-page"],
   ["-o", "fit-to-page"],
