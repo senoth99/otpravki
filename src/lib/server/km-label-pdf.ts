@@ -50,9 +50,9 @@ function truncate(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
 
-/** Сэмпл КМ для тест-печати (не из ЦРПТ). */
+/** Сэмпл КМ для тест-печати (не из ЦРПТ). GTIN с валидной контрольной цифрой. */
 export function buildSampleKmCis(): KmLabelInput {
-  const gtin = "04604341401016";
+  const gtin = "04604341401012"; // check digit OK for GS1
   const serial = `T${Date.now().toString(36).toUpperCase().slice(-10)}`;
   const cis = [
     `01${gtin}`,
