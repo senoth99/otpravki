@@ -152,11 +152,15 @@ function drawCenteredLines(
 async function loadImagePng(src: string): Promise<Buffer> {
   const file = resolvePublicAsset(src);
   const raw = await readFile(file);
-  if (src.endsWith(".svg")) {
-    return sharp(raw).resize(600, 600, { fit: "inside" }).png().toBuffer();
-  }
+  // Белый фон + апскейл: Apple emoji чётче уходят в 1-bit на TSC.
   return sharp(raw)
-    .resize(900, 900, { fit: "inside", withoutEnlargement: true })
+    .ensureAlpha()
+    .flatten({ background: { r: 255, g: 255, b: 255 } })
+    .resize(640, 640, {
+      fit: "contain",
+      background: { r: 255, g: 255, b: 255, alpha: 1 },
+      kernel: "lanczos3",
+    })
     .png()
     .toBuffer();
 }

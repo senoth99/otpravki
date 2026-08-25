@@ -15,19 +15,36 @@ export type GiftNoteImage = {
   label: string;
   /** Путь относительно public/ */
   src: string;
+  /** Для превью в UI */
+  emoji: string;
 };
 
+/** Apple emoji (PNG) — угарные, хорошо читаются на термопринтере. */
 export const GIFT_NOTE_IMAGES: GiftNoteImage[] = [
-  { id: "heart", label: "Сердце", src: "/gift-notes/heart.svg" },
-  { id: "cake", label: "Торт", src: "/gift-notes/cake.svg" },
-  { id: "star", label: "Звезда", src: "/gift-notes/star.svg" },
-  { id: "gift", label: "Подарок", src: "/gift-notes/gift.svg" },
-  { id: "balloon", label: "Шарик", src: "/gift-notes/balloon.svg" },
-  { id: "snowflake", label: "Снежинка", src: "/gift-notes/snowflake.svg" },
-  { id: "flower", label: "Цветок", src: "/gift-notes/flower.svg" },
-  { id: "fire", label: "Огонь", src: "/gift-notes/fire.svg" },
-  { id: "smile", label: "Смайл", src: "/gift-notes/smile.svg" },
-  { id: "skull", label: "Череп", src: "/gift-notes/skull.svg" },
+  { id: "lol", label: "Лол", src: "/gift-notes/emoji-lol.png", emoji: "😂" },
+  { id: "rofl", label: "Угар", src: "/gift-notes/emoji-rofl.png", emoji: "🤣" },
+  { id: "zany", label: "Крейзи", src: "/gift-notes/emoji-zany.png", emoji: "🤪" },
+  { id: "clown", label: "Клоун", src: "/gift-notes/emoji-clown.png", emoji: "🤡" },
+  { id: "devil", label: "Чёрт", src: "/gift-notes/emoji-devil.png", emoji: "😈" },
+  { id: "poop", label: "Какашка", src: "/gift-notes/emoji-poop.png", emoji: "💩" },
+  { id: "fire", label: "Огонь", src: "/gift-notes/emoji-fire.png", emoji: "🔥" },
+  { id: "cool", label: "Кул", src: "/gift-notes/emoji-cool.png", emoji: "😎" },
+  { id: "party", label: "Тусовка", src: "/gift-notes/emoji-party.png", emoji: "🥳" },
+  { id: "money", label: "Бабло", src: "/gift-notes/emoji-money.png", emoji: "🤑" },
+  { id: "nails", label: "Ноготочки", src: "/gift-notes/emoji-nails.png", emoji: "💅" },
+  { id: "eyes", label: "Глазки", src: "/gift-notes/emoji-eyes.png", emoji: "👀" },
+  { id: "skull", label: "Череп", src: "/gift-notes/emoji-skull.png", emoji: "💀" },
+  { id: "hot", label: "Жара", src: "/gift-notes/emoji-hot.png", emoji: "🥵" },
+  { id: "cry", label: "Рёв", src: "/gift-notes/emoji-cry.png", emoji: "😭" },
+  { id: "hearts", label: "Хартс", src: "/gift-notes/emoji-hearts.png", emoji: "🫶" },
+  { id: "cake", label: "Торт", src: "/gift-notes/emoji-cake.png", emoji: "🎂" },
+  { id: "gift", label: "Подарок", src: "/gift-notes/emoji-gift.png", emoji: "🎁" },
+  { id: "heart", label: "Сердце", src: "/gift-notes/emoji-heart.png", emoji: "❤️" },
+  { id: "rocket", label: "Ракета", src: "/gift-notes/emoji-rocket.png", emoji: "🚀" },
+  { id: "star", label: "Звезда", src: "/gift-notes/emoji-star.png", emoji: "⭐" },
+  { id: "balloon", label: "Шарик", src: "/gift-notes/emoji-balloon.png", emoji: "🎈" },
+  { id: "flower", label: "Цветок", src: "/gift-notes/emoji-flower.png", emoji: "🌸" },
+  { id: "snow", label: "Снег", src: "/gift-notes/emoji-snow.png", emoji: "❄️" },
 ];
 
 export const GIFT_NOTE_PRESETS: GiftNotePreset[] = [
@@ -43,7 +60,7 @@ export const GIFT_NOTE_PRESETS: GiftNotePreset[] = [
     category: "birthday",
     label: "Тебе лично",
     text: "С ДР!\nЭтот заказ — тебе лично.",
-    imageId: "gift",
+    imageId: "party",
   },
   {
     id: "bday-3",
@@ -64,7 +81,7 @@ export const GIFT_NOTE_PRESETS: GiftNotePreset[] = [
     category: "holiday",
     label: "НГ",
     text: "С Новым годом!\nПусть следующий будет ещё жарче.",
-    imageId: "snowflake",
+    imageId: "snow",
   },
   {
     id: "hol-14",
@@ -78,21 +95,21 @@ export const GIFT_NOTE_PRESETS: GiftNotePreset[] = [
     category: "holiday",
     label: "23 февраля",
     text: "С 23 февраля!\nКрепкого тебе вайба.",
-    imageId: "star",
+    imageId: "fire",
   },
   {
     id: "fun-secret",
     category: "fun",
     label: "Секрет",
     text: "Секретная посылка.\nНе открывать при свидетелях.",
-    imageId: "skull",
+    imageId: "eyes",
   },
   {
     id: "fun-magic",
     category: "fun",
     label: "Магия",
     text: "Ты заказал — мы доставили.\nМагия.",
-    imageId: "star",
+    imageId: "cool",
   },
   {
     id: "fun-vibe",
@@ -106,7 +123,7 @@ export const GIFT_NOTE_PRESETS: GiftNotePreset[] = [
     category: "fun",
     label: "Скотч",
     text: "Отправили с любовью\n(и скотчем).",
-    imageId: "heart",
+    imageId: "hearts",
   },
 ];
 

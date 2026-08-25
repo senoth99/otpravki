@@ -255,12 +255,11 @@ export function GiftNoteModal({ open, onClose }: GiftNoteModalProps) {
                 type="button"
                 title={img.label}
                 onClick={() => setImageId(img.id)}
-                className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border bg-white p-1 ${
+                className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border bg-white text-lg leading-none ${
                   imageId === img.id ? "border-gray-900 ring-2 ring-gray-900" : "border-gray-200"
                 }`}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={img.src} alt={img.label} className="max-h-full max-w-full object-contain" />
+                <span aria-hidden>{img.emoji}</span>
               </button>
             ))}
           </div>
