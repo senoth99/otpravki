@@ -17,7 +17,8 @@ const PAGE_W = mmToPoints(KM_LABEL_WIDTH_MM);
 const PAGE_H = mmToPoints(KM_LABEL_HEIGHT_MM);
 /** Боковые поля. Верх/низ — с учётом клипа WS408. */
 const MX = mmToPoints(3);
-const MT = mmToPoints(5);
+/** Чуть больше сверху — WS408 при раннем старте клипает лого. */
+const MT = mmToPoints(7);
 const MB = mmToPoints(2);
 const BLACK = rgb(0, 0, 0);
 const WHITE = rgb(1, 1, 1);

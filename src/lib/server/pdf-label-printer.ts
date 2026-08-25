@@ -123,14 +123,13 @@ function sleep(ms: number) {
  * SATO WS408 60×55 (A1: V=55mm H=60mm).
  * Gap + Tear-off.
  *
- * На фото контент прижат к ведущему краю и клипает лого, низ пустой —
- * нужен отрицательный Vertical Offset (сдвиг от начала этикетки вниз).
- * Переопределение: SATO_Y_CORRECTION=-152
+ * Большой отрицательный Y (−152) давал ранний старт печати.
+ * По умолчанию 0; подстройка: SATO_Y_CORRECTION=-102
  */
 function satoYCorrection(): string {
   const raw = process.env.SATO_Y_CORRECTION?.trim();
   if (raw && /^-?\d+$/.test(raw)) return raw;
-  return "-152";
+  return "0";
 }
 
 const LABEL_LP_SATO_60X55 = [
