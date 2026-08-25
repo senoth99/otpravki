@@ -155,14 +155,22 @@ function drawCenteredLines(
 async function loadImagePng(src: string): Promise<Buffer> {
   const file = resolvePublicAsset(src);
   const raw = await readFile(file);
+  // 203 dpi термо: серое antialias пропадает при threshold CUPS.
+  // Жёсткий контраст + dither в 2 цвета → смайлик читается целиком.
+  const px = Math.round((55 / 25.4) * 203); // ~440 px под высоту этикетки
   return sharp(raw)
     .ensureAlpha()
     .flatten({ background: { r: 255, g: 255, b: 255 } })
-    .resize(480, 480, {
+    .resize(px, px, {
       fit: "contain",
       background: { r: 255, g: 255, b: 255, alpha: 1 },
       kernel: "lanczos3",
     })
+    .greyscale()
+    .normalize()
+    .linear(1.85, -55)
+    .sharpen({ sigma: 0.8 })
+    .threshold(210)
     .png()
     .toBuffer();
 }
