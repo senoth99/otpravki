@@ -29,6 +29,7 @@ import {
   OtpravkiMobileFilters,
   type OtpravkiFiltersState,
 } from "./OtpravkiFilters";
+import { GiftNoteButton } from "./GiftNoteButton";
 import { KirillMascot } from "./KirillMascot";
 import { OtpravkiPageHeader } from "./OtpravkiPageHeader";
 import { ShippingView } from "./ShippingView";
@@ -376,7 +377,12 @@ export function ShippingPanel({
         </main>
       </div>
 
-      {tab === "shipping" ? <KirillMascot orderCount={shippingOrderCount} /> : null}
+      {tab === "shipping" ? (
+        <>
+          <GiftNoteButton />
+          <KirillMascot orderCount={shippingOrderCount} />
+        </>
+      ) : null}
     </div>
   );
 }
