@@ -293,13 +293,15 @@ export function ShippingView({
     : -1;
   const currentOrder = currentIndex >= 0 ? orders[currentIndex] : undefined;
   const currentOrderStatus = currentIndex >= 0 ? orderStatuses[currentIndex] : undefined;
-  const isPartialAssembly = currentOrderStatus === "partial-assembly";
+  const isPartialAssembly =
+    assemblyReadyBy === "collected" && currentOrderStatus === "partial-assembly";
   const isManualConfirm = manualConfirmOrder !== null && !autoMode;
   const displayOrder = isManualConfirm ? manualConfirmOrder : currentOrder;
   const displayOrderStatus = isManualConfirm
     ? getOrderDisplayStatus(manualConfirmOrder, assemblyItems, assemblyAllocation)
     : currentOrderStatus;
-  const isDisplayPartialAssembly = displayOrderStatus === "partial-assembly";
+  const isDisplayPartialAssembly =
+    assemblyReadyBy === "collected" && displayOrderStatus === "partial-assembly";
   const isShipped = displayOrder?.barcodePrinted ?? false;
 
   const displayMissingAssembly = useMemo(() => {
@@ -990,7 +992,7 @@ export function ShippingView({
   return (
     <div
       className={`overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm ${
-        showActions ? "pb-28 sm:pb-0" : ""
+        showActions ? "pb-32" : ""
       }`}
     >
       <div className="border-b border-gray-100 px-1 py-1 sm:px-2">
@@ -1116,8 +1118,8 @@ export function ShippingView({
           )}
 
           {showActions && (
-            <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 p-3 backdrop-blur-md safe-bottom sm:static sm:mt-4 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
+            <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 p-3 backdrop-blur-md safe-bottom">
+              <div className="mx-auto grid max-w-3xl grid-cols-2 gap-2 sm:gap-3">
             <button
               type="button"
               aria-pressed={manualMode}

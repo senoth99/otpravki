@@ -169,19 +169,21 @@ export function ShippingPanel({
     [orders, syncedAssemblyItems],
   );
 
-  const filteredOrders = useMemo(
-    () =>
-      applyOrderFilters(
-        activeBrandOrders,
-        {
-          ...filters,
-          // Поиск не режет список отправок — иначе Chrome убивает вкладку на 1–2 символах.
-          // ShippingView сам прыгает к совпадению по searchQuery.
-          query: "",
-        },
-        { assembledOrderIds },
-      ).filter((order) => !partialOrderIds.has(order.id)),
-    [
+  const filteredOrders = useMemo(() => {
+    const list = applyOrderFilters(
+      activeBrandOrders,
+      {
+        ...filters,
+        // Поиск не режет список отправок — иначе Chrome убивает вкладку на 1–2 символах.
+        // ShippingView сам прыгает к совпадению по searchQuery.
+        query: "",
+      },
+      { assembledOrderIds },
+    );
+    // Без «Только со сборки» — ручная отправка, частично собранные не прячем.
+    if (!filters.fromAssembly) return list;
+    return list.filter((order) => !partialOrderIds.has(order.id));
+  }, [
       activeBrandOrders,
       assembledOrderIds,
       partialOrderIds,
@@ -260,15 +262,9 @@ export function ShippingPanel({
     return { total: activeBrandOrders.length, critical, rush, blogger, ready };
   }, [activeBrandOrders]);
 
-  /** Единицы товара ко всем неотправленным заказам по всем брендам (как пришло из API). */
-  const shippingItemCount = useMemo(
-    () =>
-      orders
-        .filter((order) => !order.barcodePrinted)
-        .reduce(
-          (sum, order) => sum + order.items.reduce((lineSum, item) => lineSum + item.quantity, 0),
-          0,
-        ),
+  /** Неотправленные заказы по всем брендам (как пришло из API). */
+  const shippingOrderCount = useMemo(
+    () => orders.filter((order) => !order.barcodePrinted).length,
     [orders],
   );
 
@@ -376,7 +372,7 @@ export function ShippingPanel({
         </main>
       </div>
 
-      {tab === "shipping" ? <KirillMascot itemCount={shippingItemCount} /> : null}
+      {tab === "shipping" ? <KirillMascot orderCount={shippingOrderCount} /> : null}
     </div>
   );
 }

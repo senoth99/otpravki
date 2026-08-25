@@ -2,6 +2,7 @@ import { assemblyItemKey } from "@/lib/assembly-demand";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import { formatSize } from "@/lib/format";
 import { resolveOrderUrgency, URGENCY_WEIGHT } from "@/lib/urgency";
+import type { AssemblyProgressState } from "@/types/assembly-progress";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 
 export interface MissingAssemblyItem {
@@ -140,11 +141,102 @@ export function partiallyCollectedOrderIds(
   assemblyItems: AssemblyItem[],
 ): Set<string> {
   const allocation = buildCollectedAssemblyAllocation(orders, assemblyItems);
+  return partiallyCollectedOrderIdsFromAllocation(orders, allocation);
+}
+
+/** Пул «собрано» из progress без маппинга всего списка позиций. */
+export function buildCollectedPoolFromProgress(
+  assemblyItems: AssemblyItem[],
+  progress: AssemblyProgressState | null | undefined,
+): Map<string, number> {
+  const pool = new Map<string, number>();
+  if (!progress?.items) return pool;
+
+  const byId = new Map(assemblyItems.map((item) => [item.id, item]));
+  for (const [id, entry] of Object.entries(progress.items)) {
+    if (entry.collectedCount <= 0) continue;
+    const item = byId.get(id);
+    if (!item) continue;
+    const key = assemblyItemKey(item.productId, item.sizeId, item.isBlogger === true);
+    pool.set(
+      key,
+      (pool.get(key) ?? 0) + Math.min(entry.collectedCount, Math.max(0, item.quantity)),
+    );
+  }
+  return pool;
+}
+
+function partiallyCollectedOrderIdsFromAllocation(
+  orders: ShippingOrder[],
+  allocation: AssemblyAllocation,
+): Set<string> {
   const ids = new Set<string>();
   for (const order of orders) {
     if (isPartiallyCollectedOrder(order, allocation)) ids.add(order.id);
   }
   return ids;
+}
+
+/** Быстрая версия для экрана сборки — только progress + заказы. */
+export function partiallyCollectedOrderIdsFromProgress(
+  orders: ShippingOrder[],
+  assemblyItems: AssemblyItem[],
+  progress: AssemblyProgressState | null | undefined,
+): Set<string> {
+  const pool = buildCollectedPoolFromProgress(assemblyItems, progress);
+  if (pool.size === 0) return new Set<string>();
+
+  const readyByOrderId = new Map<string, boolean>();
+  const missingByOrderId = new Map<string, MissingAssemblyItem[]>();
+  const workingPool = new Map(pool);
+
+  const activeOrders = orders
+    .filter((order) => !order.barcodePrinted)
+    .sort((a, b) => {
+      const urgencyDiff =
+        URGENCY_WEIGHT[resolveOrderUrgency(a)] - URGENCY_WEIGHT[resolveOrderUrgency(b)];
+      if (urgencyDiff !== 0) return urgencyDiff;
+      return a.orderNumber.localeCompare(b.orderNumber, "ru");
+    });
+
+  for (const order of activeOrders) {
+    const missing: MissingAssemblyItem[] = [];
+    let ready = true;
+    const isBlogger = orderIsBlogger(order);
+
+    for (const line of order.items) {
+      const key = assemblyItemKey(line.productId, line.sizeId, isBlogger);
+      const have = workingPool.get(key) ?? 0;
+      const need = line.quantity;
+
+      if (have < need) {
+        ready = false;
+        missing.push({
+          productId: line.productId,
+          sizeId: line.sizeId,
+          productName: line.productName,
+          size: formatSize(line.size),
+          need,
+          have,
+        });
+      }
+    }
+
+    if (ready) {
+      for (const line of order.items) {
+        const key = assemblyItemKey(line.productId, line.sizeId, isBlogger);
+        workingPool.set(key, (workingPool.get(key) ?? 0) - line.quantity);
+      }
+    }
+
+    readyByOrderId.set(order.id, ready);
+    missingByOrderId.set(order.id, missing);
+  }
+
+  return partiallyCollectedOrderIdsFromAllocation(orders, {
+    readyByOrderId,
+    missingByOrderId,
+  });
 }
 
 export function getOrderAssemblyStatus(

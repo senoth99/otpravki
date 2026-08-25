@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { noteClientAction } from "@/lib/client-diag";
 import { ORDERS_API_POLL_MS } from "@/lib/orders-sync";
 import {
-  applyProgressToAssemblyItems,
+  applyProgressToItems,
   fetchAssemblyProgress,
   pushAssemblyProgress,
   staleAssemblyProgressPatch,
@@ -15,7 +15,7 @@ import {
   type AssemblyProgressState,
 } from "@/lib/assembly-progress";
 import { getAssemblyViewSections } from "@/lib/assembly-demand";
-import { partiallyCollectedOrderIds } from "@/lib/assembly-status";
+import { partiallyCollectedOrderIdsFromProgress } from "@/lib/assembly-status";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import {
   ALL_BRANDS,
@@ -69,6 +69,34 @@ export function AssemblyPanel({
   const [warehouseMap, setWarehouseMap] = useState<WarehouseMapConfig | undefined>(warehouseMapProp);
   const progressRef = useRef(progress);
   progressRef.current = progress;
+  const lastInteractionRef = useRef(0);
+
+  const pushTimerRef = useRef<number | undefined>(undefined);
+  const pendingPatchRef = useRef(
+    new Map<string, { id: string; collectedCount: number; collectedAt?: number }>(),
+  );
+
+  const noteInteraction = useCallback(() => {
+    lastInteractionRef.current = Date.now();
+  }, []);
+
+  const flushProgressPatch = useCallback(() => {
+    const patch = [...pendingPatchRef.current.values()];
+    pendingPatchRef.current.clear();
+    if (patch.length === 0) return;
+    void pushAssemblyProgress(patch).then((remote) => {
+      if (remote) setProgress(remote);
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (pushTimerRef.current !== undefined) {
+        window.clearTimeout(pushTimerRef.current);
+      }
+      flushProgressPatch();
+    };
+  }, [flushProgressPatch]);
 
   useEffect(() => {
     if (warehouseMapProp) {
@@ -114,15 +142,17 @@ export function AssemblyPanel({
 
     const run = () => {
       if (cancelled || document.visibilityState !== "visible" || !navigator.onLine) return;
+      // Не дёргаем API сразу после тапа — иначе UI залипает на планшете.
+      if (Date.now() - lastInteractionRef.current < 12_000) return;
       noteClientAction("sborka:sync");
       void refreshFromApi(undefined, { silent: true });
     };
 
-    // Первый sync через 8с — сначала отрисовать список из кэша.
+    // Первый sync через 15с — сначала отрисовать список из кэша.
     const startTimer = window.setTimeout(() => {
       run();
-      timer = window.setInterval(run, Math.max(ORDERS_API_POLL_MS, 45_000));
-    }, 8_000);
+      timer = window.setInterval(run, Math.max(ORDERS_API_POLL_MS, 90_000));
+    }, 15_000);
 
     const onVisible = () => {
       if (document.visibilityState !== "visible") return;
@@ -154,11 +184,6 @@ export function AssemblyPanel({
     };
   }, []);
 
-  const syncedAssemblyItems = useMemo(
-    () => applyProgressToAssemblyItems(assemblyItems, progress),
-    [assemblyItems, progress],
-  );
-
   // После отгрузки спрос падает — чистим «собрано» по исчезнувшим/урезанным позициям.
   useEffect(() => {
     const patch = staleAssemblyProgressPatch(assemblyItems, progress);
@@ -185,8 +210,13 @@ export function AssemblyPanel({
     [brandOrders, filters],
   );
 
+  const partialOrderIds = useMemo(
+    () => partiallyCollectedOrderIdsFromProgress(orders, assemblyItems, progress),
+    [orders, assemblyItems, progress],
+  );
+
   const filteredAssemblyItems = useMemo(() => {
-    let brandAsm = syncedAssemblyItems.filter(
+    let brandAsm = assemblyItems.filter(
       (item) => matchesStoreBrand(item.brand, selectedBrand) && item.quantity > 0,
     );
     if (filters.kind === "blogger") {
@@ -223,65 +253,48 @@ export function AssemblyPanel({
       );
     }
 
-    return brandAsm;
-  }, [syncedAssemblyItems, selectedBrand, filters, filteredOrders]);
+    return applyProgressToItems(brandAsm, progress);
+  }, [assemblyItems, selectedBrand, filters, filteredOrders, progress]);
 
-  const handleFindProduct = (productId: string) => {
-    const id = productId.trim();
-    if (!id) return;
-    startFilterTransition(() => {
-      setFilters((prev) => {
-        const onlyThis = prev.productIds.length === 1 && prev.productIds[0] === id;
+  const handleFindProduct = useCallback(
+    (productId: string) => {
+      const id = productId.trim();
+      if (!id) return;
+      noteInteraction();
+      startFilterTransition(() => {
+        setFilters((prev) => {
+          const onlyThis = prev.productIds.length === 1 && prev.productIds[0] === id;
+          return {
+            ...prev,
+            productIds: onlyThis ? [] : [id],
+          };
+        });
+      });
+    },
+    [noteInteraction],
+  );
+
+  const handleItemCollectChange = useCallback(
+    (id: string, collectedCount: number, collectedAt?: number) => {
+      noteInteraction();
+      setProgress((current) => {
+        const items = { ...(current?.items ?? {}) };
+        if (collectedCount <= 0) delete items[id];
+        else items[id] = { collectedCount, collectedAt };
         return {
-          ...prev,
-          productIds: onlyThis ? [] : [id],
+          revision: current?.revision ?? 0,
+          updatedAt: Date.now(),
+          updatedBy: "local",
+          items,
         };
       });
-    });
-  };
-
-  const handleFilteredAssemblyChange = (nextItems: AssemblyItem[]) => {
-    const prevById = new Map(syncedAssemblyItems.map((item) => [item.id, item]));
-    const patch: Array<{ id: string; collectedCount: number; collectedAt?: number }> = [];
-
-    for (const item of nextItems) {
-      const prev = prevById.get(item.id);
-      if (!prev || prev.collectedCount === item.collectedCount) continue;
-      patch.push({
-        id: item.id,
-        collectedCount: item.collectedCount,
-        collectedAt: item.collectedAt,
-      });
-    }
-    if (patch.length === 0) return;
-
-    setProgress((current) => {
-      const items = { ...(current?.items ?? {}) };
-      for (const row of patch) {
-        if (row.collectedCount <= 0) delete items[row.id];
-        else {
-          items[row.id] = {
-            collectedCount: row.collectedCount,
-            collectedAt: row.collectedAt,
-          };
-        }
+      pendingPatchRef.current.set(id, { id, collectedCount, collectedAt });
+      if (pushTimerRef.current !== undefined) {
+        window.clearTimeout(pushTimerRef.current);
       }
-      return {
-        revision: current?.revision ?? 0,
-        updatedAt: Date.now(),
-        updatedBy: "local",
-        items,
-      };
-    });
-
-    void pushAssemblyProgress(patch).then((remote) => {
-      if (remote) setProgress(remote);
-    });
-  };
-
-  const partialOrderIds = useMemo(
-    () => partiallyCollectedOrderIds(orders, syncedAssemblyItems),
-    [orders, syncedAssemblyItems],
+      pushTimerRef.current = window.setTimeout(flushProgressPatch, 350);
+    },
+    [noteInteraction, flushProgressPatch],
   );
 
   const assemblySections = useMemo(() => {
@@ -290,7 +303,7 @@ export function AssemblyPanel({
     return getAssemblyViewSections(
       filteredAssemblyItems,
       withoutPartial(filteredOrders),
-      false,
+      true,
       undefined,
       withoutPartial(brandOrders),
     );
@@ -312,9 +325,9 @@ export function AssemblyPanel({
     const fromOrders = collectFilterProducts(brandOrders);
     if (fromOrders.length > 0) return fromOrders;
     return collectFilterProductsFromAssembly(
-      syncedAssemblyItems.filter((item) => matchesStoreBrand(item.brand, selectedBrand)),
+      assemblyItems.filter((item) => matchesStoreBrand(item.brand, selectedBrand)),
     );
-  }, [brandOrders, syncedAssemblyItems, selectedBrand]);
+  }, [brandOrders, assemblyItems, selectedBrand]);
 
   const offline = !isInternetOnline || !isServerReachable;
 
@@ -335,12 +348,10 @@ export function AssemblyPanel({
     });
   };
 
-  const canResetCollected = useMemo(() => {
-    if (Object.values(progress?.items ?? {}).some((entry) => entry.collectedCount > 0)) {
-      return true;
-    }
-    return syncedAssemblyItems.some((item) => item.collectedCount > 0);
-  }, [progress, syncedAssemblyItems]);
+  const canResetCollected = useMemo(
+    () => Object.values(progress?.items ?? {}).some((entry) => entry.collectedCount > 0),
+    [progress],
+  );
 
   const handleResetCollected = () => {
     if (resetCollectedBusy || !canResetCollected) return;
@@ -349,16 +360,12 @@ export function AssemblyPanel({
     );
     if (!ok) return;
 
-    const ids = new Set<string>();
-    for (const [id, entry] of Object.entries(progress?.items ?? {})) {
-      if (entry.collectedCount > 0) ids.add(id);
-    }
-    for (const item of syncedAssemblyItems) {
-      if (item.collectedCount > 0) ids.add(item.id);
-    }
-    if (ids.size === 0) return;
+    const ids = Object.entries(progress?.items ?? {})
+      .filter(([, entry]) => entry.collectedCount > 0)
+      .map(([id]) => id);
+    if (ids.length === 0) return;
 
-    const patch = [...ids].map((id) => ({ id, collectedCount: 0 }));
+    const patch = ids.map((id) => ({ id, collectedCount: 0 }));
     noteClientAction(`sborka:reset-collected:${patch.length}`);
     setResetCollectedBusy(true);
     setProgress((current) => ({
@@ -419,7 +426,7 @@ export function AssemblyPanel({
             allItems={filteredAssemblyItems}
             orders={filteredOrders}
             urgencyOrders={brandOrders}
-            onItemsChange={handleFilteredAssemblyChange}
+            onItemCollectChange={handleItemCollectChange}
             warehouseMap={warehouseMap}
             canResetCollected={canResetCollected}
             resetCollectedBusy={resetCollectedBusy}

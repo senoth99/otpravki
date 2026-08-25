@@ -3,19 +3,19 @@
 import { useEffect, useState } from "react";
 
 interface KirillMascotProps {
-  itemCount: number;
+  orderCount: number;
 }
 
-function pluralTovarov(n: number): string {
+function pluralZakazov(n: number): string {
   const abs = Math.abs(n) % 100;
   const last = abs % 10;
-  if (abs > 10 && abs < 20) return "ТОВАРОВ";
-  if (last === 1) return "ТОВАР";
-  if (last >= 2 && last <= 4) return "ТОВАРА";
-  return "ТОВАРОВ";
+  if (abs > 10 && abs < 20) return "ЗАКАЗОВ";
+  if (last === 1) return "ЗАКАЗ";
+  if (last >= 2 && last <= 4) return "ЗАКАЗА";
+  return "ЗАКАЗОВ";
 }
 
-export function KirillMascot({ itemCount }: KirillMascotProps) {
+export function KirillMascot({ orderCount }: KirillMascotProps) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -34,7 +34,7 @@ export function KirillMascot({ itemCount }: KirillMascotProps) {
         aria-label="Кирилл"
         aria-expanded={open}
         onClick={() => setOpen(true)}
-        className="fixed bottom-4 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border-2 border-gray-900 bg-white text-2xl font-black text-gray-900 shadow-lg transition-transform active:scale-95 sm:bottom-6 sm:right-6 sm:h-14 sm:w-14"
+        className="fixed bottom-20 right-4 z-30 flex h-12 w-12 items-center justify-center rounded-full border-2 border-gray-900 bg-white text-2xl font-black text-gray-900 shadow-lg transition-transform active:scale-95 sm:bottom-24 sm:right-6 sm:h-14 sm:w-14"
       >
         ?
       </button>
@@ -48,23 +48,23 @@ export function KirillMascot({ itemCount }: KirillMascotProps) {
           onClick={() => setOpen(false)}
         >
           <div
-            className="relative flex max-w-[min(100%,420px)] flex-col items-end gap-2"
+            className="relative max-w-[min(100%,420px)]"
             onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               aria-label="Закрыть"
               onClick={() => setOpen(false)}
-              className="absolute -top-1 right-0 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white text-lg font-semibold text-gray-700 shadow"
+              className="absolute -top-1 right-0 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-white text-lg font-semibold text-gray-700 shadow"
             >
               ×
             </button>
 
-            <div className="mr-4 max-w-[280px] rounded-2xl rounded-br-md border border-gray-200 bg-white px-4 py-3 shadow-xl sm:mr-8 sm:max-w-[320px]">
+            <div className="relative z-10 mr-4 max-w-[280px] -mb-10 rounded-2xl rounded-br-md border border-gray-200 bg-white/95 px-4 py-3 shadow-xl backdrop-blur-sm sm:mr-8 sm:-mb-14 sm:max-w-[320px]">
               <p className="text-sm font-black uppercase leading-snug tracking-wide text-gray-900 sm:text-base">
                 НУ ПИЗ*Ц, У НАС{" "}
-                <span className="text-red-600 tabular-nums">{itemCount}</span>{" "}
-                {pluralTovarov(itemCount)} К ОТПРАВКЕ
+                <span className="text-red-600 tabular-nums">{orderCount}</span>{" "}
+                {pluralZakazov(orderCount)} К ОТПРАВКЕ
               </p>
             </div>
 
@@ -72,7 +72,7 @@ export function KirillMascot({ itemCount }: KirillMascotProps) {
             <img
               src="/mascots/kirill.png"
               alt="Кирилл"
-              className="pointer-events-none h-auto w-[min(72vw,280px)] -scale-x-100 select-none drop-shadow-2xl sm:w-[320px]"
+              className="pointer-events-none ml-auto block h-auto w-[min(72vw,280px)] -scale-x-100 select-none drop-shadow-2xl sm:w-[320px]"
               draggable={false}
             />
           </div>

@@ -1,4 +1,7 @@
-import { sortAssemblyItemsByUrgency } from "@/lib/assembly-sort";
+import {
+  buildAssemblyUrgencyMap,
+  sortAssemblyItemsByUrgencyWithMap,
+} from "@/lib/assembly-sort";
 import { orderIsBlogger } from "@/lib/blogger-order";
 import type { AssemblyProgressEntry } from "@/types/assembly-progress";
 import type { AssemblyItem, ShippingOrder, ShippingOrderItem } from "@/types/shipping";
@@ -69,13 +72,15 @@ export function getAssemblyViewSections(
   /** Для сортировки по срочности — все активные заказы бренда, не только отфильтрованные */
   urgencyOrders?: ShippingOrder[],
 ): AssemblyViewSections {
-  const activeOrders = orders.filter((order) => !order.barcodePrinted);
   const urgencySource = (urgencyOrders ?? orders).filter((order) => !order.barcodePrinted);
+  const urgencyMap = buildAssemblyUrgencyMap(urgencySource);
   const enriched = enrichAssemblyItems(items, orders);
+  const sortByUrgency = (list: AssemblyItem[]) =>
+    sortAssemblyItemsByUrgencyWithMap(list, urgencyMap);
 
   if (!settled) {
     return {
-      pending: sortAssemblyItemsByUrgency(enriched, urgencySource),
+      pending: sortByUrgency(enriched),
       completed: [],
     };
   }
@@ -85,8 +90,8 @@ export function getAssemblyViewSections(
     const pending = enriched.filter((item) => !pinnedCompletedIds.has(item.id));
 
     return {
-      pending: sortAssemblyItemsByUrgency(pending, urgencySource),
-      completed: sortAssemblyItemsByUrgency(completed, urgencySource),
+      pending: sortByUrgency(pending),
+      completed: sortByUrgency(completed),
     };
   }
 
@@ -94,8 +99,8 @@ export function getAssemblyViewSections(
   const completed = enriched.filter((item) => item.collectedCount >= item.quantity);
 
   return {
-    pending: sortAssemblyItemsByUrgency(pending, urgencySource),
-    completed: sortAssemblyItemsByUrgency(completed, urgencySource),
+    pending: sortByUrgency(pending),
+    completed: sortByUrgency(completed),
   };
 }
 

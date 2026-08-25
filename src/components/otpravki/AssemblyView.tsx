@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useHardwareScanner } from "@/hooks/useHardwareScanner";
 import type { AssemblyViewSections } from "@/lib/assembly-demand";
 import {
@@ -26,7 +26,7 @@ interface AssemblyViewProps {
   orders: ShippingOrder[];
   /** Заказы для расчёта срочности на карточках (обычно все активные заказы бренда) */
   urgencyOrders?: ShippingOrder[];
-  onItemsChange: (items: AssemblyItem[]) => void;
+  onItemCollectChange: (id: string, collectedCount: number, collectedAt?: number) => void;
   warehouseMap?: WarehouseMapConfig;
   /** Есть что обнулять по всем брендам */
   canResetCollected?: boolean;
@@ -48,16 +48,35 @@ function collectedUnits(sections: AssemblyViewSections) {
   return all.reduce((sum, item) => sum + item.collectedCount, 0);
 }
 
-function itemFromAll(allItems: AssemblyItem[], id: string): AssemblyItem | undefined {
-  return allItems.find((item) => item.id === id);
+function itemFromMap(map: Map<string, AssemblyItem>, id: string): AssemblyItem | undefined {
+  return map.get(id);
 }
+
+const MemoAssemblyItemCard = memo(AssemblyItemCard, (prev, next) => {
+  return (
+    prev.item.id === next.item.id &&
+    prev.item.collectedCount === next.item.collectedCount &&
+    prev.item.quantity === next.item.quantity &&
+    prev.emphasize === next.emphasize &&
+    prev.dimmed === next.dimmed &&
+    prev.locked === next.locked &&
+    prev.findActive === next.findActive &&
+    prev.stepNumber === next.stepNumber &&
+    prev.navOpen === next.navOpen &&
+    prev.showBrandMark === next.showBrandMark &&
+    prev.cellLocation === next.cellLocation &&
+    prev.urgency === next.urgency &&
+    prev.onIncrement === next.onIncrement &&
+    prev.onDecrement === next.onDecrement
+  );
+});
 
 export function AssemblyView({
   sections,
   allItems,
   orders,
   urgencyOrders,
-  onItemsChange,
+  onItemCollectChange,
   warehouseMap,
   canResetCollected = false,
   resetCollectedBusy = false,
@@ -66,30 +85,60 @@ export function AssemblyView({
   onFindProduct,
   findProductIds = [],
 }: AssemblyViewProps) {
-  const visibleItems = [...sections.pending, ...sections.completed];
+  const allItemsById = useMemo(
+    () => new Map(allItems.map((item) => [item.id, item])),
+    [allItems],
+  );
+  const allItemsByIdRef = useRef(allItemsById);
+  const currentItemRef = useRef<AssemblyItem | undefined>(undefined);
   const urgencySource = urgencyOrders ?? orders;
   const urgencyMap = useMemo(
     () => buildAssemblyUrgencyMap(urgencySource),
     [urgencySource],
   );
-  const getItemUrgency = useCallback(
-    (item: AssemblyItem) =>
-      URGENCY_LABELS[resolveAssemblyItemUrgencyFromMap(item, urgencyMap)],
-    [urgencyMap],
-  );
+  const urgencyByItemId = useMemo(() => {
+    const map = new Map<string, { label: string; className: string }>();
+    for (const item of allItems) {
+      map.set(
+        item.id,
+        URGENCY_LABELS[resolveAssemblyItemUrgencyFromMap(item, urgencyMap)],
+      );
+    }
+    return map;
+  }, [allItems, urgencyMap]);
+  const locationByItemId = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof findCellLocation>>();
+    if (!warehouseMap) return map;
+    for (const item of allItems) {
+      const loc = findCellLocation(item, warehouseMap);
+      if (loc) map.set(item.id, loc);
+    }
+    return map;
+  }, [allItems, warehouseMap]);
+  const findProductSet = useMemo(() => new Set(findProductIds), [findProductIds]);
   const [autoMode, setAutoMode] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [navDismissedFor, setNavDismissedFor] = useState<string | null>(null);
   const [stepsDone, setStepsDone] = useState(0);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
-  const [visiblePendingCount, setVisiblePendingCount] = useState(40);
+  const [visiblePendingCount, setVisiblePendingCount] = useState(24);
+  const [visibleCompletedCount, setVisibleCompletedCount] = useState(16);
+  const [, startCollectTransition] = useTransition();
   const totalStepsRef = useRef(0);
   const findProductKey = findProductIds.join("|");
+  const totals = useMemo(
+    () => ({
+      units: totalUnits(sections),
+      collected: collectedUnits(sections),
+    }),
+    [sections],
+  );
 
   useEffect(() => {
-    setVisiblePendingCount(40);
-  }, [sections.pending.length, findProductKey]);
+    setVisiblePendingCount(24);
+    setVisibleCompletedCount(16);
+  }, [sections.pending.length, sections.completed.length, findProductKey]);
 
   const route = useMemo(() => {
     if (!autoMode) return [];
@@ -100,23 +149,27 @@ export function AssemblyView({
     () => sections.pending.slice(0, visiblePendingCount),
     [sections.pending, visiblePendingCount],
   );
+  const completedVisible = useMemo(
+    () => sections.completed.slice(0, visibleCompletedCount),
+    [sections.completed, visibleCompletedCount],
+  );
   const hasMorePending = sections.pending.length > visiblePendingCount;
+  const hasMoreCompleted = sections.completed.length > visibleCompletedCount;
 
   const currentRouteItem = route[0];
-  const currentItem = currentRouteItem ? itemFromAll(allItems, currentRouteItem.id) : undefined;
-  const currentLocation = useMemo(
-    () => (currentItem && warehouseMap ? findCellLocation(currentItem, warehouseMap) : undefined),
-    [currentItem, warehouseMap],
-  );
+  const currentItem = currentRouteItem ? itemFromMap(allItemsById, currentRouteItem.id) : undefined;
+  allItemsByIdRef.current = allItemsById;
+  currentItemRef.current = currentItem;
+  const currentLocation = currentItem ? locationByItemId.get(currentItem.id) : undefined;
   const currentLocationKey = currentLocation ? locationKey(currentLocation) : null;
 
   const locationGroup = useMemo(() => {
     if (!currentLocationKey || !warehouseMap) return [];
 
     return route
-      .map((routeItem) => itemFromAll(allItems, routeItem.id) ?? routeItem)
+      .map((routeItem) => itemFromMap(allItemsById, routeItem.id) ?? routeItem)
       .filter((item) => {
-        const loc = findCellLocation(item, warehouseMap);
+        const loc = locationByItemId.get(item.id);
         return loc && locationKey(loc) === currentLocationKey;
       })
       .map((item) => ({
@@ -127,13 +180,22 @@ export function AssemblyView({
         isCurrent: item.id === currentItem?.id,
         isComplete: item.collectedCount >= item.quantity,
       }));
-  }, [route, allItems, warehouseMap, currentLocationKey, currentItem?.id]);
+  }, [route, allItemsById, warehouseMap, currentLocationKey, currentItem?.id, locationByItemId]);
 
   const locationGroupIndex = locationGroup.findIndex((entry) => entry.isCurrent) + 1;
 
-  const findVisibleItem = useCallback(
-    (id: string) => visibleItems.find((item) => item.id === id),
-    [visibleItems],
+  const setCollectedCount = useCallback(
+    (targetId: string, nextCount: number) => {
+      const clamped = Math.max(0, nextCount);
+      startCollectTransition(() => {
+        onItemCollectChange(
+          targetId,
+          clamped,
+          clamped > 0 ? Date.now() : undefined,
+        );
+      });
+    },
+    [onItemCollectChange],
   );
 
   const exitAutoMode = useCallback(() => {
@@ -192,16 +254,15 @@ export function AssemblyView({
 
   const applyCollect = useCallback(
     (targetId: string) => {
-      const visible = findVisibleItem(targetId) ?? itemFromAll(allItems, targetId);
+      const visible = allItemsByIdRef.current.get(targetId);
       if (!visible || visible.collectedCount >= visible.quantity) return false;
 
       const willComplete = visible.collectedCount + 1 >= visible.quantity;
-      const isCurrent = autoMode && currentItem?.id === targetId;
+      const isCurrent = autoMode && currentItemRef.current?.id === targetId;
       const hasNext = route.length > 1;
       const nextRouteItem = route.length > 1 ? route[1] : undefined;
-      const nextItem = nextRouteItem ? itemFromAll(allItems, nextRouteItem.id) : undefined;
-      const nextLocation =
-        nextItem && warehouseMap ? findCellLocation(nextItem, warehouseMap) : undefined;
+      const nextItem = nextRouteItem ? allItemsByIdRef.current.get(nextRouteItem.id) : undefined;
+      const nextLocation = nextItem ? locationByItemId.get(nextItem.id) : undefined;
       const nextLocationKey = nextLocation ? locationKey(nextLocation) : null;
       const stayAtLocation =
         isCurrent &&
@@ -209,13 +270,7 @@ export function AssemblyView({
         hasNext &&
         Boolean(currentLocationKey && nextLocationKey === currentLocationKey);
 
-      onItemsChange(
-        allItems.map((item) =>
-          item.id === targetId && item.collectedCount < visible.quantity
-            ? { ...item, collectedCount: item.collectedCount + 1, collectedAt: Date.now() }
-            : item,
-        ),
-      );
+      setCollectedCount(targetId, visible.collectedCount + 1);
 
       if (isCurrent && willComplete) {
         if (hasNext) {
@@ -228,14 +283,11 @@ export function AssemblyView({
       return true;
     },
     [
-      findVisibleItem,
-      allItems,
       autoMode,
-      currentItem,
       route,
-      warehouseMap,
+      locationByItemId,
       currentLocationKey,
-      onItemsChange,
+      setCollectedCount,
       advanceRoute,
       exitAutoMode,
     ],
@@ -248,24 +300,20 @@ export function AssemblyView({
 
   const handleIncrement = useCallback(
     (id: string) => {
-      if (autoMode && currentItem && id !== currentItem.id) return;
+      if (autoMode && currentItemRef.current && id !== currentItemRef.current.id) return;
       applyCollect(id);
     },
-    [autoMode, currentItem, applyCollect],
+    [autoMode, applyCollect],
   );
 
   const handleDecrement = useCallback(
     (id: string) => {
       if (autoMode) return;
-      onItemsChange(
-        allItems.map((item) =>
-          item.id === id && item.collectedCount > 0
-            ? { ...item, collectedCount: item.collectedCount - 1, collectedAt: Date.now() }
-            : item,
-        ),
-      );
+      const item = allItemsByIdRef.current.get(id);
+      if (!item || item.collectedCount <= 0) return;
+      setCollectedCount(id, item.collectedCount - 1);
     },
-    [allItems, onItemsChange, autoMode],
+    [autoMode, setCollectedCount],
   );
 
   const canScan = sections.pending.length > 0 || (autoMode && Boolean(currentItem));
@@ -367,7 +415,7 @@ export function AssemblyView({
                     Сканер
                   </button>
                   <div className="rounded-xl bg-gray-100 px-4 py-2 text-sm font-semibold tabular-nums text-gray-700">
-                    {collectedUnits(sections)} / {totalUnits(sections)}
+                    {totals.collected} / {totals.units}
                   </div>
                 </>
               ) : null}
@@ -414,7 +462,7 @@ export function AssemblyView({
       ) : autoMode && route.length > 0 ? (
         <div className="space-y-4">
           {currentItem && (
-            <AssemblyItemCard
+            <MemoAssemblyItemCard
               key={currentItem.id}
               item={currentItem}
               onIncrement={handleIncrement}
@@ -431,9 +479,9 @@ export function AssemblyView({
               showBrandMark={showBrandMark}
               onFindProduct={onFindProduct}
               findActive={Boolean(
-                currentItem.productId && findProductIds.includes(currentItem.productId),
+                currentItem.productId && findProductSet.has(currentItem.productId),
               )}
-              urgency={getItemUrgency(currentItem)}
+              urgency={urgencyByItemId.get(currentItem.id)}
             />
           )}
 
@@ -444,23 +492,22 @@ export function AssemblyView({
               </p>
               <div className="grid gap-2">
                 {upcomingRoute.map((item) => {
-                  const fresh = itemFromAll(allItems, item.id) ?? item;
-                  const loc = warehouseMap ? findCellLocation(fresh, warehouseMap) : undefined;
+                  const fresh = itemFromMap(allItemsById, item.id) ?? item;
                   return (
-                    <AssemblyItemCard
+                    <MemoAssemblyItemCard
                       key={item.id}
                       item={fresh}
                       onIncrement={handleIncrement}
                       onDecrement={handleDecrement}
-                      cellLocation={loc}
+                      cellLocation={locationByItemId.get(fresh.id)}
                       warehouseMap={warehouseMap}
                       dimmed
                       locked
                       stepNumber={routeStepById.get(item.id)}
                       showBrandMark={showBrandMark}
                       onFindProduct={onFindProduct}
-                      findActive={Boolean(item.productId && findProductIds.includes(item.productId))}
-                      urgency={getItemUrgency(fresh)}
+                      findActive={Boolean(item.productId && findProductSet.has(item.productId))}
+                      urgency={urgencyByItemId.get(fresh.id)}
                     />
                   );
                 })}
@@ -475,22 +522,31 @@ export function AssemblyView({
                 <div className="h-px flex-1 bg-green-200" />
               </div>
               <div className="grid gap-2.5 sm:gap-3">
-                {sections.completed.map((item) => (
-                  <AssemblyItemCard
+                {completedVisible.map((item) => (
+                  <MemoAssemblyItemCard
                     key={item.id}
                     item={item}
                     onIncrement={handleIncrement}
                     onDecrement={handleDecrement}
-                    cellLocation={warehouseMap ? findCellLocation(item, warehouseMap) : undefined}
+                    cellLocation={locationByItemId.get(item.id)}
                     warehouseMap={warehouseMap}
                     dimmed
                     locked
                     showBrandMark={showBrandMark}
                     onFindProduct={onFindProduct}
-                    findActive={Boolean(item.productId && findProductIds.includes(item.productId))}
-                    urgency={getItemUrgency(item)}
+                    findActive={Boolean(item.productId && findProductSet.has(item.productId))}
+                    urgency={urgencyByItemId.get(item.id)}
                   />
                 ))}
+                {hasMoreCompleted ? (
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCompletedCount((n) => n + 16)}
+                    className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-800 active:bg-gray-50"
+                  >
+                    Показать собранные ({sections.completed.length - visibleCompletedCount})
+                  </button>
+                ) : null}
               </div>
             </div>
           )}
@@ -500,23 +556,23 @@ export function AssemblyView({
           {sections.pending.length > 0 && (
             <div className="grid gap-2.5 sm:gap-3">
               {pendingVisible.map((item) => (
-                <AssemblyItemCard
+                <MemoAssemblyItemCard
                   key={item.id}
                   item={item}
                   onIncrement={handleIncrement}
                   onDecrement={handleDecrement}
-                  cellLocation={warehouseMap ? findCellLocation(item, warehouseMap) : undefined}
+                  cellLocation={locationByItemId.get(item.id)}
                   warehouseMap={warehouseMap}
                   showBrandMark={showBrandMark}
                   onFindProduct={onFindProduct}
-                  findActive={Boolean(item.productId && findProductIds.includes(item.productId))}
-                  urgency={getItemUrgency(item)}
+                  findActive={Boolean(item.productId && findProductSet.has(item.productId))}
+                  urgency={urgencyByItemId.get(item.id)}
                 />
               ))}
               {hasMorePending ? (
                 <button
                   type="button"
-                  onClick={() => setVisiblePendingCount((n) => n + 40)}
+                  onClick={() => setVisiblePendingCount((n) => n + 24)}
                   className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-800 active:bg-gray-50"
                 >
                   Показать ещё ({sections.pending.length - visiblePendingCount})
@@ -532,20 +588,29 @@ export function AssemblyView({
                 <div className="h-px flex-1 bg-green-200" />
               </div>
               <div className="grid gap-2.5 sm:gap-3">
-                {sections.completed.map((item) => (
-                  <AssemblyItemCard
+                {completedVisible.map((item) => (
+                  <MemoAssemblyItemCard
                     key={item.id}
                     item={item}
                     onIncrement={handleIncrement}
                     onDecrement={handleDecrement}
-                    cellLocation={warehouseMap ? findCellLocation(item, warehouseMap) : undefined}
+                    cellLocation={locationByItemId.get(item.id)}
                     warehouseMap={warehouseMap}
                     showBrandMark={showBrandMark}
                     onFindProduct={onFindProduct}
-                    findActive={Boolean(item.productId && findProductIds.includes(item.productId))}
-                    urgency={getItemUrgency(item)}
+                    findActive={Boolean(item.productId && findProductSet.has(item.productId))}
+                    urgency={urgencyByItemId.get(item.id)}
                   />
                 ))}
+                {hasMoreCompleted ? (
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCompletedCount((n) => n + 16)}
+                    className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-800 active:bg-gray-50"
+                  >
+                    Показать собранные ({sections.completed.length - visibleCompletedCount})
+                  </button>
+                ) : null}
               </div>
             </div>
           )}

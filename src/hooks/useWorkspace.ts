@@ -78,17 +78,20 @@ export function useWorkspace({
     );
     // Сборка локальная и не синкается — сохраняем collected при апдейтах с сервера.
     const localById = new Map(assemblyRef.current.map((item) => [item.id, item]));
-    const assemblyItems = next.assemblyItems.map((item) => {
-      const local = localById.get(item.id);
-      if (!local || local.collectedCount <= 0) {
-        return { ...item, collectedCount: 0, collectedAt: undefined };
-      }
-      return {
-        ...item,
-        collectedCount: Math.min(local.collectedCount, item.quantity),
-        collectedAt: local.collectedAt,
-      };
-    });
+    // Сборка хранит collected отдельно — не мержим в workspace.
+    const assemblyItems = slimForAssembly
+      ? next.assemblyItems
+      : next.assemblyItems.map((item) => {
+          const local = localById.get(item.id);
+          if (!local || local.collectedCount <= 0) {
+            return { ...item, collectedCount: 0, collectedAt: undefined };
+          }
+          return {
+            ...item,
+            collectedCount: Math.min(local.collectedCount, item.quantity),
+            collectedAt: local.collectedAt,
+          };
+        });
 
     shippedArchiveRef.current = slimForAssembly ? [] : (next.shippedArchive ?? []);
     setAssemblyItems(assemblyItems);

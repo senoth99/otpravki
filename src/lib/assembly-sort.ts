@@ -49,17 +49,24 @@ export function resolveAssemblyItemUrgency(
   return resolveAssemblyItemUrgencyFromMap(item, buildAssemblyUrgencyMap(orders));
 }
 
-export function sortAssemblyItemsByUrgency(
+export function sortAssemblyItemsByUrgencyWithMap(
   items: AssemblyItem[],
-  orders: ShippingOrder[],
+  urgencyMap: Map<string, number>,
 ): AssemblyItem[] {
-  const urgencyMap = buildAssemblyUrgencyMap(orders);
-
   return [...items].sort((a, b) => {
-    const weightA = urgencyMap.get(assemblyItemKey(a.productId, a.sizeId, a.isBlogger === true)) ?? 999;
-    const weightB = urgencyMap.get(assemblyItemKey(b.productId, b.sizeId, b.isBlogger === true)) ?? 999;
+    const weightA =
+      urgencyMap.get(assemblyItemKey(a.productId, a.sizeId, a.isBlogger === true)) ?? 999;
+    const weightB =
+      urgencyMap.get(assemblyItemKey(b.productId, b.sizeId, b.isBlogger === true)) ?? 999;
 
     if (weightA !== weightB) return weightA - weightB;
     return a.productName.localeCompare(b.productName, "ru");
   });
+}
+
+export function sortAssemblyItemsByUrgency(
+  items: AssemblyItem[],
+  orders: ShippingOrder[],
+): AssemblyItem[] {
+  return sortAssemblyItemsByUrgencyWithMap(items, buildAssemblyUrgencyMap(orders));
 }

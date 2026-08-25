@@ -25,17 +25,36 @@ export function applyProgressToAssemblyItems(
     }));
   }
 
-  return items.map((item) => {
-    const entry = progress.items[item.id];
-    if (!entry || entry.collectedCount <= 0) {
-      return { ...item, collectedCount: 0, collectedAt: undefined };
-    }
-    return {
+  return items.map((item) => applyProgressToItem(item, progress));
+}
+
+export function applyProgressToItem(
+  item: AssemblyItem,
+  progress: AssemblyProgressState | null | undefined,
+): AssemblyItem {
+  const entry = progress?.items?.[item.id];
+  if (!entry || entry.collectedCount <= 0) {
+    return { ...item, collectedCount: 0, collectedAt: undefined };
+  }
+  return {
+    ...item,
+    collectedCount: Math.min(entry.collectedCount, Math.max(0, item.quantity)),
+    collectedAt: entry.collectedAt,
+  };
+}
+
+export function applyProgressToItems(
+  items: AssemblyItem[],
+  progress: AssemblyProgressState | null | undefined,
+): AssemblyItem[] {
+  if (!progress?.items) {
+    return items.map((item) => ({
       ...item,
-      collectedCount: Math.min(entry.collectedCount, Math.max(0, item.quantity)),
-      collectedAt: entry.collectedAt,
-    };
-  });
+      collectedCount: 0,
+      collectedAt: undefined,
+    }));
+  }
+  return items.map((item) => applyProgressToItem(item, progress));
 }
 
 /** Убрать прогресс по позициям, которых больше нет в очереди сборки (после отгрузки). */
