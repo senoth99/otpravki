@@ -15,10 +15,10 @@ export const KM_LABEL_HEIGHT_MM = 55;
 
 const PAGE_W = mmToPoints(KM_LABEL_WIDTH_MM);
 const PAGE_H = mmToPoints(KM_LABEL_HEIGHT_MM);
-/** Поля под tear-off / клип SATO. */
+/** Поля с запасом: верх SATO часто клипает. */
 const MX = mmToPoints(3.5);
-const MT = mmToPoints(4);
-const MB = mmToPoints(3.5);
+const MT = mmToPoints(6.5);
+const MB = mmToPoints(4);
 const BLACK = rgb(0, 0, 0);
 const WHITE = rgb(1, 1, 1);
 
@@ -225,14 +225,12 @@ function drawLines(
 /**
  * Одежда / 60×55 / 203 dpi:
  *  [лого]              [ SIZE ]
- *  название вещи (крупно)
+ *  название
  *  ┌──────┐  GTIN
- *  │  DM  │  номер
- *  │      │  S/N
- *  └──────┘  серийник
- *  ЧЕСТНЫЙ ЗНАК · BRAND
+ *  │  DM  │  …
+ *  └──────┘  S/N
  *
- * Без «ЧЗ» в углу, без 91/92 (на 203 dpi не читаются).
+ * Без надписи «честный знак», без полосок, без 91/92.
  */
 export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
   const cis = input.cis.trim();
@@ -271,17 +269,15 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
   }
 
   const contentW = PAGE_W - MX * 2;
-  const footerH = mmToPoints(6);
-  const footerTop = MB + footerH;
-  let y = PAGE_H - MT;
+  const headerTop = PAGE_H - MT;
 
-  // --- Шапка: лого слева + бейдж размера справа ---
-  const logoMaxW = mmToPoints(30);
-  const logoMaxH = mmToPoints(7);
-  const sizeBadgeW = mmToPoints(16);
-  const sizeBadgeH = mmToPoints(10);
+  // --- Шапка: лого слева + бейдж размера справа (строго внутри MT) ---
+  const logoMaxW = mmToPoints(28);
+  const logoMaxH = mmToPoints(5.5);
+  const sizeBadgeW = mmToPoints(15);
+  const sizeBadgeH = mmToPoints(9);
   const sizeBadgeX = PAGE_W - MX - sizeBadgeW;
-  const sizeBadgeY = y - sizeBadgeH;
+  const sizeBadgeY = headerTop - sizeBadgeH;
 
   page.drawRectangle({
     x: sizeBadgeX,
@@ -291,37 +287,38 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
     color: BLACK,
   });
   const sizeCap = "SIZE";
-  const sizeCapSz = 5.5;
+  const sizeCapSz = 5;
   page.drawText(sizeCap, {
     x: sizeBadgeX + (sizeBadgeW - bold.widthOfTextAtSize(sizeCap, sizeCapSz)) / 2,
-    y: sizeBadgeY + sizeBadgeH - sizeCapSz - 1.5,
+    y: sizeBadgeY + sizeBadgeH - sizeCapSz - 1.2,
     size: sizeCapSz,
     font: bold,
     color: WHITE,
   });
-  const sizeLetterSz = fitFontSize(bold, sizeLabel, sizeBadgeW - 3, 13, 7);
+  const sizeLetterSz = fitFontSize(bold, sizeLabel, sizeBadgeW - 3, 12, 7);
   page.drawText(sizeLabel, {
     x: sizeBadgeX + (sizeBadgeW - bold.widthOfTextAtSize(sizeLabel, sizeLetterSz)) / 2,
-    y: sizeBadgeY + 2.2,
+    y: sizeBadgeY + 1.8,
     size: sizeLetterSz,
     font: bold,
     color: WHITE,
   });
 
-  const logoAreaW = sizeBadgeX - MX - mmToPoints(2.5);
+  const logoAreaW = sizeBadgeX - MX - mmToPoints(2);
   if (logo) {
     const scale = Math.min(logoMaxW / logo.width, logoMaxH / logo.height, logoAreaW / logo.width);
     const lw = logo.width * scale;
     const lh = logo.height * scale;
-    const logoY = y - lh - (sizeBadgeH - lh) / 2;
+    // низ лого внутри бейджа, верх ≤ headerTop
+    const logoY = sizeBadgeY + (sizeBadgeH - lh) / 2;
     page.drawImage(logo, {
       x: MX,
-      y: Math.max(sizeBadgeY, logoY),
+      y: Math.min(logoY, headerTop - lh),
       width: lw,
       height: lh,
     });
   } else {
-    const brandSz = fitFontSize(bold, brandLabel, logoAreaW, 11, 7);
+    const brandSz = fitFontSize(bold, brandLabel, logoAreaW, 10, 7);
     page.drawText(brandLabel, {
       x: MX,
       y: sizeBadgeY + (sizeBadgeH - brandSz) / 2,
@@ -331,54 +328,38 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
     });
   }
 
-  y = sizeBadgeY - mmToPoints(2.2);
+  let y = sizeBadgeY - mmToPoints(2.5);
 
-  // Разделитель
-  page.drawRectangle({
-    x: MX,
-    y: y - 1,
-    width: contentW,
-    height: 1.1,
-    color: BLACK,
-  });
-  y -= mmToPoints(2.8);
-
-  // --- Название (крупно, только чёрный) ---
-  const nameSize = 9;
-  const nameLH = nameSize * 1.15;
+  // --- Название ---
+  const nameSize = 8.5;
+  const nameLH = nameSize * 1.14;
   const nameLines = wrapWords(bold, productName, nameSize, contentW).slice(0, 2);
   y = drawLines(page, bold, nameLines, nameSize, nameLH, MX, y);
-  y -= mmToPoints(2);
+  y -= mmToPoints(2.5);
 
-  // --- DM слева + читаемые GTIN / S/N справа ---
-  const rowBottom = footerTop + mmToPoints(1.5);
-  const rowH = Math.max(mmToPoints(22), y - rowBottom);
-  const dmTarget = Math.min(mmToPoints(26), rowH, contentW * 0.52);
+  // --- DM + GTIN / S/N (без полосок и рамки, чтобы ничего не наезжало) ---
+  const dmPad = 0;
+  const rowBottom = MB;
+  const availH = Math.max(mmToPoints(20), y - rowBottom);
+  const dmTarget = Math.min(mmToPoints(24), availH, contentW * 0.5);
   const dmScale = Math.min(dmTarget / dm.width, dmTarget / dm.height);
   const dmW = dm.width * dmScale;
   const dmH = dm.height * dmScale;
-  const dmX = MX;
-  const dmY = y - dmH;
+  const dmX = MX + dmPad;
+  const dmY = Math.max(rowBottom, y - dmH);
 
   page.drawImage(dm, { x: dmX, y: dmY, width: dmW, height: dmH });
-  page.drawRectangle({
-    x: dmX - 1.4,
-    y: dmY - 1.4,
-    width: dmW + 2.8,
-    height: dmH + 2.8,
-    borderColor: BLACK,
-    borderWidth: 1.2,
-  });
 
-  const metaX = dmX + dmW + mmToPoints(2.5);
+  const metaX = dmX + dmW + mmToPoints(2.8);
   const metaW = PAGE_W - MX - metaX;
   const labelSz = 6.5;
   const valueSz = 8;
-  const gap = 2.2;
+  const gap = 3;
 
   let metaY = y;
   const drawMetaBlock = (label: string, value: string) => {
     if (!value) return;
+    if (metaY - labelSz < MB) return;
     page.drawText(label, {
       x: metaX,
       y: metaY - labelSz,
@@ -386,9 +367,10 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
       font: bold,
       color: BLACK,
     });
-    metaY -= labelSz + 1.2;
+    metaY -= labelSz + 1.4;
     const valueLines = wrapLine(mono, value, valueSz, metaW).slice(0, 2);
     for (const line of valueLines) {
+      if (metaY - valueSz < MB) break;
       page.drawText(line, {
         x: metaX,
         y: metaY - valueSz,
@@ -403,25 +385,6 @@ export async function buildKmLabelPdf(input: KmLabelInput): Promise<Buffer> {
 
   drawMetaBlock("GTIN", fields.gtin);
   drawMetaBlock("S/N", fields.serial);
-
-  // --- Футер ---
-  page.drawRectangle({
-    x: MX,
-    y: footerTop + footerH - 1.2,
-    width: contentW,
-    height: 1.1,
-    color: BLACK,
-  });
-
-  const foot = `ЧЕСТНЫЙ ЗНАК · ${brandLabel}`;
-  const footSz = fitFontSize(bold, foot, contentW, 7.5, 6);
-  page.drawText(foot, {
-    x: MX + (contentW - bold.widthOfTextAtSize(foot, footSz)) / 2,
-    y: MB + 1.5,
-    size: footSz,
-    font: bold,
-    color: BLACK,
-  });
 
   return Buffer.from(await pdf.save());
 }
