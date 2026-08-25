@@ -102,27 +102,37 @@ export function AssemblyPanel({
     initialApiOrderIds,
     initialShippedArchive,
     initialRevision,
+    slimForAssembly: true,
   });
 
   useOtpravkiNoSwipe("tablet");
 
-  // Полный pull Casher (все бренды), как в отправках — не застреваем на старом кэше.
+  // Полный pull Casher — не сразу при открытии (убивает планшет), а с задержкой + реже.
   useEffect(() => {
     let cancelled = false;
+    let timer: number | undefined;
+
     const run = () => {
       if (cancelled || document.visibilityState !== "visible" || !navigator.onLine) return;
       noteClientAction("sborka:sync");
       void refreshFromApi(undefined, { silent: true });
     };
-    run();
-    const timer = window.setInterval(run, ORDERS_API_POLL_MS);
+
+    // Первый sync через 8с — сначала отрисовать список из кэша.
+    const startTimer = window.setTimeout(() => {
+      run();
+      timer = window.setInterval(run, Math.max(ORDERS_API_POLL_MS, 45_000));
+    }, 8_000);
+
     const onVisible = () => {
-      if (document.visibilityState === "visible") run();
+      if (document.visibilityState !== "visible") return;
+      // Не дёргаем API при каждом возврате на вкладку — socket уже пушит.
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      window.clearTimeout(startTimer);
+      if (timer !== undefined) window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [refreshFromApi]);

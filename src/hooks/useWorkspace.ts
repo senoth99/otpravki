@@ -20,6 +20,7 @@ import {
   refreshWorkspaceFromApi,
   subscribeWorkspaceStream,
 } from "@/lib/workspace";
+import { slimWorkspaceForAssembly } from "@/lib/assembly-workspace-slim";
 
 function stripAssemblyCollected(items: AssemblyItem[]): AssemblyItem[] {
   return items.map((item) => ({
@@ -36,6 +37,8 @@ interface UseWorkspaceOptions {
   initialRevision?: number;
   /** Фоновый poll unshipped API для выбранного бренда */
   pollBrand?: string;
+  /** Сборка: не держим архив и тяжёлые поля заказов в памяти */
+  slimForAssembly?: boolean;
 }
 
 export function useWorkspace({
@@ -45,6 +48,7 @@ export function useWorkspace({
   initialShippedArchive = [],
   initialRevision = 0,
   pollBrand,
+  slimForAssembly = false,
 }: UseWorkspaceOptions) {
   const revisionRef = useRef(initialRevision);
   const assemblyRef = useRef(initialAssembly);
@@ -68,8 +72,9 @@ export function useWorkspace({
   ordersRef.current = orders;
 
   const applyWorkspaceState = useCallback((workspace: SharedWorkspaceState) => {
+    const source = slimForAssembly ? { ...workspace, ...slimWorkspaceForAssembly(workspace) } : workspace;
     const next = normalizeWorkspaceState(
-      preserveLocalShippedState(workspace, ordersRef.current, shippedArchiveRef.current),
+      preserveLocalShippedState(source, ordersRef.current, shippedArchiveRef.current),
     );
     // Сборка локальная и не синкается — сохраняем collected при апдейтах с сервера.
     const localById = new Map(assemblyRef.current.map((item) => [item.id, item]));
@@ -85,14 +90,14 @@ export function useWorkspace({
       };
     });
 
-    shippedArchiveRef.current = next.shippedArchive ?? [];
+    shippedArchiveRef.current = slimForAssembly ? [] : (next.shippedArchive ?? []);
     setAssemblyItems(assemblyItems);
     assemblyRef.current = assemblyItems;
     setOrders([...next.orders]);
-    setShippedArchive(next.shippedArchive ?? []);
+    setShippedArchive(slimForAssembly ? [] : (next.shippedArchive ?? []));
     setApiOrderIds(next.apiOrderIds ?? []);
     revisionRef.current = next.revision;
-  }, []);
+  }, [slimForAssembly]);
 
   const applyFromServer = useCallback(
     (remote: SharedWorkspaceState) => {

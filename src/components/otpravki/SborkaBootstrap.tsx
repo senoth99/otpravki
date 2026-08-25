@@ -1,0 +1,90 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
+import { slimWorkspaceForAssembly } from "@/lib/assembly-workspace-slim";
+import { fetchSharedWorkspace, refreshWorkspaceFromApi } from "@/lib/workspace";
+import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
+import { AssemblyPanel } from "./AssemblyPanel";
+
+function EmptyState({ title, hint }: { title: string; hint: string }) {
+  return (
+    <div className="flex h-dvh max-h-dvh w-full items-center justify-center overflow-hidden bg-gray-50 p-4 overscroll-none">
+      <div className="w-full max-w-lg rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-sm">
+        <p className="font-medium text-gray-900">{title}</p>
+        <p className="mt-2 text-sm text-gray-500">{hint}</p>
+      </div>
+    </div>
+  );
+}
+
+export function SborkaBootstrap() {
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<{ title: string; hint: string } | null>(null);
+  const [assemblyItems, setAssemblyItems] = useState<AssemblyItem[]>([]);
+  const [orders, setOrders] = useState<ShippingOrder[]>([]);
+  const [apiOrderIds, setApiOrderIds] = useState<string[]>([]);
+  const [initialRevision, setInitialRevision] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        let workspace = await fetchSharedWorkspace();
+        if (cancelled) return;
+
+        if (!workspace || ((workspace.orders?.length ?? 0) === 0 && (workspace.assemblyItems?.length ?? 0) === 0)) {
+          const refreshed = await refreshWorkspaceFromApi();
+          if (cancelled) return;
+          if (refreshed.ok && refreshed.workspace) {
+            workspace = refreshed.workspace;
+          }
+        }
+
+        if (!workspace) {
+          setError({
+            title: "Заказы ещё не загружены",
+            hint: "Откройте отправки один раз или нажмите «Обновить»",
+          });
+          return;
+        }
+
+        const slim = slimWorkspaceForAssembly(workspace);
+        setAssemblyItems(slim.assemblyItems);
+        setOrders(slim.orders);
+        setApiOrderIds(slim.apiOrderIds ?? []);
+        setInitialRevision(slim.revision);
+        setReady(true);
+      } catch (loadError) {
+        if (cancelled) return;
+        setError({
+          title: "Не удалось загрузить сборку",
+          hint: loadError instanceof Error ? loadError.message : "Проверьте сеть и обновите страницу",
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (error) {
+    return <EmptyState title={error.title} hint={error.hint} />;
+  }
+
+  if (!ready) {
+    return <StageLoadingScreen variant="fullscreen" />;
+  }
+
+  return (
+    <AssemblyPanel
+      assemblyItems={assemblyItems}
+      orders={orders}
+      apiOrderIds={apiOrderIds}
+      shippedArchive={[]}
+      initialRevision={initialRevision}
+    />
+  );
+}

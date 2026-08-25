@@ -83,12 +83,24 @@ export function AssemblyView({
   const [stepsDone, setStepsDone] = useState(0);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [visiblePendingCount, setVisiblePendingCount] = useState(40);
   const totalStepsRef = useRef(0);
+  const findProductKey = findProductIds.join("|");
 
-  const route = useMemo(
-    () => planAssemblyRoute(allItems, orders, warehouseMap),
-    [allItems, orders, warehouseMap],
+  useEffect(() => {
+    setVisiblePendingCount(40);
+  }, [sections.pending.length, findProductKey]);
+
+  const route = useMemo(() => {
+    if (!autoMode) return [];
+    return planAssemblyRoute(allItems, orders, warehouseMap);
+  }, [autoMode, allItems, orders, warehouseMap]);
+
+  const pendingVisible = useMemo(
+    () => sections.pending.slice(0, visiblePendingCount),
+    [sections.pending, visiblePendingCount],
   );
+  const hasMorePending = sections.pending.length > visiblePendingCount;
 
   const currentRouteItem = route[0];
   const currentItem = currentRouteItem ? itemFromAll(allItems, currentRouteItem.id) : undefined;
@@ -155,12 +167,13 @@ export function AssemblyView({
       exitAutoMode();
       return;
     }
-    totalStepsRef.current = route.length;
+    const planned = planAssemblyRoute(allItems, orders, warehouseMap);
+    totalStepsRef.current = planned.length;
     setStepsDone(0);
     setNavDismissedFor(null);
     setAutoMode(true);
     setNavOpen(true);
-  }, [autoMode, exitAutoMode, route.length]);
+  }, [autoMode, exitAutoMode, allItems, orders, warehouseMap]);
 
   useEffect(() => {
     if (!autoMode) return;
@@ -486,7 +499,7 @@ export function AssemblyView({
         <div className="space-y-4">
           {sections.pending.length > 0 && (
             <div className="grid gap-2.5 sm:gap-3">
-              {sections.pending.map((item) => (
+              {pendingVisible.map((item) => (
                 <AssemblyItemCard
                   key={item.id}
                   item={item}
@@ -500,6 +513,15 @@ export function AssemblyView({
                   urgency={getItemUrgency(item)}
                 />
               ))}
+              {hasMorePending ? (
+                <button
+                  type="button"
+                  onClick={() => setVisiblePendingCount((n) => n + 40)}
+                  className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-800 active:bg-gray-50"
+                >
+                  Показать ещё ({sections.pending.length - visiblePendingCount})
+                </button>
+              ) : null}
             </div>
           )}
 
