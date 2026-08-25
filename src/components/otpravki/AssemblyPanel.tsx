@@ -248,20 +248,37 @@ export function AssemblyPanel({
     [orders, selectedBrand],
   );
 
+  /** Только заказы, которые можно отправить (всё в наличии на складе). */
+  const stockOrders = useMemo(
+    () => brandOrders.filter((order) => order.ready !== false),
+    [brandOrders],
+  );
+
   const filteredOrders = useMemo(
     () =>
-      applyOrderFilters(brandOrders, {
+      applyOrderFilters(stockOrders, {
         ...filters,
         scan: "all",
         inStock: false,
         fromAssembly: false,
       }),
-    [brandOrders, filters],
+    [stockOrders, filters],
   );
 
   const filteredAssemblyBase = useMemo(() => {
+    const stockKeys = new Set(
+      stockOrders.flatMap((order) =>
+        order.items.map(
+          (item) => `${item.productId}-${item.sizeId}-${orderIsBlogger(order)}`,
+        ),
+      ),
+    );
+
     let brandAsm = assemblyItems.filter(
-      (item) => matchesStoreBrand(item.brand, selectedBrand) && item.quantity > 0,
+      (item) =>
+        matchesStoreBrand(item.brand, selectedBrand) &&
+        item.quantity > 0 &&
+        stockKeys.has(`${item.productId}-${item.sizeId}-${item.isBlogger === true}`),
     );
     if (filters.kind === "blogger") {
       brandAsm = brandAsm.filter((item) => item.isBlogger === true);
@@ -298,12 +315,12 @@ export function AssemblyPanel({
     }
 
     return brandAsm;
-  }, [assemblyItems, selectedBrand, filters, filteredOrders]);
+  }, [assemblyItems, selectedBrand, filters, stockOrders, filteredOrders]);
 
   // Тяжёлый enrich+sort — только когда сменился состав позиций, НЕ на каждый «Взял».
   const assemblySectionsBase = useMemo(
-    () => getAssemblyViewSections(filteredAssemblyBase, brandOrders, false, undefined, brandOrders),
-    [filteredAssemblyBase, brandOrders],
+    () => getAssemblyViewSections(filteredAssemblyBase, stockOrders, false, undefined, stockOrders),
+    [filteredAssemblyBase, stockOrders],
   );
 
   const filteredAssemblyItems = useMemo(
@@ -359,14 +376,12 @@ export function AssemblyPanel({
   );
 
   const products = useMemo(() => {
-    // Список «Вещи» = позиции сборки + строки заказов (майка не пропадает, если нет в ready).
+    // «Вещи» только из заказов в наличии (ready).
     const byId = new Map<string, ReturnType<typeof collectFilterProducts>[number]>();
-    for (const row of collectFilterProducts(brandOrders)) {
+    for (const row of collectFilterProducts(stockOrders)) {
       byId.set(row.productId, row);
     }
-    for (const row of collectFilterProductsFromAssembly(
-      assemblyItems.filter((item) => matchesStoreBrand(item.brand, selectedBrand)),
-    )) {
+    for (const row of collectFilterProductsFromAssembly(filteredAssemblyBase)) {
       const prev = byId.get(row.productId);
       if (!prev) {
         byId.set(row.productId, row);
@@ -381,7 +396,7 @@ export function AssemblyPanel({
       });
     }
     return [...byId.values()].sort((a, b) => a.productName.localeCompare(b.productName, "ru"));
-  }, [brandOrders, assemblyItems, selectedBrand]);
+  }, [stockOrders, filteredAssemblyBase]);
 
   const offline = !isInternetOnline || !isServerReachable;
 
@@ -480,7 +495,7 @@ export function AssemblyPanel({
             sections={assemblySections}
             allItems={filteredAssemblyItems}
             orders={filteredOrders}
-            urgencyOrders={brandOrders}
+            urgencyOrders={stockOrders}
             onItemCollectChange={handleItemCollectChange}
             warehouseMap={warehouseMap}
             canResetCollected={canResetCollected}
