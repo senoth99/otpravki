@@ -14,7 +14,6 @@ import { LogoutShiftSummary } from "@/components/auth/LogoutShiftSummary";
 import { RegisterScreen } from "@/components/auth/RegisterScreen";
 import { ShiftStartReminder } from "@/components/auth/ShiftStartReminder";
 import { usePointerDragScroll } from "@/hooks/usePointerDragScroll";
-import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
 
 /** Без логина: сборка, обзор, инструкция и скрытые гайды. Остальное — после входа. */
 function isGuestPublicPath(pathname: string | null): boolean {
@@ -147,14 +146,11 @@ function AuthShell({ children }: { children: ReactNode }) {
 
   // В iframe — показываем приложение сразу без auth
   const showApp = Boolean(user) || guestPublic || isEmbedded;
-  const showBlockingLogin = !user && !loading && !guestPublic && !isEmbedded;
+  const showBlockingLogin = !user && !guestPublic && !isEmbedded;
   const showLoginOverlay = !user && !loading && guestPublic && loginOpen && !isEmbedded;
 
   // Не подменяем страницу splash-ом: иначе при guest /sborka бывает React #418
   // (сервер уже отдал children, клиент на мгновение рисует loading).
-  if (loading && !keepMounted.current && !showBlockingLogin && !guestPublic) {
-    return <StageLoadingScreen variant="fullscreen" />;
-  }
 
   return (
     <>

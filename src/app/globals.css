@@ -170,3 +170,16 @@ video {
   height: 0;
   display: none;
 }
+
+@keyframes stage-loading-progress {
+  from {
+    width: 8%;
+  }
+  to {
+    width: 88%;
+  }
+}
+
+.stage-loading-bar {
+  animation: stage-loading-progress 3s ease-out forwards;
+}

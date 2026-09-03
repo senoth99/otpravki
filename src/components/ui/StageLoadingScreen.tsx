@@ -62,7 +62,7 @@ export function StageLoadingScreen({
         </p>
         <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-gray-100">
           <div
-            className="h-full rounded-full bg-gray-900 transition-[width] duration-200 ease-out"
+            className="stage-loading-bar h-full rounded-full bg-gray-900"
             style={{ width: `${value}%` }}
           />
         </div>
