@@ -33,11 +33,11 @@ export function StageLoadingScreen({
     const started = Date.now();
     const id = window.setInterval(() => {
       const elapsed = Date.now() - started;
-      // Быстрый старт, потом замедление к ~92%
-      const t = Math.min(1, elapsed / 12_000);
-      const next = Math.round(8 + (84 * (1 - Math.pow(1 - t, 2.2))));
+      // Быстрый старт, замедление к ~88% за 3 сек
+      const t = Math.min(1, elapsed / 3_000);
+      const next = Math.round(8 + (80 * (1 - Math.pow(1 - t, 2.2))));
       setAutoProgress(next);
-    }, 120);
+    }, 80);
     return () => window.clearInterval(id);
   }, [progress]);
 

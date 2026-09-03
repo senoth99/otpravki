@@ -136,7 +136,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      await refresh();
+      // Таймаут 4 сек — если /api/auth/me завис, всё равно убираем экран загрузки
+      await Promise.race([
+        refresh(),
+        new Promise<void>((resolve) => setTimeout(resolve, 4_000)),
+      ]);
       if (!cancelled) setLoading(false);
     })();
     return () => {
