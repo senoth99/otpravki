@@ -59,7 +59,21 @@ export function useWorkspace({
   const [orders, setOrders] = useState(initialOrders);
   const [shippedArchive, setShippedArchive] = useState(shippedArchiveRef.current);
   const [apiOrderIds, setApiOrderIds] = useState(initialApiOrderIds);
-  const [isServerReachable, setIsServerReachable] = useState(true);
+  const [isServerReachable, setIsServerReachableRaw] = useState(true);
+  const serverUnreachableTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const setIsServerReachable = useCallback((reachable: boolean) => {
+    if (reachable) {
+      clearTimeout(serverUnreachableTimerRef.current);
+      serverUnreachableTimerRef.current = undefined;
+      setIsServerReachableRaw(true);
+    } else {
+      if (serverUnreachableTimerRef.current !== undefined) return;
+      serverUnreachableTimerRef.current = setTimeout(() => {
+        serverUnreachableTimerRef.current = undefined;
+        setIsServerReachableRaw(false);
+      }, 5_000);
+    }
+  }, []);
   // Always start online so SSR HTML matches the first client render (avoids hydration mismatch).
   const [isInternetOnline, setIsInternetOnline] = useState(true);
   const [isStreamConnected, setIsStreamConnected] = useState(false);

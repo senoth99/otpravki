@@ -958,6 +958,8 @@ export function ShippingView({
   const hasActiveOrders = activeIndices.length > 0;
   const hasShippableOrders = shippableIndices.length > 0;
   const hasShippedOrders = shippedOrders.length > 0 || isManualConfirm;
+  const isSearchActive = searchQuery.trim().length > 0;
+  const searchFound = searchMatchIndices.length > 0;
 
   if (!hasActiveOrders && !hasShippedOrders) {
     return (
@@ -969,6 +971,21 @@ export function ShippingView({
           <p className="font-medium text-gray-900">
             {emptyHint ? "Нет готовых к отправке" : "Нет заказов на отправку"}
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isSearchActive && !searchFound) {
+    return (
+      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        <div className="border-b border-gray-100 px-1 py-1 sm:px-2">
+          <AutoModeButton active={autoMode} onClick={handleAutoModeToggle} />
+        </div>
+        <div className="space-y-2 p-8 text-center">
+          <p className="text-2xl">🔍</p>
+          <p className="font-medium text-gray-900">Ничего не найдено</p>
+          <p className="text-sm text-gray-500">Нет заказов по запросу «{searchQuery.trim()}»</p>
         </div>
       </div>
     );
