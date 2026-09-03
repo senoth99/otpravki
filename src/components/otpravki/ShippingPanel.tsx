@@ -55,7 +55,7 @@ export function ShippingPanel({
   shippedArchive: initialShippedArchive = [],
   initialRevision = 0,
 }: ShippingPanelProps) {
-  const { user, loading } = useAuth();
+  const { user, loading, refresh } = useAuth();
   const [tab, setTab] = useState<ShippingTab>("shipping");
   const [selectedBrand, setSelectedBrand] = useState<string>(ALL_BRANDS);
   const [filters, setFilters] = useState<OtpravkiFiltersState>(DEFAULT_FILTERS);
@@ -356,7 +356,10 @@ export function ShippingPanel({
               brandOptions={brandOptions}
               onBrandChange={handleBrandChange}
               onOrdersChange={handleFilteredOrdersChange}
-              onOrderShipped={() => scheduleRefreshAfterShip(undefined)}
+              onOrderShipped={() => {
+                scheduleRefreshAfterShip(undefined);
+                void refresh();
+              }}
               selectionResetKey={`${selectedBrand}:${filters.urgency}:${filters.kind}:${filters.inStock}:${filters.fromAssembly}:${filters.productIds.join(",")}`}
               searchQuery={filters.query}
               emptyHint={emptyHint}

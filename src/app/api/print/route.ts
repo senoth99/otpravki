@@ -4,7 +4,7 @@ import {
   printToBarcodePrinter,
 } from "@/lib/server/barcode-printer";
 import { requireMutatingAuth } from "@/lib/server/api-auth";
-import { requireUserSession } from "@/lib/server/auth-session";
+import { requireUserSession, incrementSessionShipments } from "@/lib/server/auth-session";
 import { markOrderShipped, resolveRemoteOrderIdForStatusApi } from "@/lib/server/orders-api";
 import { recordShipmentEvent } from "@/lib/server/shift-stats-store";
 import { getSharedWorkspace, persistAndReplaceArchive } from "@/lib/server/workspace-store";
@@ -108,10 +108,11 @@ export async function POST(request: Request) {
         workspace?.shippedArchive?.find((order) => order.id === orderId);
 
       if (fromSession) {
+        const shippedAt = Date.now();
         const archived: ShippingOrder = {
           ...fromSession,
           barcodePrinted: true,
-          barcodePrintedAt: fromSession.barcodePrintedAt ?? Date.now(),
+          barcodePrintedAt: shippedAt,
         };
 
         try {
@@ -120,11 +121,12 @@ export async function POST(request: Request) {
             archived.shippedByUserId = userCtx.user.id;
             archived.shippedByEmoji = userCtx.user.emoji;
             await recordShipmentEvent({
-              ts: archived.barcodePrintedAt ?? Date.now(),
+              ts: shippedAt,
               userId: userCtx.user.id,
               orderId: archived.id,
               orderNumber: archived.orderNumber,
             });
+            await incrementSessionShipments(userCtx.session.token);
           }
         } catch {
           // статистика не должна ломать печать

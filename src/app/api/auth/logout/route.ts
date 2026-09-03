@@ -37,11 +37,15 @@ export async function POST(request: Request) {
       const session = await destroyAuthSession(token);
       if (session) {
         const events = await loadShipmentEvents();
-        shiftShipments = countShipmentsForShift(
+        const fromEvents = countShipmentsForShift(
           events,
           session.userId,
           session.shiftStartedAt,
         );
+        shiftShipments =
+          typeof session.shiftShipments === "number"
+            ? Math.max(session.shiftShipments, fromEvents)
+            : fromEvents;
         await recordShiftSummary({
           userId: session.userId,
           startedAt: session.shiftStartedAt,

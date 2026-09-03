@@ -164,6 +164,25 @@ function wrapLines(font: PDFFont, text: string, size: number, maxWidth: number, 
   return fitted;
 }
 
+function fitSingleLineText(
+  font: PDFFont,
+  text: string,
+  maxWidth: number,
+  preferredSize: number,
+  minSize: number,
+): { text: string; size: number } {
+  const raw = text.trim();
+  if (!raw) return { text: "", size: preferredSize };
+
+  for (let size = preferredSize; size >= minSize; size -= 0.5) {
+    if (font.widthOfTextAtSize(raw, size) <= maxWidth) {
+      return { text: raw, size };
+    }
+  }
+
+  return { text: raw, size: minSize };
+}
+
 function drawCenteredText(
   page: PDFPage,
   font: PDFFont,
@@ -443,29 +462,38 @@ async function buildCasherTrackLabelPdf(
 
   const padX = 8;
   const padY = 6;
-  const orderSize = orderNo.length > 16 ? 12 : 14;
-  const trackSize = track.length > 14 ? 14 : 16;
-  const textBlock = trackSize + 5 + orderSize + 5;
-  const barcodeH = Math.max(42, holeH - textBlock - padY * 2);
+  const textMaxW = holeW - padX * 2;
+  const textLeft = holeX + padX;
+
+  const orderPreferred = orderNo.length > 28 ? 10 : orderNo.length > 18 ? 11 : 13;
+  const orderFit = fitSingleLineText(bold, orderNo, textMaxW, orderPreferred, 7);
+
+  const trackPreferred = track.length > 14 ? 14 : 16;
+  const trackFit = fitSingleLineText(bold, track, textMaxW, trackPreferred, 10);
+  const textBlock = 6 + trackFit.size + 4 + orderFit.size;
+  const barcodeH = Math.max(36, holeH - textBlock - padY * 2);
   const barcodeY = holeTop - padY - barcodeH;
 
   try {
     void code128ModuleCount(track);
-    drawCode128(page, track, holeX + padX, barcodeY, holeW - padX * 2, barcodeH);
+    drawCode128(page, track, textLeft, barcodeY, textMaxW, barcodeH);
   } catch {
     page.drawRectangle({
-      x: holeX + padX,
+      x: textLeft,
       y: barcodeY,
-      width: holeW - padX * 2,
+      width: textMaxW,
       height: barcodeH,
       borderColor: BLACK,
       borderWidth: 1.2,
     });
   }
 
-  const trackY = barcodeY - trackSize - 4;
-  drawCenteredIn(page, bold, track, trackSize, trackY, holeX, holeW);
-  drawCenteredIn(page, bold, orderNo, orderSize, trackY - orderSize - 5, holeX, holeW);
+  let textY = barcodeY - 6;
+  textY -= trackFit.size;
+  drawCenteredIn(page, bold, trackFit.text, trackFit.size, textY, textLeft, textMaxW);
+
+  textY -= 4 + orderFit.size;
+  drawCenteredIn(page, bold, orderFit.text, orderFit.size, textY, textLeft, textMaxW);
 }
 
 function drawZoneFrame(page: PDFPage, x: number, y: number, w: number, h: number) {
@@ -678,7 +706,8 @@ export async function buildTrackLabelPdf(input: TrackLabelInput): Promise<Buffer
   }
 
   const trackSize = track.length > 14 ? 11 : 13;
-  drawCenteredIn(page, bold, track, trackSize, barcodeY - 15, leftX, leftW);
+  const trackFit = fitSingleLineText(bold, track, leftW - pad * 2, trackSize, 9);
+  drawCenteredIn(page, bold, trackFit.text, trackFit.size, barcodeY - 15, leftX, leftW);
   const belowY = barcodeY - 18;
 
   const qrTop = belowY - 4;

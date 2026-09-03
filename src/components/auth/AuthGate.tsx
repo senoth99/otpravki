@@ -66,31 +66,17 @@ function AuthLoginPanel({
         <LogoutShiftSummary shipments={lastShiftSummary} onClose={clearShiftSummary} />
       )}
 
-      <header className="safe-top border-b border-gray-200 bg-white px-4 py-3">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-bold text-gray-900">Отправки · CASHER</h1>
-            <p className="text-xs text-gray-500">Вход по смайлику и PIN</p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <a
-              href="/instrukciya"
-              className="inline-flex min-h-11 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 active:bg-gray-50"
-            >
-              Инструкция
-            </a>
-            {onClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                className="inline-flex min-h-11 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 active:bg-gray-50"
-              >
-                Назад
-              </button>
-            )}
-          </div>
+      {onClose ? (
+        <div className="safe-top flex justify-end px-4 pt-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex min-h-11 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 active:bg-gray-50"
+          >
+            Назад
+          </button>
         </div>
-      </header>
+      ) : null}
 
       {mode === "login" ? (
         <LoginScreen

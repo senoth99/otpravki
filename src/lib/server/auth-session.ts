@@ -19,6 +19,8 @@ export interface AuthSession {
   createdAt: number;
   lastActiveAt: number;
   shiftStartedAt: number;
+  /** Счётчик отправок в текущей смене (надёжнее, чем пересчёт по времени события) */
+  shiftShipments?: number;
 }
 
 interface SessionsFile {
@@ -54,6 +56,17 @@ async function writeSessionsFile(file: SessionsFile): Promise<void> {
   await rename(tmp, SESSIONS_FILE);
 }
 
+let sessionWriteChain: Promise<unknown> = Promise.resolve();
+
+function enqueueSessionUpdate<T>(fn: () => Promise<T>): Promise<T> {
+  const run = sessionWriteChain.then(fn, fn);
+  sessionWriteChain = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
 function isSessionAlive(session: AuthSession, now = Date.now()): boolean {
   return now - session.lastActiveAt <= IDLE_TIMEOUT_MS;
 }
@@ -66,6 +79,7 @@ export async function createAuthSession(userId: string): Promise<AuthSession> {
     createdAt: now,
     lastActiveAt: now,
     shiftStartedAt: now,
+    shiftShipments: 0,
   };
 
   const file = await readSessionsFile();
@@ -92,27 +106,43 @@ export async function getSessionByToken(token: string): Promise<AuthSession | nu
 }
 
 export async function touchAuthSession(token: string): Promise<AuthSession | null> {
-  const now = Date.now();
-  const file = await readSessionsFile();
-  const index = file.sessions.findIndex((entry) => entry.token === token);
-  if (index < 0) return null;
-  if (!isSessionAlive(file.sessions[index], now)) {
-    file.sessions.splice(index, 1);
+  return enqueueSessionUpdate(async () => {
+    const now = Date.now();
+    const file = await readSessionsFile();
+    const index = file.sessions.findIndex((entry) => entry.token === token);
+    if (index < 0) return null;
+    if (!isSessionAlive(file.sessions[index], now)) {
+      file.sessions.splice(index, 1);
+      await writeSessionsFile(file);
+      return null;
+    }
+    file.sessions[index] = { ...file.sessions[index], lastActiveAt: now };
     await writeSessionsFile(file);
-    return null;
-  }
-  file.sessions[index] = { ...file.sessions[index], lastActiveAt: now };
-  await writeSessionsFile(file);
-  return file.sessions[index];
+    return file.sessions[index];
+  });
+}
+
+export async function incrementSessionShipments(token: string): Promise<number | null> {
+  return enqueueSessionUpdate(async () => {
+    const file = await readSessionsFile();
+    const index = file.sessions.findIndex((entry) => entry.token === token);
+    if (index < 0) return null;
+    const next = (file.sessions[index].shiftShipments ?? 0) + 1;
+    file.sessions[index] = { ...file.sessions[index], shiftShipments: next };
+    await writeSessionsFile(file);
+    return next;
+  });
 }
 
 export async function destroyAuthSession(token: string): Promise<AuthSession | null> {
-  const file = await readSessionsFile();
-  const index = file.sessions.findIndex((entry) => entry.token === token);
-  if (index < 0) return null;
-  const [removed] = file.sessions.splice(index, 1);
-  await writeSessionsFile(file);
-  return removed;
+  return enqueueSessionUpdate(async () => {
+    const file = await readSessionsFile();
+    const index = file.sessions.findIndex((entry) => entry.token === token);
+    if (index < 0) return null;
+    const [removed] = file.sessions.splice(index, 1);
+    await writeSessionsFile(file);
+    return removed;
+  });
 }
 
 export async function setSessionCookie(token: string): Promise<void> {

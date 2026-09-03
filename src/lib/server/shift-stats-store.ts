@@ -113,10 +113,14 @@ export function countShipmentsAllTime(events: ShipmentEvent[], userId: string): 
 export function lastShiftShipments(
   events: ShipmentEvent[],
   userId: string,
-  session: Pick<AuthSession, "shiftStartedAt"> | null,
+  session: Pick<AuthSession, "shiftStartedAt" | "shiftShipments"> | null,
 ): number {
   if (!session) return 0;
-  return countShipmentsForShift(events, userId, session.shiftStartedAt);
+  const fromEvents = countShipmentsForShift(events, userId, session.shiftStartedAt);
+  if (typeof session.shiftShipments === "number") {
+    return Math.max(session.shiftShipments, fromEvents);
+  }
+  return fromEvents;
 }
 
 export interface UserStatsRow {
@@ -137,11 +141,12 @@ export async function buildAllAccountsStats(): Promise<UserStatsRow[]> {
 
 export async function buildUserLiveStats(
   user: AuthUser,
-  _session: AuthSession,
-): Promise<{ today: number; total: number }> {
+  session: AuthSession,
+): Promise<{ today: number; shift: number; total: number }> {
   const events = await loadShipmentEvents();
   return {
     today: countShipmentsToday(events, user.id),
+    shift: lastShiftShipments(events, user.id, session),
     total: countShipmentsAllTime(events, user.id),
   };
 }

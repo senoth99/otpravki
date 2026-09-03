@@ -18,6 +18,7 @@ export interface AuthUserPublic {
 
 export interface AuthLiveStats {
   today: number;
+  shift: number;
   total: number;
 }
 

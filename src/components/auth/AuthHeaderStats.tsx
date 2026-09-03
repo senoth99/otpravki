@@ -42,9 +42,9 @@ export function AuthHeaderStats() {
           </span>
           <span className="flex items-baseline gap-1.5">
             <span className="text-lg font-bold leading-none tabular-nums text-gray-900">
-              {stats.today}
+              {stats.shift}
             </span>
-            <span className="text-[11px] font-medium text-gray-400">сегодня</span>
+            <span className="text-[11px] font-medium text-gray-400">смена</span>
           </span>
         </button>
         <button
@@ -74,7 +74,13 @@ export function AuthHeaderStats() {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                  Смена
+                </p>
+                <p className="mt-1 text-3xl font-bold tabular-nums text-gray-900">{stats.shift}</p>
+              </div>
               <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3">
                 <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
                   Сегодня
