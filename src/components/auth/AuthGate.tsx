@@ -26,7 +26,9 @@ function isGuestPublicPath(pathname: string | null): boolean {
     pathname === "/gaidy" ||
     pathname.startsWith("/gaidy/") ||
     pathname === "/obzor" ||
-    pathname.startsWith("/obzor/")
+    pathname.startsWith("/obzor/") ||
+    pathname === "/admin/add-brand" ||
+    pathname.startsWith("/admin/add-brand/")
   );
 }
 

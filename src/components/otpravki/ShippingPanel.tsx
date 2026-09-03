@@ -18,6 +18,7 @@ import {
 } from "@/lib/assembly-progress";
 import { collectedReadyOrderIds, partiallyCollectedOrderIds } from "@/lib/assembly-status";
 import { ALL_BRANDS, formatBrandLabel, getStoreBrand, matchesStoreBrand } from "@/lib/store-brand";
+import { useConfiguredBrands } from "@/hooks/useConfiguredBrands";
 import type { AssemblyItem, ShippingOrder, ShippingTab } from "@/types/shipping";
 import { ArchiveView } from "./ArchiveView";
 import {
@@ -41,8 +42,6 @@ interface ShippingPanelProps {
   initialRevision?: number;
 }
 
-const KNOWN_BRANDS = ["CASHER", "SHECASH", "AMMO", "KURAZHDVIZH"] as const;
-
 function getOrderStoreBrand(order: ShippingOrder): string {
   return getStoreBrand(order.storeBrand);
 }
@@ -55,6 +54,7 @@ export function ShippingPanel({
   initialRevision = 0,
 }: ShippingPanelProps) {
   const { user, loading, refresh } = useAuth();
+  const configuredBrands = useConfiguredBrands();
   const [tab, setTab] = useState<ShippingTab>("shipping");
   const [selectedBrand, setSelectedBrand] = useState<string>(ALL_BRANDS);
   const [filters, setFilters] = useState<OtpravkiFiltersState>(DEFAULT_FILTERS);
@@ -231,11 +231,11 @@ export function ShippingPanel({
       Array.from(
         new Set([
           ALL_BRANDS,
-          ...KNOWN_BRANDS,
+          ...configuredBrands,
           ...orders.map((order) => getOrderStoreBrand(order)),
         ]),
       ),
-    [orders],
+    [orders, configuredBrands],
   );
 
   const cities = useMemo(() => collectFilterCities(activeBrandOrders), [activeBrandOrders]);

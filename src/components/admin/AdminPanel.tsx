@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AuthHeaderStats } from "@/components/auth/AuthHeaderStats";
 import { AssemblyExtrasEditor } from "@/components/admin/AssemblyExtrasEditor";
 import { BoxLabelEditor } from "@/components/admin/BoxLabelEditor";
+import { BrandsPanel } from "@/components/admin/BrandsPanel";
 import { PinNumpad } from "@/components/chestnye-znaki/PinNumpad";
 import { StageLoadingScreen } from "@/components/ui/StageLoadingScreen";
 import { useOtpravkiNoSwipe } from "@/hooks/useOtpravkiNoSwipe";
@@ -23,7 +24,7 @@ function hasBrandBarcodeTemplate(brand: TestBrand): brand is "ammo" | "kurazh" {
   return brand === "ammo" || brand === "kurazh";
 }
 
-type AdminView = "loading" | "pin" | "menu" | "extras" | "box-labels";
+type AdminView = "loading" | "pin" | "menu" | "extras" | "box-labels" | "brands";
 
 export function AdminPanel() {
   useOtpravkiNoSwipe("monitor");
@@ -186,7 +187,7 @@ export function AdminPanel() {
       <header className="safe-top shrink-0 border-b border-gray-200 bg-white px-3 py-3 sm:px-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            {view === "extras" || view === "box-labels" ? (
+            {view === "extras" || view === "box-labels" || view === "brands" ? (
               <button
                 type="button"
                 onClick={() => setView("menu")}
@@ -210,7 +211,9 @@ export function AdminPanel() {
                   ? "Допы сборки"
                   : view === "box-labels"
                     ? "Надписи на коробки"
-                    : "Честные знаки, допы и тест печати"}
+                    : view === "brands"
+                      ? "Бренды"
+                      : "Честные знаки, допы и тест печати"}
               </p>
             </div>
           </div>
@@ -277,6 +280,19 @@ export function AdminPanel() {
                 </span>
                 <span className="mt-0.5 block text-sm text-gray-500">
                   Категория, название, цвет, размер
+                </span>
+              </span>
+              <span className="text-gray-400">→</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("brands")}
+              className="flex min-h-20 items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 text-left shadow-sm active:scale-[0.99]"
+            >
+              <span>
+                <span className="block text-base font-semibold text-gray-900">Добавить бренд</span>
+                <span className="mt-0.5 block text-sm text-gray-500">
+                  Токен производства, QR с телефона, вкл/выкл
                 </span>
               </span>
               <span className="text-gray-400">→</span>
@@ -394,6 +410,7 @@ export function AdminPanel() {
 
         {view === "extras" && <AssemblyExtrasEditor />}
         {view === "box-labels" && <BoxLabelEditor />}
+        {view === "brands" && <BrandsPanel />}
       </main>
     </div>
   );

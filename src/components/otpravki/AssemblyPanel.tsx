@@ -23,6 +23,7 @@ import {
   isAllBrands,
   matchesStoreBrand,
 } from "@/lib/store-brand";
+import { useConfiguredBrands } from "@/hooks/useConfiguredBrands";
 import type { AssemblyItem, ShippingOrder } from "@/types/shipping";
 import type { WarehouseMapConfig } from "@/types/stock";
 import { AssemblyView } from "./AssemblyView";
@@ -47,8 +48,6 @@ interface AssemblyPanelProps {
   syncImmediately?: boolean;
 }
 
-const KNOWN_BRANDS = ["CASHER", "SHECASH", "AMMO", "KURAZHDVIZH"] as const;
-
 function getOrderStoreBrand(order: ShippingOrder): string {
   return getStoreBrand(order.storeBrand);
 }
@@ -62,6 +61,7 @@ export function AssemblyPanel({
   warehouseMap: warehouseMapProp,
   syncImmediately = false,
 }: AssemblyPanelProps) {
+  const configuredBrands = useConfiguredBrands();
   const [selectedBrand, setSelectedBrand] = useState<string>(ALL_BRANDS);
   // Сборка: не режем «только в наличии» — иначе пропадают SKU из неготовых заказов (майка и т.п.).
   const [filters, setFilters] = useState<OtpravkiFiltersState>({
@@ -368,11 +368,11 @@ export function AssemblyPanel({
       Array.from(
         new Set([
           ALL_BRANDS,
-          ...KNOWN_BRANDS,
+          ...configuredBrands,
           ...orders.map((order) => getOrderStoreBrand(order)),
         ]),
       ),
-    [orders],
+    [orders, configuredBrands],
   );
 
   const products = useMemo(() => {
