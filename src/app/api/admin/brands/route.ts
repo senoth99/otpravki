@@ -10,6 +10,7 @@ import {
   upsertStoredBrand,
 } from "@/lib/server/brands-store";
 import { getEnvBrandSeeds } from "@/lib/server/casher-api";
+import { fetchAndSyncWorkspaceFromApiForBrand } from "@/lib/server/workspace-api-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -57,24 +58,55 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Нет доступа" }, { status: 401 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as { token?: unknown };
+  const body = (await request.json().catch(() => ({}))) as {
+    token?: unknown;
+    label?: unknown;
+    name?: unknown;
+  };
   const token = typeof body.token === "string" ? body.token.trim() : "";
+  const labelOverride =
+    (typeof body.label === "string" && body.label.trim()) ||
+    (typeof body.name === "string" && body.name.trim()) ||
+    "";
   if (!token) {
-    return NextResponse.json({ ok: false, error: "Введите токен производства" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Введите токен" }, { status: 400 });
+  }
+  if (!labelOverride) {
+    return NextResponse.json({ ok: false, error: "Укажи название бренда" }, { status: 400 });
   }
 
   try {
-    const ids = await resolveBrandFromProductionToken(token);
+    const ids = await resolveBrandFromProductionToken(token, labelOverride);
     const brand = await upsertStoredBrand({
-      ...ids,
+      key: ids.key,
+      code: ids.code,
+      label: ids.label,
       token,
       enabled: true,
     });
     if (access.invite) await consumeBrandInvite(access.invite);
-    void import("@/lib/server/workspace-api-sync")
-      .then((mod) => mod.fetchAndSyncWorkspaceFromApi())
-      .catch(() => undefined);
-    return NextResponse.json({ ok: true, brand: maskedBrand(brand) });
+
+    let sync: { ok: boolean; ordersCount?: number; error?: string } = { ok: false };
+    try {
+      const result = await fetchAndSyncWorkspaceFromApiForBrand(brand.label, {
+        bypassProductCache: true,
+      });
+      sync = { ok: true, ordersCount: result.apiOrdersCount };
+    } catch (error) {
+      sync = {
+        ok: false,
+        error: error instanceof Error ? error.message : "Синк заказов не удался",
+      };
+    }
+
+    return NextResponse.json({
+      ok: true,
+      brand: maskedBrand(brand),
+      sync,
+      message: sync.ok
+        ? `Добавлен ${brand.label}: заказов в API ${sync.ordersCount ?? 0}`
+        : `Бренд ${brand.label} сохранён, но заказы не подтянулись: ${sync.error}`,
+    });
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : "Не удалось добавить бренд" },
@@ -103,6 +135,12 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "Бренд не найден" }, { status: 404 });
     }
     brand = await upsertStoredBrand({ ...seed, enabled: body.enabled });
+  }
+
+  if (brand.enabled) {
+    void fetchAndSyncWorkspaceFromApiForBrand(brand.label, { bypassProductCache: true }).catch(
+      () => undefined,
+    );
   }
 
   return NextResponse.json({ ok: true, brand: maskedBrand(brand) });

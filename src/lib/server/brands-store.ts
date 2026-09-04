@@ -78,17 +78,16 @@ function parseBrands(raw: string): StoredBrand[] {
 }
 
 function readBrandsSync(): StoredBrand[] {
-  if (brandsMemory) return brandsMemory;
+  // Всегда с диска: у Next.js разные запросы/воркеры, in-memory кэш иначе теряет новый бренд.
   try {
     if (!existsSync(BRANDS_FILE)) {
       brandsMemory = [];
-      return brandsMemory;
+      return [];
     }
     brandsMemory = parseBrands(readFileSync(BRANDS_FILE, "utf-8"));
     return brandsMemory;
   } catch {
-    brandsMemory = [];
-    return brandsMemory;
+    return brandsMemory ?? [];
   }
 }
 

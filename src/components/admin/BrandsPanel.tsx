@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { mutatingApiHeaders } from "@/lib/api-headers";
 
 interface AdminBrand {
@@ -14,24 +14,49 @@ interface AdminBrand {
 export function BrandsPanel() {
   const [brands, setBrands] = useState<AdminBrand[]>([]);
   const [token, setToken] = useState("");
+  const [label, setLabel] = useState("");
   const [showQr, setShowQr] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [qrImage, setQrImage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const knownKeysRef = useRef<Set<string>>(new Set());
+  const initializedRef = useRef(false);
 
-  const loadBrands = useCallback(async () => {
+  const loadBrands = useCallback(async (opts?: { silent?: boolean }) => {
     const res = await fetch("/api/admin/brands", { cache: "no-store" });
     const data = (await res.json()) as { ok?: boolean; brands?: AdminBrand[]; error?: string };
     if (!res.ok || !data.ok) throw new Error(data.error ?? "Не удалось загрузить бренды");
-    setBrands(data.brands ?? []);
+    const next = data.brands ?? [];
+
+    if (!initializedRef.current) {
+      knownKeysRef.current = new Set(next.map((brand) => brand.key));
+      initializedRef.current = true;
+    } else {
+      const added = next.filter((brand) => !knownKeysRef.current.has(brand.key));
+      if (added.length > 0) {
+        setMessage(`С телефона добавлен: ${added.map((brand) => brand.label).join(", ")}`);
+        knownKeysRef.current = new Set(next.map((brand) => brand.key));
+      }
+    }
+
+    setBrands(next);
+    if (!opts?.silent) setError(null);
   }, []);
 
   useEffect(() => {
     void loadBrands().catch((err: unknown) => {
       setError(err instanceof Error ? err.message : "Ошибка загрузки");
     });
+  }, [loadBrands]);
+
+  // Пока открыт раздел — опрашиваем, чтобы увидеть бренд с телефона
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void loadBrands({ silent: true }).catch(() => undefined);
+    }, 2500);
+    return () => window.clearInterval(timer);
   }, [loadBrands]);
 
   useEffect(() => {
@@ -74,7 +99,7 @@ export function BrandsPanel() {
   }, [showQr]);
 
   const addBrand = async () => {
-    if (busy || !token.trim()) return;
+    if (busy || !token.trim() || !label.trim()) return;
     setBusy(true);
     setError(null);
     setMessage(null);
@@ -82,12 +107,20 @@ export function BrandsPanel() {
       const res = await fetch("/api/admin/brands", {
         method: "POST",
         headers: { ...mutatingApiHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ token: token.trim() }),
+        body: JSON.stringify({ token: token.trim(), label: label.trim() }),
       });
-      const data = (await res.json()) as { ok?: boolean; error?: string; brand?: AdminBrand };
+      const data = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        brand?: AdminBrand;
+        message?: string;
+        sync?: { ok?: boolean; ordersCount?: number; error?: string };
+      };
       if (!res.ok || !data.ok) throw new Error(data.error ?? "Не удалось добавить");
       setToken("");
-      setMessage(`Добавлен ${data.brand?.label ?? "бренд"}`);
+      setLabel("");
+      setMessage(data.message ?? `Добавлен ${data.brand?.label ?? "бренд"}`);
+      knownKeysRef.current.add(data.brand?.key ?? "");
       await loadBrands();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка");
@@ -116,7 +149,17 @@ export function BrandsPanel() {
     <div className="mx-auto w-full max-w-lg space-y-4 py-2">
       <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
         <h2 className="text-base font-semibold text-gray-900">Добавить бренд</h2>
-        <p className="mt-1 text-sm text-gray-500">Токен производства Amarix — один ключ = один бренд</p>
+        <p className="mt-1 text-sm text-gray-500">
+          Нужен API-ключ бренда Amarix (`csh_at_…`), не facility-ключ производства
+        </p>
+        <input
+          type="text"
+          value={label}
+          onChange={(event) => setLabel(event.target.value)}
+          placeholder="Название бренда, например NEWBRAND"
+          autoCapitalize="characters"
+          className="mt-3 min-h-12 w-full rounded-2xl border border-gray-200 px-4 text-base text-gray-900"
+        />
         <input
           type="text"
           value={token}
@@ -124,7 +167,7 @@ export function BrandsPanel() {
           placeholder="csh_at_…"
           autoCapitalize="off"
           autoCorrect="off"
-          className="mt-3 min-h-12 w-full rounded-2xl border border-gray-200 px-4 text-base text-gray-900"
+          className="mt-2 min-h-12 w-full rounded-2xl border border-gray-200 px-4 text-base text-gray-900"
         />
         <label className="mt-3 flex min-h-11 items-center gap-2 text-sm text-gray-800">
           <input
@@ -137,18 +180,20 @@ export function BrandsPanel() {
         </label>
         <button
           type="button"
-          disabled={busy || !token.trim()}
+          disabled={busy || !token.trim() || !label.trim()}
           onClick={() => void addBrand()}
           className="mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-gray-900 text-sm font-medium text-white disabled:opacity-50"
         >
-          {busy ? "Проверяю…" : "Добавить"}
+          {busy ? "Проверяю и тяну заказы…" : "Добавить"}
         </button>
         {showQr && (
           <div className="mt-4 rounded-2xl border border-gray-100 bg-gray-50 p-4 text-center">
             {qrImage ? (
               <>
                 <img src={qrImage} alt="QR добавления бренда" className="mx-auto h-48 w-48" />
-                <p className="mt-2 text-xs text-gray-500">Ссылка 30 минут. Открой на телефоне и вставь токен.</p>
+                <p className="mt-2 text-xs text-gray-500">
+                  Ссылка 30 минут. На телефоне укажи название и токен — здесь появится уведомление.
+                </p>
                 {qrUrl ? <p className="mt-1 break-all text-[11px] text-gray-400">{qrUrl}</p> : null}
               </>
             ) : (

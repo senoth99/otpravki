@@ -87,32 +87,90 @@ function extractFromList(data: unknown): string | null {
   return null;
 }
 
-export async function resolveBrandFromProductionToken(token: string): Promise<{
-  key: string;
-  code: string;
-  label: string;
+export async function probeBrandToken(token: string): Promise<{
+  okOrders: boolean;
+  okProducts: boolean;
+  suggestedLabel: string | null;
+  ordersCount: number;
+  error?: string;
 }> {
   const trimmed = token.trim();
   if (!trimmed) {
-    throw new Error("Введите токен производства");
+    return {
+      okOrders: false,
+      okProducts: false,
+      suggestedLabel: null,
+      ordersCount: 0,
+      error: "Введите токен",
+    };
   }
 
   const me = await fetchJson("/production-api/me", trimmed);
-  const fromMe = extractBrandName(me.data);
-
   const products = await fetchJson("/products", trimmed);
-  const fromProducts = extractFromList(products.data) ?? extractBrandName(products.data);
-
   const unshipped = await fetchJson("/orders/admin/unshipped-with-stock", trimmed);
-  const fromOrders = extractFromList(unshipped.data);
 
-  const raw = fromMe ?? fromProducts ?? fromOrders;
-  if (!raw) {
-    if (me.status === 401 && products.status === 401 && unshipped.status === 401) {
-      throw new Error("Неверный или неактивный токен");
-    }
-    throw new Error("Токен принят API, но бренд не определился — проверь ключ в Amarix");
+  const fromMe = extractBrandName(me.data);
+  const fromProducts = extractFromList(products.data) ?? extractBrandName(products.data);
+  const fromOrders = extractFromList(unshipped.data);
+  const suggestedLabel = fromOrders ?? fromProducts ?? fromMe;
+
+  const ordersPayload = unshipped.data;
+  const ordersRec = asRecord(ordersPayload);
+  const ordersRows = Array.isArray(ordersPayload)
+    ? ordersPayload
+    : Array.isArray(ordersRec?.orders)
+      ? ordersRec.orders
+      : Array.isArray(ordersRec?.items)
+        ? ordersRec.items
+        : [];
+
+  return {
+    okOrders: unshipped.ok,
+    okProducts: products.ok,
+    suggestedLabel,
+    ordersCount: ordersRows.length,
+    error:
+      !unshipped.ok && !products.ok && !me.ok
+        ? "Неверный или неактивный токен"
+        : !unshipped.ok
+          ? "Токен не даёт доступ к заказам (нужен ORDERS-токен бренда csh_at_…)"
+          : undefined,
+  };
+}
+
+export async function resolveBrandFromProductionToken(
+  token: string,
+  labelOverride?: string,
+): Promise<{
+  key: string;
+  code: string;
+  label: string;
+  okOrders: boolean;
+  ordersCount: number;
+}> {
+  const trimmed = token.trim();
+  if (!trimmed) {
+    throw new Error("Введите токен");
   }
 
-  return brandIdsFromRaw(raw);
+  const probe = await probeBrandToken(trimmed);
+  if (probe.error && !probe.okOrders && !probe.okProducts) {
+    throw new Error(probe.error);
+  }
+  if (!probe.okOrders) {
+    throw new Error(
+      probe.error ?? "Токен не подходит для отправок — нужен API-ключ бренда (csh_at_…)",
+    );
+  }
+
+  const raw = labelOverride?.trim() || probe.suggestedLabel;
+  if (!raw) {
+    throw new Error("Укажи название бренда — API не вернул brand_code");
+  }
+
+  return {
+    ...brandIdsFromRaw(raw),
+    okOrders: probe.okOrders,
+    ordersCount: probe.ordersCount,
+  };
 }
